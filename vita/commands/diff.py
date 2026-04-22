@@ -1,6 +1,5 @@
-"""vita diff — show git diff between a company's CV branch and its base."""
-
-from vita.utils import load_registry, run_shell
+from vita.helpers.registry import load_registry
+from vita.helpers import git
 
 
 def run(company: str) -> None:
@@ -8,7 +7,7 @@ def run(company: str) -> None:
     registry = load_registry()
 
     if company not in registry:
-        print(f"❌ No CVs found for '{company}' in the registry.")
+        print(f"No CVs found for '{company}' in the registry.")
         return
 
     data         = registry[company]
@@ -16,7 +15,7 @@ def run(company: str) -> None:
     branch_bases = data.get("branch_bases", {})
 
     if not branches:
-        print(f"⚠️  '{company}' exists in registry but has no branches recorded.")
+        print(f"'{company}' exists in registry but has no branches recorded.")
         return
 
     # ── Pick branch ──────────────────────────────────────────────────────────
@@ -36,16 +35,16 @@ def run(company: str) -> None:
     base = branch_bases.get(branch, "master")
 
     print()
-    print(f"📊 Diff: {base}  →  {branch}")
+    print(f"Diff: {base}  →  {branch}")
     print("─" * 50)
 
-    result = run_shell(["git", "diff", f"{base}...{branch}", "--", "*.tex", "sections/"])
+    result = git.diff(base, branch, paths=["*.tex", "sections/"])
 
-    if result.returncode != 0:
-        print(f"❌ git diff failed:\n{result.stderr.strip()}")
+    if not result.ok:
+        print(f"git diff failed:\n{result.stderr}")
         return
 
-    if result.stdout.strip():
+    if result.stdout:
         print(result.stdout)
     else:
         print("(no differences found — branch is identical to base)")

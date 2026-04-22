@@ -1,0 +1,9 @@
+include README.md
+include LICENSE
+include pyproject.toml
+include EXTENSIONS.md
+
+recursive-include vita/assets *.md
+recursive-include vita *.py
+
+global-exclude *.py[cod] __pycache__ *.so

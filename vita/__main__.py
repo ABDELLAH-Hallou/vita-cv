@@ -48,11 +48,8 @@ commands:
     new_p.add_argument("-c", "--commit", action="store_true", help="Commit uncommitted changes before branching")
 
     # ── build ─────────────────────────────────────────────────────────────────
-    build_p = subparsers.add_parser("build", help="Compile the LaTeX CV to PDF")
-    build_p.add_argument(
-        "--mode", choices=["auto", "latexmk", "biber"], default="auto",
-        help="Build mode (default: auto-detect from .bib presence)"
-    )
+    subparsers.add_parser("build", help="Compile the LaTeX CV to PDF")
+
 
     # ── status ────────────────────────────────────────────────────────────────
     subparsers.add_parser("status", help="Show all companies and branches")
@@ -89,7 +86,7 @@ commands:
         new.run(args.type, args.company, args.role, args.force, args.commit)
 
     elif args.command == "build":
-        build.run(args.mode)
+        build.run()
 
     elif args.command == "status":
         status.run()

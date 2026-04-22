@@ -1,11 +1,10 @@
 """vita new — create a new tailored CV branch."""
 
 from datetime import date
-from vita.utils import (
-    load_config, load_registry, save_registry,
-    get_current_branch, run_shell, normalize_role, log,
-    has_commits, is_git_clean, get_all_branches
-)
+from vita.helpers.config import load_config
+from vita.helpers.registry import load_registry, save_registry, normalize_role
+from vita.helpers.logging import log
+from vita.helpers import git
 
 
 def run(branch_type: str, company: str, role: str, force: bool = False, commit_changes: bool = False) -> None:
@@ -18,7 +17,7 @@ def run(branch_type: str, company: str, role: str, force: bool = False, commit_c
 
     # ── Guard: company locked ────────────────────────────────────────────────
     if company in registry and registry[company].get("locked", False):
-        print(f"❌ '{company}' is locked — you decided to keep a fixed CV for this company.")
+        print(f"'{company}' is locked — you decided to keep a fixed CV for this company.")
         print("   Use `python -m vita unlock {company}` to remove the lock.")
         return
 
@@ -36,57 +35,55 @@ def run(branch_type: str, company: str, role: str, force: bool = False, commit_c
                     print("Aborted.")
                     return
 
-    # ── Guard: Uncommitted changes ───────────────────────────────────────────
-    if not has_commits():
-        print("⚠️  No initial commit found. Branches created now will be 'unborn' until the first commit.")
+    # ── Guard: Uncommitted changes ────────────────────────────────────────────
+    if not git.has_commits():
+        print("No initial commit found. Branches created now will be 'unborn' until the first commit.")
         action = input("Would you like to make your initial commit now? [Y/n]: ").strip().lower()
         if action != 'n':
             msg = input(f"Commit message [Initial commit]: ").strip()
             if not msg:
                 msg = "Initial commit"
-            run_shell(["git", "add", "."])
-            run_shell(["git", "commit", "-m", msg])
-            print("✅ Initial commit created.")
-    elif commit_changes and not is_git_clean():
-        print("⚠️  Uncommitted changes found and --commit flag was passed.")
+            git.add_and_commit(msg)
+            print("Initial commit created.")
+    elif commit_changes and not git.is_clean():
+        print("Uncommitted changes found and --commit flag was passed.")
         action = input("What would you like to do? [a]dd and commit / [s]tash / [c]ontinue without committing. Default [a]: ").strip().lower()
         if action == "s":
-            run_shell(["git", "stash"])
-            print("✅ Changes stashed.")
+            git.stash()
+            print("Changes stashed.")
         elif action != "c":
             msg = input(f"Commit message [Auto-commit: prep before branching '{branch}']: ").strip()
             if not msg:
                 msg = f"Auto-commit: prep before branching '{branch}'"
-            run_shell(["git", "add", "."])
-            run_shell(["git", "commit", "-m", msg])
-            print("✅ Changes committed.")
+            git.add_and_commit(msg)
+            print("Changes committed.")
 
-    # ── Resolve base branch ──────────────────────────────────────────────────
+    # ── Resolve base branch ────────────────────────────────────────────
     default_base = f"gen-{role}"
     base = input(f"Base branch? [{default_base}]: ").strip() or default_base
 
-    # ── Create git branch ────────────────────────────────────────────────────
-    current = get_current_branch()
+    # ── Create git branch ────────────────────────────────────────────
+    current = git.current_branch()
     if base != current:
-        if base not in get_all_branches():
-            print(f"⚠️  Base branch '{base}' does not exist.")
-            print(f"   Automatically creating '{base}' from current branch...")
-            create_base = run_shell(["git", "checkout", "-b", base])
-            if create_base.returncode != 0:
-                print(f"❌ Failed to create base branch '{base}':")
-                print(f"   {create_base.stderr.strip()}")
+        if not git.branch_exists(base):
+            print(f"Base branch '{base}' does not exist.")
+            print(f"Automatically creating '{base}' from current branch...")
+            create_base = git.create_branch(base)
+            if not create_base.ok:
+                print(f"Failed to create base branch '{base}':")
+                print(f"   {create_base.stderr}")
                 return
         else:
-            checkout_base = run_shell(["git", "checkout", base])
-            if checkout_base.returncode != 0:
-                print(f"❌ Failed to checkout base branch '{base}':")
-                print(f"   {checkout_base.stderr.strip()}")
+            checkout_base = git.checkout(base)
+            if not checkout_base.ok:
+                print(f"Failed to checkout base branch '{base}':")
+                print(f"   {checkout_base.stderr}")
                 return
 
-    result = run_shell(["git", "checkout", "-b", branch])
-    if result.returncode != 0:
-        print(f"❌ Failed to create branch '{branch}':")
-        print(f"   {result.stderr.strip()}")
+    result = git.create_branch(branch)
+    if not result.ok:
+        print(f"Failed to create branch '{branch}':")
+        print(f"   {result.stderr}")
         return
 
     # ── Update registry ──────────────────────────────────────────────────────
@@ -110,6 +107,6 @@ def run(branch_type: str, company: str, role: str, force: bool = False, commit_c
     log(f"Created branch '{branch}' (base: {base}) for company '{company}'")
 
     print()
-    print(f"✅ Branch created  : {branch}")
-    print(f"   Base branch     : {base}")
-    print(f"   Registry updated: .vita/companies.json")
+    print(f"Branch created  : {branch}")
+    print(f"Base branch     : {base}")
+    print(f"Registry updated: .vita/companies.json")

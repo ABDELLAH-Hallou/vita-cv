@@ -6,9 +6,9 @@ and offers to fix any discrepancies:
   - Branches in the registry that DON'T exist in git → remove them
 """
 
-from vita.utils import (
-    load_registry, save_registry, get_all_branches, log
-)
+from vita.helpers.registry import load_registry, save_registry
+from vita.helpers.logging import log
+from vita.helpers import git
 
 _ETP_PREFIX = "etp-"
 
@@ -26,7 +26,7 @@ def _parse_etp_branch(branch: str) -> tuple[str, str] | None:
 
 def run(auto: bool = False, dry_run: bool = False) -> None:
     registry = load_registry()
-    git_branches = get_all_branches()
+    git_branches = git.all_branches()
 
     # ── 1. Find etp-* branches present in git ────────────────────────────────
     git_etp = {}  # company → set of branch names
@@ -53,27 +53,27 @@ def run(auto: bool = False, dry_run: bool = False) -> None:
 
     # ── 4. Report ─────────────────────────────────────────────────────────────
     if not missing and not orphans:
-        print("✅ Registry is already in sync with git branches.")
+        print("Registry is already in sync with git branches.")
         return
 
     LINE = "─" * 50
-    print("🔄 VITA Sync Report")
+    print("VITA Sync Report")
     print(LINE)
 
     if missing:
-        print(f"\n📥 Branches in git NOT in registry ({len(missing)}):")
+        print(f"\nBranches in git NOT in registry ({len(missing)}):")
         for company, branch in missing:
             print(f"   + {branch}  (company: {company})")
 
     if orphans:
-        print(f"\n🗑️  Registry entries with no git branch ({len(orphans)}):")
+        print(f"\nRegistry entries with no git branch ({len(orphans)}):")
         for company, branch in orphans:
             print(f"   - {branch}  (company: {company})")
 
     print()
 
     if dry_run:
-        print("ℹ️  Dry-run mode — no changes written.")
+        print("Dry-run mode — no changes written.")
         return
 
     # ── 5. Prompt / apply ────────────────────────────────────────────────────
@@ -124,4 +124,4 @@ def run(auto: bool = False, dry_run: bool = False) -> None:
 
     save_registry(registry)
 
-    print(f"✅ Sync complete: {added} added, {removed} removed.")
+    print(f"Sync complete: {added} added, {removed} removed.")

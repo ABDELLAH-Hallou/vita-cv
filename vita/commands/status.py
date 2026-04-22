@@ -1,6 +1,8 @@
 """vita status — show all companies, branches, and current position."""
 
-from vita.utils import load_config, load_registry, get_current_branch, get_all_branches
+from vita.helpers.config import load_config
+from vita.helpers.registry import load_registry
+from vita.helpers import git
 
 _LINE = "━" * 44
 
@@ -9,9 +11,9 @@ def run() -> None:
     config   = load_config()
     registry = load_registry()
     author   = config.get("author", "unknown")
-    current  = get_current_branch()
+    current  = git.current_branch()
 
-    print(f"📋 VITA Status — {author}")
+    print(f"VITA Status — {author}")
     print(_LINE)
     print(f"Current branch : {current}")
     print()
@@ -41,7 +43,7 @@ def run() -> None:
         print()
 
     # ── Base/gen branches ────────────────────────────────────────────────────
-    gen_branches = [b for b in get_all_branches() if b.startswith("gen-")]
+    gen_branches = [b for b in git.all_branches() if b.startswith("gen-")]
     if gen_branches:
         print(f"Base branches:")
         print(f"  {' · '.join(gen_branches)}")

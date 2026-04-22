@@ -1,172 +1,165 @@
-# VITA — Resume as a Service
+# VITA — CV as Code
 
-> **Resume-as-Code + Policy Enforcement Layer**
+> **One base CV. Infinite targeted variants. Zero duplicates.**
 >
-> VITA is a git-based CV management system that lets you maintain, version, and tailor your resume for different companies and roles — while enforcing consistency and preventing accidental duplicate applications.
+> `vita-cv` is a CLI tool that treats your resume like source code — versioned with git, branched per company, and built from LaTeX.
+
+```sh
+uv tool install vita-cv
+```
 
 ---
 
-## Why VITA?
+## Table of Contents
 
-Most people manage CVs as loose files. VITA treats your resume like source code:
-
-- ✅ **Versioned** — every change is tracked via git
-- ✅ **Branched** — one base CV, infinite targeted variants
-- ✅ **Guarded** — CLI warns you before you apply twice to the same company
-- ✅ **Reproducible** — LaTeX builds are automated and standardized
+1. [How It Works](#how-it-works)
+2. [Prerequisites](#prerequisites)
+3. [Quick Start](#quick-start)
+4. [Your CV Project Structure](#your-cv-project-structure)
+5. [Files You Need to Create](#files-you-need-to-create)
+6. [Configuration Reference](#configuration-reference)
+7. [CLI Commands](#cli-commands)
+8. [Typical Workflow](#typical-workflow)
+9. [Building the PDF](#building-the-pdf)
+10. [Extensibility](#extensibility)
+11. [AI Skills](#ai-skills)
+12. [Design Philosophy](#design-philosophy)
 
 ---
 
-## Branch Structure
+## How It Works
 
-| Branch Pattern | Purpose |
+VITA manages your CV using git branches:
+
+| Branch | Purpose |
 |---|---|
-| `master` | Stable base CVs by domain |
-| `gen-<field>` | General CV per domain (e.g. `gen-ml`, `gen-swe`) |
-| `etp-<company>-<role>` | Company-specific tailored CV (e.g. `etp-google-swe`) |
+| `master` | Your canonical base — the CV you're always proud of |
+| `gen-<role>` | Domain-specific base (e.g. `gen-swe`, `gen-ml`) |
+| `etp-<company>-<role>` | Tailored CV for a specific application (e.g. `etp-google-swe`) |
+
+Every time you apply somewhere, you create a branch. VITA tracks that in a registry so you never accidentally send the wrong version or apply twice.
 
 ---
 
-## Project Structure
+## Prerequisites
 
-```
-.
-├── main.tex          # LaTeX CV entry point
-├── sections/         # Modular CV sections
-├── .vita/
-│   ├── companies.json  # Company registry (source of truth)
-│   ├── config.json     # CLI configuration with defaults
-│   └── logs/           # Application logs
-├── vita/
-│   ├── assets/         # Built-in prompts and skills
-│   ├── commands/       # CLI command logic
-│   └── utils.py        # Shared utilities
-└── README.md
-```
+- **uv** — [install](https://docs.astral.sh/uv/getting-started/installation/) (`pip install uv` or `curl -LsSf https://astral.sh/uv/install.sh | sh`)
+- **Python 3.10+** — managed automatically by uv
+- **Git** (must be in PATH)
+- **LaTeX** — [TeX Live](https://tug.org/texlive/) or [MiKTeX](https://miktex.org/), with `latexmk`
 
 ---
 
-## CLI Usage
-
-### Setup
-
-Activate the venv, then `vita` is available directly:
+## Quick Start
 
 ```sh
-.\venv\Scripts\activate
-vita <command>
-```
+# 1. Install vita from PyPI as a persistent tool
+uv tool install vita-cv
+# → vita is now available globally in your terminal
 
-> First time only: `pip install -e .` registers `vita` as a binary in the venv.
+# 2. Create your CV project directory
+mkdir my-cv && cd my-cv
 
----
-
-### Initialize a new VITA repo
-
-```sh
+# 3. Initialize VITA (creates .vita/ and git repo)
 vita init
-```
 
-Scaffolds `.vita/` with default `config.json` and an empty `companies.json`.
+# 4. Edit .vita/config.json — set your name
+#    "author": "yourname"
 
-### Create a new tailored CV branch
+# 5. Create your LaTeX CV (see below)
+# ... write main.tex, sections/, etc.
 
-```sh
-vita new etp <company> <role>
-```
+# 6. Commit your base CV
+git add .
+git commit -m "base: initial CV"
 
-Example:
+# 7. Apply to a company
+vita new etp google "software engineer"
+# → creates branch etp-google-swe, updates registry
 
-```sh
-vita new etp google swe
-```
-
-Checks the registry, warns if a CV for that company already exists, creates the branch, and updates `companies.json`.
-
-### Build the CV (PDF)
-
-```sh
+# 8. Tailor your CV for this job, then build
 vita build
 ```
 
-Auto-detects whether a `.bib` file is present and switches between `latexmk` and the 4-step `pdflatex + biber` flow automatically.
+---
 
-### Check application status
+## Your CV Project Structure
 
-```sh
-vita status
-```
-
-Example output:
+After running `vita init`, your project should look like this:
 
 ```
-📋 VITA Status — Abdellah_HALLOU
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Current branch : etp-google-swe
-
-Companies (3):
-  google  [2 CVs]
-    ├── etp-google-swe   base: gen-swe   ← you are here
-    └── etp-google-ml    base: gen-ml
-
-  meta    [1 CV]
-    └── etp-meta-de      base: gen-de
-
-  amazon  [1 CV] [LOCKED]
-    └── etp-amazon-swe   base: gen-swe
-
-Base branches:
-  gen-ml · gen-swe · gen-de
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+my-cv/
+├── main.tex              ← LaTeX entry point (you create this)
+├── sections/             ← Modular CV sections (you create these)
+│   ├── experience.tex
+│   ├── education.tex
+│   ├── skills.tex
+│   └── ...
+├── job.md                ← Paste job descriptions here (for AI prompts)
+├── out/                  ← PDF output (auto-created on build)
+│
+└── .vita/                ← Auto-created by `vita init`
+    ├── config.json       ← Your settings (author, output paths, etc.)
+    ├── companies.json    ← Registry of all companies you've applied to
+    ├── extensions.json   ← Your custom role aliases and languages
+    └── logs/             ← CLI activity log
 ```
 
-### View diff from base CV
+> `.vita/` is gitignored — your registry and config stay local.
 
-```sh
-vita diff <company>
+---
+
+## Files You Need to Create
+
+VITA manages the `.vita/` directory for you. **You are responsible for the LaTeX files.**
+
+### `main.tex` — Entry Point
+
+Your main LaTeX file. VITA will compile this with `latexmk`. Example minimal structure:
+
+```latex
+\documentclass{article}
+
+\begin{document}
+
+\input{sections/experience}
+\input{sections/education}
+\input{sections/skills}
+
+\end{document}
 ```
 
-### Lock / Unlock a company
+You can use any LaTeX CV class (e.g. `moderncv`, `altacv`, `awesome-cv`).
 
-```sh
-vita lock <company>
-vita unlock <company>
+### `sections/` — Modular Content
+
+Split your CV into files so each branch only touches relevant sections:
+
+```
+sections/
+├── experience.tex   ← Work history (most frequently changed per company)
+├── education.tex    ← Education
+├── skills.tex       ← Skills (adjust keywords per role)
+├── summary.tex      ← Optional: tailored headline
+└── projects.tex     ← Optional
+```
+
+### `job.md` — Job Description (for AI prompts)
+
+When you run `vita adapt` or `vita analyze`, VITA looks for `job.md` in your project root. Paste the job posting there:
+
+```markdown
+Company: Google
+Role: Senior Software Engineer
+
+[Paste full job description here]
 ```
 
 ---
 
-## Building LaTeX Manually
+## Configuration Reference
 
-### Standard build
-
-```sh
-latexmk -pdf -outdir=out main.tex
-latexmk -pdf -outdir=out -interaction=nonstopmode -synctex=1 main.tex
-```
-
-### Fix bibliography (BibTeX/Biber) issues
-
-Run these steps in order:
-
-```sh
-# Step 1 — First pass: writes .aux and .bcf with citekeys
-pdflatex -output-directory=out main.tex
-
-# Step 2 — Biber resolves citations
-biber --input-directory=out --output-directory=out main
-
-# Step 3 — Second pass: writes bibliography into PDF
-pdflatex -output-directory=out main.tex
-
-# Step 4 — Third pass: fixes cross-references
-pdflatex -output-directory=out main.tex
-```
-
----
-
-## Configuration
-
-After `vita init`, `.vita/config.json` is created with these defaults:
+`vita init` creates `.vita/config.json` with these defaults:
 
 ```json
 {
@@ -174,61 +167,263 @@ After `vita init`, `.vita/config.json` is created with these defaults:
   "output_dir": "out",
   "output_filename": "cv-{author}.pdf",
   "tex_entry": "main.tex",
-  "build_mode": "auto",
   "default_base_branch": "master",
-  "strict_mode": false,
   "allow_multiple_per_company": true,
   "warn_on_duplicate": true
 }
 ```
 
+| Key | What it does |
+|---|---|
+| `author` | Your name — used in the PDF filename |
+| `output_dir` | Where the compiled PDF goes (`out/` by default) |
+| `output_filename` | PDF name template. `{author}` is substituted automatically |
+| `tex_entry` | Your LaTeX entry file (default: `main.tex`) |
+| `default_base_branch` | The branch `vita new` checks out from if no base exists |
+| `allow_multiple_per_company` | If `false`, blocks a second CV for the same company |
+| `warn_on_duplicate` | If `true`, warns (but doesn't block) on duplicate company |
+
 ---
 
-## AI Agents & Skills
+## CLI Commands
 
-VITA includes an extensive suite of built-in AI Agent Skills that you can use with Antigravity or any supporting AI assistant. These skills automatically apply industry best practices for specific career tasks.
+### `vita init`
 
-### Core Resume Optimization
-- `resume-writer.md` & `resume-reviewer.md`: Custom general writer and reviewer agents.
-- `resume-ats-optimizer.md`: General ATS formatting and optimization.
-- `resume-bullet-writer.md` & `resume-quantifier.md`: Improve and quantify your experience bullets.
-- `resume-section-builder.md` & `resume-formatter.md`: Help restructuring specific resume sections.
-- `resume-version-manager.md`: Manage multiple versions of your resume.
+Initialize VITA in the current directory. Creates `.vita/`, scaffolds config files, and runs `git init`.
 
-### Job Targeting & Strategy
-- `job-description-analyzer.md`: Analyze a job description, calculate a match score, and identify gaps.
-- `resume-tailor.md`: Customize your CV specifically for a target role.
-- `offer-comparison-analyzer.md`: Compare multiple job offers objectively.
+```sh
+vita init          # first-time setup
+vita init --force  # wipe and re-initialize
+```
 
-### Supporting Documents & Prep
-- `cover-letter-generator.md`: Write highly personalized cover letters.
-- `linkedin-profile-optimizer.md`: Optimize your LinkedIn profile to match your CV.
-- `interview-prep-generator.md`: Generate STAR interview stories based on your CV bullets.
-- `salary-negotiation-prep.md`: Get strategies for offer negotiation.
+---
 
-### Specialized Roles & Extensions
-- **Industry specific**: `tech-resume-optimizer.md`, `executive-resume-writer.md`, `academic-cv-builder.md`
-- **Career transitions**: `career-changer-translator.md`
-- **Portfolios/Creative**: `creative-portfolio-resume.md`, `portfolio-case-study-writer.md`
-- **References**: `reference-list-builder.md`
+### `vita new etp <company> <role>`
 
-### How To Use Them
+Create a new tailored CV branch for a job application.
 
-You can invoke any skill by directly referencing it when prompting your AI assistant (skills are located in the package directory):
+```sh
+vita new etp google "software engineer"
+vita new etp openai ml
+vita new etp stripe "backend engineer" --commit  # commit pending changes first
+```
 
-**Example 1: Tailoring for a job**
-> "Please use the `resume-tailor` skill to update my `main.tex` file so it aligns with this job description I just pasted."
+- Normalizes the role (`software engineer` → `swe`)
+- Creates branch `etp-<company>-<role>` off your base branch
+- Registers the company in `.vita/companies.json`
+- Warns if you've already applied to this company
 
-**Example 2: Fixing your bullet points**
-> "Analyze the experience section in my CV using the `resume-bullet-writer` skill and suggest improvements."
+---
 
-**Example 3: Interview prep**
-> "I have an interview tomorrow at Google. Use `interview-prep-generator` to help me generate STAR stories from my resume."
+### `vita status`
+
+See all companies, branches, and where you currently are.
+
+```sh
+vita status
+```
+
+```
+VITA Status — yourname
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current branch : etp-google-swe
+
+Companies (2):
+  google  [2 CVs]
+    ├── etp-google-swe   base: gen-swe   ← you are here
+    └── etp-google-ml    base: gen-ml
+
+  meta  [1 CV] [LOCKED]
+    └── etp-meta-swe     base: gen-swe
+
+Base branches:
+  gen-swe · gen-ml
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+### `vita sync`
+
+Reconcile the registry with your actual git branches. Useful if you created or deleted branches manually.
+
+```sh
+vita sync              # interactive
+vita sync --dry-run    # preview only, no changes written
+vita sync --auto       # apply all changes without prompting
+```
+
+---
+
+### `vita build`
+
+Compile your LaTeX CV to PDF using `latexmk`.
+
+```sh
+vita build
+```
+
+Output goes to `out/cv-<author>.pdf` (or whatever you configured).
+
+---
+
+### `vita diff <company>`
+
+Show what changed in a company branch versus its base.
+
+```sh
+vita diff google
+```
+
+---
+
+### `vita lock / unlock <company>`
+
+Lock a company to prevent creating new CVs for it (e.g. you've accepted an offer).
+
+```sh
+vita lock amazon
+vita unlock amazon
+```
+
+---
+
+### `vita analyze`
+
+Generate an AI prompt to analyze your CV against the job in `job.md`.
+
+```sh
+vita analyze
+```
+
+Saves the prompt to `.vita/current_prompt.md`. Open it and give it to your AI assistant.
+
+---
+
+### `vita adapt [--language <code>]`
+
+Generate an AI prompt to tailor your CV to the job in `job.md`.
+
+```sh
+vita adapt               # English (default)
+vita adapt --language fr # French
+vita adapt --language ar # Arabic
+```
+
+---
+
+### `vita review`
+
+Generate an AI prompt to review and improve your CV in general.
+
+```sh
+vita review
+```
+
+---
+
+## Typical Workflow
+
+```sh
+# Day 1 — Set up your CV project
+uv tool install vita-cv
+mkdir my-cv && cd my-cv
+vita init
+# → edit .vita/config.json (set author)
+# → write main.tex and sections/
+
+git add .
+git commit -m "base: initial CV"
+
+# Applying to a company
+git checkout -b gen-swe         # create your domain baseline
+# → tailor the CV for SWE roles generally
+git add . && git commit -m "gen-swe: baseline"
+
+vita new etp google "software engineer"
+# → now on branch etp-google-swe
+
+# Paste job description
+echo "..." > job.md
+vita analyze    # get analysis prompt
+vita adapt      # get tailoring prompt
+# → run prompts with AI, apply suggestions to sections/
+
+vita build      # compile to PDF
+# → out/cv-yourname.pdf
+
+vita status     # review all companies
+```
+
+---
+
+## Building the PDF
+
+VITA uses `latexmk` automatically. If you need to build manually:
+
+```sh
+# Standard
+latexmk -pdf -outdir=out main.tex
+
+# With bibliography (BibTeX/Biber)
+pdflatex -output-directory=out main.tex
+biber --input-directory=out --output-directory=out main
+pdflatex -output-directory=out main.tex
+pdflatex -output-directory=out main.tex
+```
+
+---
+
+## Extensibility
+
+VITA ships with built-in role aliases and language codes. You can add your own in `.vita/extensions.json` (created by `vita init`):
+
+```json
+{
+  "role_aliases": {
+    "research engineer": "re",
+    "applied scientist": "as",
+    "solutions architect": "sa"
+  },
+  "language_map": {
+    "zh": "Chinese (Simplified)",
+    "ja": "Japanese"
+  }
+}
+```
+
+Your entries are merged on top of the built-ins — your values win on conflict.
+
+See [EXTENSIONS.md](EXTENSIONS.md) for the full list of built-in aliases and all format details.
+
+---
+
+## AI Skills
+
+VITA includes a library of AI agent skills for specialized tasks. Reference them when prompting your AI assistant:
+
+| Category | Skills |
+|---|---|
+| **Writing** | `resume-writer`, `resume-bullet-writer`, `resume-quantifier` |
+| **Reviewing** | `resume-reviewer`, `resume-ats-optimizer` |
+| **Targeting** | `resume-tailor`, `job-description-analyzer`, `resume-section-builder` |
+| **Documents** | `cover-letter-generator`, `linkedin-profile-optimizer` |
+| **Prep** | `interview-prep-generator`, `salary-negotiation-prep`, `offer-comparison-analyzer` |
+| **Specialized** | `tech-resume-optimizer`, `executive-resume-writer`, `academic-cv-builder` |
+| **Transitions** | `career-changer-translator`, `creative-portfolio-resume` |
+
+**Example usage:**
+
+> "Use the `resume-tailor` skill to update `sections/experience.tex` based on the job description I pasted in `job.md`."
+
+> "Run `interview-prep-generator` on my CV and generate 5 STAR stories for a Google interview."
 
 ---
 
 ## Design Philosophy
 
-- **Warn, don't block** — duplicate company CVs trigger a warning, not a hard stop (use `--force` to override, or set `locked: true` per company)
-- **CLI enforces naming** — branch names are normalized automatically (`data engineer` → `de`)
-- **Registry is the truth** — `companies.json` is the authoritative record, not branch names alone
+- **Warn, don't block** — duplicate CVs trigger a warning, not a hard stop (`--force` overrides, `locked: true` blocks permanently)
+- **CLI enforces naming** — roles are normalized automatically (`data engineer` → `de`, `machine learning engineer` → `ml`)
+- **Registry is the truth** — `.vita/companies.json` is the authoritative record; use `vita sync` if it drifts from git
+- **User-extensible** — role aliases and language codes are fully overridable via `.vita/extensions.json`
+- **No cloud** — everything is local; your CV data never leaves your machine
