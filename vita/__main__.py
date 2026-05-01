@@ -8,7 +8,7 @@ import argparse
 import sys
 
 from vita import __version__
-from vita.commands import init, new, build, status, diff, lock, ai_step, sync, keys
+from vita.commands import init, new, build, status, diff, lock, ai_step, sync, keys, run
 
 
 def main() -> None:
@@ -30,6 +30,7 @@ commands:
   lock <company>           Lock a company (block new CVs)
   unlock <company>         Unlock a company
   keys                     Manage LLM API keys (list, set, remove)
+  run                      Run full AI pipeline: analyze → adapt → review
         """,
     )
     parser.add_argument("-V", "--version", action="version", version=f"vita-cv {__version__}")
@@ -84,6 +85,11 @@ commands:
     keys_remove_p = keys_subp.add_parser("remove", help="Remove an API key")
     keys_remove_p.add_argument("provider", help="Provider name")
 
+    # ── run (pipeline) ─────────────────────────────────────────────────────
+    run_p = subparsers.add_parser("run", help="Run full AI pipeline: analyze → adapt → review")
+    run_p.add_argument("-a", "--auto",     action="store_true", help="Run autonomously using configured LLM")
+    run_p.add_argument("-l", "--language", default="en",         help="Target language for the adapt step")
+
     # ── AI Prompts ────────────────────────────────────────────────────────────
     analyze_p = subparsers.add_parser("analyze", help="Generate prompt to analyze CV vs Job")
     analyze_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
@@ -129,6 +135,9 @@ commands:
         provider = getattr(args, "provider", None)
         key = getattr(args, "key", None)
         keys.run(args.keys_command, provider, key)
+
+    elif args.command == "run":
+        run.run(auto=args.auto, language=args.language)
 
     elif args.command in ["analyze", "adapt", "review"]:
         lang = getattr(args, "language", None)
