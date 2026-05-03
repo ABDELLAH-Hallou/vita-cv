@@ -43,7 +43,7 @@ def run(branch_type: str, company: str, role: str, force: bool = False, commit_c
             msg = input(f"Commit message [Initial commit]: ").strip()
             if not msg:
                 msg = "Initial commit"
-            git.add_and_commit(msg)
+            git.add_and_commit(msg,git.current_branch())
             print("Initial commit created.")
     elif commit_changes and not git.is_clean():
         print("Uncommitted changes found and --commit flag was passed.")
@@ -55,7 +55,7 @@ def run(branch_type: str, company: str, role: str, force: bool = False, commit_c
             msg = input(f"Commit message [Auto-commit: prep before branching '{branch}']: ").strip()
             if not msg:
                 msg = f"Auto-commit: prep before branching '{branch}'"
-            git.add_and_commit(msg)
+            git.add_and_commit(msg,git.current_branch())
             print("Changes committed.")
 
     # ── Resolve base branch ────────────────────────────────────────────

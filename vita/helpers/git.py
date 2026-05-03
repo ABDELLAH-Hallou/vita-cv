@@ -57,10 +57,12 @@ def has_commits() -> bool:
 def is_clean() -> bool:
     return not bool(_run("status", "--porcelain").stdout)
 
-
+# git add -A; git commit -m "update cv"; git push --all origin
 # ── Staging & committing ──────────────────────────────────────────────────────
 
-def add_all() -> GitResult:
+def add_all(branch :str=None) -> GitResult:
+    if not branch:
+        return _run("add","-A")
     return _run("add", ".")
 
 
@@ -68,14 +70,31 @@ def commit(message: str) -> GitResult:
     return _run("commit", "-m", message)
 
 
-def add_and_commit(message: str) -> GitResult:
-    add_all()
+def add_and_commit(message: str="", branch:str=None) -> GitResult:
+    add_all(branch)
     return commit(message)
 
 
 def stash() -> GitResult:
     return _run("stash")
 
+# ── Pushing ──────────────────────────────────────────────────────────────────
+
+def push(remote: str = "origin", branch: str = None, force: bool = False) -> GitResult:
+    cmd = ["push"]
+    if force:
+        cmd.append("--force")
+    if branch:
+        cmd.append(branch)
+    else:
+        cmd.append("--all")
+    if remote != "origin":
+        cmd.append(remote)
+    return _run(*cmd)
+
+def add_commit_push(remote: str = "origin", branch: str = None, message:str="", force: bool = False) -> GitResult:
+    add_and_commit(message,branch)
+    return push(remote, branch, force)
 
 # ── Branching ─────────────────────────────────────────────────────────────────
 

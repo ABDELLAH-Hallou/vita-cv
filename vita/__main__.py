@@ -8,7 +8,7 @@ import argparse
 import sys
 
 from vita import __version__
-from vita.commands import init, new, build, status, diff, lock, ai_step, sync
+from vita.commands import init, new, build, status, diff, lock, ai_step, sync, push
 
 
 def main() -> None:
@@ -76,6 +76,9 @@ commands:
     adapt_p.add_argument("-l", "--language", default="en", help="Target language for the CV (e.g., en, fr, ar, de)")
     subparsers.add_parser("review", help="Generate prompt to review the CV")
 
+    # ── push ──────────────────────────────────────────────────────────────────
+    push_p = subparsers.add_parser("push", help="Push CV to remote repository")
+    push_p.add_argument("-m", "--message", help="Commit message",default="")
     # ── Route ─────────────────────────────────────────────────────────────────
     args = parser.parse_args()
 
@@ -106,6 +109,9 @@ commands:
     elif args.command in ["analyze", "adapt", "review"]:
         lang = getattr(args, "language", None)
         ai_step.run(args.command, language=lang)
+
+    elif args.command == "push":
+        push.run(message=args.message)
 
     else:
         parser.print_help()
