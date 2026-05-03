@@ -56,3 +56,19 @@ def merged_language_map(builtin: dict[str, str]) -> dict[str, str]:
         if not k.startswith("_")
     }
     return {**builtin, **user_langs}
+
+
+def get_llm_providers() -> dict[str, dict]:
+    """
+    Return the configured LLM providers and their models from extensions.json.
+    
+    Returns a dictionary mapping provider names to their config (e.g., {'openai': {'model': 'gpt-4o'}}).
+    Keys starting with '_' are skipped.
+    """
+    raw = _load_raw()
+    providers = {
+        k.lower(): v
+        for k, v in raw.get("llm_providers", {}).items()
+        if not k.startswith("_")
+    }
+    return providers

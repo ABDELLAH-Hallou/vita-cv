@@ -8,7 +8,7 @@ import argparse
 import sys
 
 from vita import __version__
-from vita.commands import init, new, build, status, diff, lock, ai_step, sync, push
+from vita.commands import init, new, build, status, diff, lock, ai_step, sync, keys, run, push
 
 
 def main() -> None:
@@ -29,6 +29,8 @@ commands:
   diff <company>           Show diff from base CV
   lock <company>           Lock a company (block new CVs)
   unlock <company>         Unlock a company
+  keys                     Manage LLM API keys (list, set, remove)
+  run                      Run full AI pipeline: analyze → adapt → review
         """,
     )
     parser.add_argument("-V", "--version", action="version", version=f"vita-cv {__version__}")
@@ -70,11 +72,34 @@ commands:
     sync_p.add_argument("-y", "--auto",    action="store_true", help="Apply changes without prompting")
     sync_p.add_argument("-n", "--dry-run", action="store_true", help="Preview changes without writing")
 
+    # ── keys ──────────────────────────────────────────────────────────────────
+    keys_p = subparsers.add_parser("keys", help="Manage LLM API keys")
+    keys_subp = keys_p.add_subparsers(dest="keys_command")
+    
+    keys_subp.add_parser("list", help="List configured API keys")
+    
+    keys_set_p = keys_subp.add_parser("set", help="Set an API key")
+    keys_set_p.add_argument("provider", help="Provider name (e.g. openai)")
+    keys_set_p.add_argument("key", help="The API key")
+    
+    keys_remove_p = keys_subp.add_parser("remove", help="Remove an API key")
+    keys_remove_p.add_argument("provider", help="Provider name")
+
+    # ── run (pipeline) ─────────────────────────────────────────────────────
+    run_p = subparsers.add_parser("run", help="Run full AI pipeline: analyze → adapt → review")
+    run_p.add_argument("-a", "--auto",     action="store_true", help="Run autonomously using configured LLM")
+    run_p.add_argument("-l", "--language", default="en",         help="Target language for the adapt step")
+
     # ── AI Prompts ────────────────────────────────────────────────────────────
-    subparsers.add_parser("analyze", help="Generate prompt to analyze CV vs Job")
+    analyze_p = subparsers.add_parser("analyze", help="Generate prompt to analyze CV vs Job")
+    analyze_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
+    
     adapt_p = subparsers.add_parser("adapt", help="Generate prompt to adapt CV to Job")
     adapt_p.add_argument("-l", "--language", default="en", help="Target language for the CV (e.g., en, fr, ar, de)")
-    subparsers.add_parser("review", help="Generate prompt to review the CV")
+    adapt_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
+    
+    review_p = subparsers.add_parser("review", help="Generate prompt to review the CV")
+    review_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
 
     # ── push ──────────────────────────────────────────────────────────────────
     push_p = subparsers.add_parser("push", help="Push CV to remote repository")
@@ -106,9 +131,21 @@ commands:
     elif args.command == "unlock":
         lock.run(args.company, locked=False)
 
+    elif args.command == "keys":
+        if getattr(args, "keys_command", None) is None:
+            keys_p.print_help()
+            sys.exit(1)
+        provider = getattr(args, "provider", None)
+        key = getattr(args, "key", None)
+        keys.run(args.keys_command, provider, key)
+
+    elif args.command == "run":
+        run.run(auto=args.auto, language=args.language)
+
     elif args.command in ["analyze", "adapt", "review"]:
         lang = getattr(args, "language", None)
-        ai_step.run(args.command, language=lang)
+        auto = getattr(args, "auto", False)
+        ai_step.run(args.command, language=lang, auto=auto)
 
     elif args.command == "push":
         push.run(message=args.message)
