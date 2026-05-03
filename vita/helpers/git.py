@@ -57,7 +57,6 @@ def has_commits() -> bool:
 def is_clean() -> bool:
     return not bool(_run("status", "--porcelain").stdout)
 
-# git add -A; git commit -m "update cv"; git push --all origin
 # ── Staging & committing ──────────────────────────────────────────────────────
 
 def add_all(branch :str=None) -> GitResult:
