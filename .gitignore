@@ -220,3 +220,5 @@ __marimo__/
 # VITA local artifacts
 out/
 .vita/
+
+vita_cv-*
