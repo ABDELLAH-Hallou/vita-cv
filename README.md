@@ -10,23 +10,6 @@ uv tool install vita-cv
 
 ---
 
-## Table of Contents
-
-1. [How It Works](#how-it-works)
-2. [Prerequisites](#prerequisites)
-3. [Quick Start](#quick-start)
-4. [Your CV Project Structure](#your-cv-project-structure)
-5. [Files You Need to Create](#files-you-need-to-create)
-6. [Configuration Reference](#configuration-reference)
-7. [CLI Commands](#cli-commands)
-8. [Typical Workflow](#typical-workflow)
-9. [Building the PDF](#building-the-pdf)
-10. [Extensibility](#extensibility)
-11. [AI Skills](#ai-skills)
-12. [Design Philosophy](#design-philosophy)
-
----
-
 ## How It Works
 
 VITA manages your CV using git branches:
