@@ -7,8 +7,11 @@ Non-compatible (different API format, handled separately):
   anthropic, gemini / google
 """
 import json
+import shutil
+import subprocess
 import urllib.request
 import urllib.error
+from pathlib import Path
 from vita.helpers.env import load_env
 from vita.helpers.extensions import get_llm_providers
 
@@ -42,6 +45,7 @@ _DEFAULT_MODELS = {
     "anthropic":  "claude-3-5-sonnet-20241022",
     "gemini":     "gemini-2.0-flash",
     "google":     "gemini-2.0-flash",
+    "codex":      "",
 }
 
 
@@ -56,6 +60,9 @@ def generate(system_prompt: str, user_prompt: str) -> str:
     provider_name = list(providers.keys())[0].lower()
     config = providers[provider_name]
     model = config.get("model") or _DEFAULT_MODELS.get(provider_name, "gpt-4o")
+
+    if provider_name == "codex":
+        return _call_codex_cli(system_prompt, user_prompt, model)
 
     key_env_var = f"{provider_name.upper()}_API_KEY"
     api_key = env.get(key_env_var)
@@ -81,6 +88,48 @@ def generate(system_prompt: str, user_prompt: str) -> str:
             f"Unknown provider '{provider_name}'. "
             f"Supported: {', '.join(supported)}"
         )
+
+
+def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "") -> str:
+    """Run Codex CLI non-interactively using the user's local Codex login."""
+    codex = shutil.which("codex")
+    if not codex:
+        raise RuntimeError(
+            "Codex CLI not found. Install/login to Codex first, then run `codex login`."
+        )
+
+    prompt = f"{system_prompt}\n\n==== TASK ====\n{user_prompt}"
+    output_dir = Path(".vita") / "tmp"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "codex-output.md"
+
+    cmd = [
+        codex,
+        "exec",
+        "--sandbox",
+        "read-only",
+        "--ask-for-approval",
+        "never",
+        "--output-last-message",
+        str(output_path),
+    ]
+    if model:
+        cmd.extend(["--model", model])
+    cmd.append("-")
+
+    result = subprocess.run(
+        cmd,
+        input=prompt,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip())
+
+    response = output_path.read_text(encoding="utf-8").strip()
+    output_path.unlink(missing_ok=True)
+    return response
 
 
 # ── API Implementations ────────────────────────────────────────────────────────

@@ -35,7 +35,8 @@ def run(force: bool = False) -> None:
         "_doc": "See EXTENSIONS.md for full documentation. Keys starting with '_' are ignored.",
         "llm_providers": {
             "openai": {"model": "gpt-4-turbo"},
-            "anthropic": {"model": "claude-3-opus-20240229"}
+            "anthropic": {"model": "claude-3-opus-20240229"},
+            "_codex_example": {"model": ""}
         },
         "role_aliases": {},
         "language_map": {}
