@@ -49,7 +49,7 @@ _DEFAULT_MODELS = {
 }
 
 
-def generate(system_prompt: str, user_prompt: str) -> str:
+def generate(system_prompt: str, user_prompt: str, provider: str | None = None) -> str:
     """Auto-detect provider from config and call the appropriate API."""
     env = load_env()
     providers = get_llm_providers()
@@ -57,7 +57,14 @@ def generate(system_prompt: str, user_prompt: str) -> str:
     if not providers:
         providers = {"openai": {"model": "gpt-4o"}}
 
-    provider_name = list(providers.keys())[0].lower()
+    provider_name = provider.lower() if provider else list(providers.keys())[0].lower()
+    if provider_name not in providers:
+        configured = ", ".join(providers.keys())
+        raise ValueError(
+            f"Provider '{provider_name}' is not configured. "
+            f"Configured providers: {configured}"
+        )
+
     config = providers[provider_name]
     model = config.get("model") or _DEFAULT_MODELS.get(provider_name, "gpt-4o")
 

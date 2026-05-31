@@ -90,17 +90,21 @@ commands:
     run_p = subparsers.add_parser("run", help="Run full AI pipeline: analyze → adapt → review")
     run_p.add_argument("-a", "--auto",     action="store_true", help="Run autonomously using configured LLM")
     run_p.add_argument("-l", "--language", default="en",         help="Target language for the adapt step")
+    run_p.add_argument("-p", "--provider", help="LLM provider to use for --auto")
 
     # ── AI Prompts ────────────────────────────────────────────────────────────
     analyze_p = subparsers.add_parser("analyze", help="Generate prompt to analyze CV vs Job")
     analyze_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
+    analyze_p.add_argument("-p", "--provider", help="LLM provider to use for --auto")
     
     adapt_p = subparsers.add_parser("adapt", help="Generate prompt to adapt CV to Job")
     adapt_p.add_argument("-l", "--language", default="en", help="Target language for the CV (e.g., en, fr, ar, de)")
     adapt_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
+    adapt_p.add_argument("-p", "--provider", help="LLM provider to use for --auto")
     
     review_p = subparsers.add_parser("review", help="Generate prompt to review the CV")
     review_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
+    review_p.add_argument("-p", "--provider", help="LLM provider to use for --auto")
 
     # ── save ──────────────────────────────────────────────────────────────────
     save_p = subparsers.add_parser("save", help="Save and push CV changes")
@@ -147,12 +151,13 @@ commands:
         keys.run(args.keys_command, provider, key)
 
     elif args.command == "run":
-        run.run(auto=args.auto, language=args.language)
+        run.run(auto=args.auto, language=args.language, provider=args.provider)
 
     elif args.command in ["analyze", "adapt", "review"]:
         lang = getattr(args, "language", None)
         auto = getattr(args, "auto", False)
-        ai_step.run(args.command, language=lang, auto=auto)
+        provider = getattr(args, "provider", None)
+        ai_step.run(args.command, language=lang, auto=auto, provider=provider)
 
     elif args.command == "save":
         push.run(message=args.message, reconcile=args.reconcile)

@@ -81,6 +81,16 @@ Then run:
 vita run --auto
 ```
 
+If you configure more than one provider, VITA uses the first provider in
+`.vita/extensions.json` by default. Choose a specific provider with
+`--provider`:
+
+```sh
+vita run --auto --provider codex
+vita adapt --auto --provider gemini
+vita review --auto --provider anthropic
+```
+
 ---
 
 ## `role_aliases`

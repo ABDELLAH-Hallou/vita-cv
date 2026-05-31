@@ -11,7 +11,7 @@ from vita.commands.ai_step import run as ai_step_run
 STEPS = ["analyze", "adapt", "review"]
 
 
-def run(auto: bool = False, language: str = "en") -> None:
+def run(auto: bool = False, language: str = "en", provider: str | None = None) -> None:
     """Execute analyze → adapt → review in sequence."""
     print(f"\n{'='*60}")
     print(f"  VITA Pipeline — {'Autonomous' if auto else 'Prompt'} Mode")
@@ -22,7 +22,7 @@ def run(auto: bool = False, language: str = "en") -> None:
         print(f"\n[{i}/{len(STEPS)}] Running step: {step.upper()}")
         print(f"{'─'*40}")
         lang = language if step == "adapt" else None
-        ai_step_run(step, language=lang, auto=auto)
+        ai_step_run(step, language=lang, auto=auto, provider=provider)
         
     print(f"\n{'='*60}")
     if auto:
