@@ -8,7 +8,7 @@ import argparse
 import sys
 
 from vita import __version__
-from vita.commands import init, new, build, status, diff, lock, ai_step, sync, keys, run
+from vita.commands import init, new, build, status, diff, lock, ai_step, sync, keys, run, push
 
 
 def main() -> None:
@@ -31,6 +31,7 @@ commands:
   unlock <company>         Unlock a company
   keys                     Manage LLM API keys (list, set, remove)
   run                      Run full AI pipeline: analyze → adapt → review
+  save                     Save and push CV changes
         """,
     )
     parser.add_argument("-V", "--version", action="version", version=f"vita-cv {__version__}")
@@ -101,6 +102,15 @@ commands:
     review_p = subparsers.add_parser("review", help="Generate prompt to review the CV")
     review_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
 
+    # ── save ──────────────────────────────────────────────────────────────────
+    save_p = subparsers.add_parser("save", help="Save and push CV changes")
+    save_p.add_argument("-m", "--message", help="Commit message")
+    save_p.add_argument(
+        "-r",
+        "--reconcile",
+        action="store_true",
+        help="After saving, checkout master, sync, and save master",
+    )
     # ── Route ─────────────────────────────────────────────────────────────────
     args = parser.parse_args()
 
@@ -143,6 +153,9 @@ commands:
         lang = getattr(args, "language", None)
         auto = getattr(args, "auto", False)
         ai_step.run(args.command, language=lang, auto=auto)
+
+    elif args.command == "save":
+        push.run(message=args.message, reconcile=args.reconcile)
 
     else:
         parser.print_help()
