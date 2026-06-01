@@ -228,7 +228,7 @@ Base branches:
 
 ### `vita sync`
 
-Reconcile the registry with your actual git branches. Useful if you created or deleted branches manually.
+Reconcile the `.vita` directory and registry with your actual git branches. Useful if you created or deleted branches manually, or if local `.vita` files such as `config.json`, `extensions.json`, `.env`, or generated artifact directories are missing.
 
 ```sh
 vita sync              # interactive
