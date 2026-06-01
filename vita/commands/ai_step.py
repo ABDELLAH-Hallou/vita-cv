@@ -18,7 +18,12 @@ _BUILTIN_LANGUAGE_MAP: dict[str, str] = {
     "pt": "Portuguese",
 }
 
-def run(step: str, language: str = None, auto: bool = False) -> None:
+def run(
+    step: str,
+    language: str = None,
+    auto: bool = False,
+    provider: str | None = None,
+) -> None:
     base_dir = Path(__file__).parent.parent
     prompt_file = base_dir / "assets" / "prompts" / f"{step}.md"
     
@@ -85,7 +90,7 @@ def run(step: str, language: str = None, auto: bool = False) -> None:
         prompt_text += "\nOutput your full CV review as a markdown report. No code blocks needed."
 
     try:
-        response = llm_generate(system_context, prompt_text)
+        response = llm_generate(system_context, prompt_text, provider=provider)
     except Exception as e:
         print(f"❌ Failed to run AI: {e}")
         return

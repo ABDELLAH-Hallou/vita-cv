@@ -21,6 +21,11 @@ it is gitignored by default so your customizations stay local.
 
 ```json
 {
+  "llm_providers": {
+    "<provider name>": {
+      "model": "<model name>"
+    }
+  },
   "role_aliases": {
     "<verbose role name>": "<short code>"
   },
@@ -31,6 +36,60 @@ it is gitignored by default so your customizations stay local.
 ```
 
 Keys prefixed with `_example_` are template placeholders — **delete them** and replace with your own entries.
+
+---
+
+## `llm_providers`
+
+Configures the provider used by `vita analyze --auto`, `vita adapt --auto`,
+`vita review --auto`, and `vita run --auto`.
+
+**API providers** require a matching API key saved with `vita keys set`.
+
+```json
+{
+  "llm_providers": {
+    "gemini": {
+      "model": "gemini-2.0-flash"
+    }
+  }
+}
+```
+
+**Codex CLI** uses your local Codex login instead of an API key.
+
+```json
+{
+  "llm_providers": {
+    "codex": {
+      "model": ""
+    }
+  }
+}
+```
+
+Before using the Codex provider, make sure the Codex CLI works locally:
+
+```sh
+codex login
+codex exec "Say hello"
+```
+
+Then run:
+
+```sh
+vita run --auto
+```
+
+If you configure more than one provider, VITA uses the first provider in
+`.vita/extensions.json` by default. Choose a specific provider with
+`--provider`:
+
+```sh
+vita run --auto --provider codex
+vita adapt --auto --provider gemini
+vita review --auto --provider anthropic
+```
 
 ---
 
