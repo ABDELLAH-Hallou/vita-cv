@@ -115,8 +115,6 @@ def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "") -> st
         "exec",
         "--sandbox",
         "read-only",
-        "--ask-for-approval",
-        "never",
         "--output-last-message",
         str(output_path),
     ]
