@@ -1,7 +1,11 @@
 import re
 from pathlib import Path
 from vita.helpers.extensions import merged_language_map
-from vita.helpers.context_builder import build_system_context
+from vita.helpers.context_builder import (
+    build_system_context,
+    format_job_descriptions,
+    multi_job_instruction,
+)
 from vita.helpers.llm import generate as llm_generate
 
 # ── Built-in language codes ───────────────────────────────────────────────────
@@ -38,6 +42,7 @@ def run(
     with open(prompt_file, "r", encoding="utf-8") as f:
         prompt_text = f.read()
 
+    job_count = 0
     if "{{JOB_DESCRIPTION}}" in prompt_text:
         job_file = Path("job.md")
         if not job_file.exists():
@@ -48,8 +53,11 @@ def run(
         
         with open(job_file, "r", encoding="utf-8") as f:
             job_text = f.read().strip()
-            
-        prompt_text = prompt_text.replace("{{JOB_DESCRIPTION}}", job_text)
+
+        formatted_jobs, job_count = format_job_descriptions(job_text)
+        prompt_text = prompt_text.replace("{{JOB_DESCRIPTION}}", formatted_jobs)
+        if job_count > 1:
+            prompt_text += multi_job_instruction(job_count)
 
     if step == "adapt" and language and language.lower() != "en":
         language_map = merged_language_map(_BUILTIN_LANGUAGE_MAP)

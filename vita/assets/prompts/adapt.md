@@ -8,6 +8,12 @@ Instructions:
 5. Keep `main.tex` structurally identical; only update the content strings.
 6. Save a high-level summary of the edits you made into a new file at `results/adapt.md`.
 
+If multiple job descriptions are provided, produce ONE optimized CV, not separate CV versions:
+- Prioritize skills, keywords, and bullet points that match 2 or more jobs.
+- Use role-specific keywords only when they strengthen the general CV without making it bloated.
+- Keep the CV coherent, concise, and credible across all listed roles.
+- Maximize overlap with the shared requirements from the full set of jobs.
+
 -----------------------------------------
 JOB DESCRIPTION:
 {{JOB_DESCRIPTION}}
