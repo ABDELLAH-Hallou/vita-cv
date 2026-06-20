@@ -2,7 +2,9 @@
 
 > **One base CV. Infinite targeted variants. Zero duplicates.**
 >
-> `vita-cv` is a CLI tool that treats your resume like source code — versioned with git, branched per company, and built from LaTeX.
+> `vita-cv` is a CLI tool that treats your resume like source code — versioned with git, branched per company, built from LaTeX, and sharpened with AI assistance.
+
+VITA can generate targeted AI prompts or run an autonomous AI workflow to analyze job descriptions, identify gaps, improve keywords, and adapt your CV title, summary, skills, and experience for each application.
 
 ```sh
 uv tool install vita-cv
@@ -84,7 +86,9 @@ my-cv/
 └── .vita/                ← Auto-created by `vita init`
     ├── config.json       ← Your settings (author, output paths, etc.)
     ├── companies.json    ← Registry of all companies you've applied to
-    ├── extensions.json   ← Your custom role aliases and languages
+    ├── extensions.json   ← Your custom role aliases, languages, and LLM providers
+    ├── .env              ← Local API keys for --auto mode
+    ├── .env.example      ← Example API key file
     └── logs/             ← CLI activity log
 ```
 
@@ -150,7 +154,9 @@ Role: Senior Software Engineer
   "output_dir": "out",
   "output_filename": "cv-{author}.pdf",
   "tex_entry": "main.tex",
+  "build_mode": "auto",
   "default_base_branch": "master",
+  "strict_mode": false,
   "allow_multiple_per_company": true,
   "warn_on_duplicate": true
 }
@@ -162,8 +168,10 @@ Role: Senior Software Engineer
 | `output_dir` | Where the compiled PDF goes (`out/` by default) |
 | `output_filename` | PDF name template. `{author}` is substituted automatically |
 | `tex_entry` | Your LaTeX entry file (default: `main.tex`) |
+| `build_mode` | Reserved build mode setting (`auto` by default) |
 | `default_base_branch` | The branch `vita new` checks out from if no base exists |
-| `allow_multiple_per_company` | If `false`, blocks a second CV for the same company |
+| `strict_mode` | Reserved stricter workflow setting (`false` by default) |
+| `allow_multiple_per_company` | Reserved duplicate-policy setting |
 | `warn_on_duplicate` | If `true`, warns (but doesn't block) on duplicate company |
 
 ---
@@ -238,6 +246,22 @@ vita sync --auto       # apply all changes without prompting
 
 ---
 
+### `vita save`
+
+Stage all changes, commit them, and push to the remote repository.
+
+```sh
+vita save
+vita save -m "update Google CV"
+vita save -r
+```
+
+- `-m/--message` sets a custom commit message.
+- Without `-m`, VITA uses a generic commit message.
+- `-r/--reconcile` saves the current branch, checks out `master`, runs `vita sync --auto`, then saves `master`.
+
+---
+
 ### `vita build`
 
 Compile your LaTeX CV to PDF using `latexmk`.
@@ -277,9 +301,13 @@ Generate an AI prompt to analyze your CV against the job in `job.md`.
 
 ```sh
 vita analyze
+vita analyze --auto
+vita analyze --auto --provider codex
 ```
 
-Saves the prompt to `.vita/current_prompt.md`. Open it and give it to your AI assistant.
+Without `--auto`, VITA saves the prompt to `.vita/current_prompt.md`; open it and give it to your AI assistant.
+
+With `--auto`, VITA sends the prompt and local context to your configured LLM provider and saves the report to `.vita/results/analyze.md`.
 
 `job.md` can contain one role, or multiple roles from the same company using `# Job N` sections:
 
@@ -303,6 +331,7 @@ Generate an AI prompt to tailor your CV to the job in `job.md`.
 vita adapt               # English (default)
 vita adapt --language fr # French
 vita adapt --language ar # Arabic
+vita adapt --auto --provider gemini
 ```
 
 VITA adapts the CV title/headline, professional summary, experience, and skills based on the job description. For multi-job `job.md` files, it creates one coherent CV optimized for shared requirements across all listed roles instead of separate CV versions.
@@ -315,7 +344,37 @@ Generate an AI prompt to review and improve your CV in general.
 
 ```sh
 vita review
+vita review --auto
 ```
+
+---
+
+### `vita run`
+
+Run the full AI workflow: `analyze → adapt → review`.
+
+```sh
+vita run
+vita run --auto
+vita run --auto --provider codex
+vita run --auto --provider gemini --language fr
+```
+
+Without `--auto`, this generates prompts. With `--auto`, VITA calls the configured LLM provider and writes outputs into `.vita/results/`, updating `main.tex` during the adapt step.
+
+---
+
+### `vita keys`
+
+Manage API keys for LLM providers.
+
+```sh
+vita keys list
+vita keys set gemini <your-key>
+vita keys remove gemini
+```
+
+Keys are stored locally in `.vita/.env`. Codex CLI support uses your local Codex login instead of an API key.
 
 ---
 
@@ -346,6 +405,9 @@ vita analyze    # get analysis prompt
 vita adapt      # get tailoring prompt
 # → run prompts with AI, apply suggestions to sections/
 
+# Or run the autonomous pipeline with a configured provider
+vita run --auto --provider codex
+
 vita build      # compile to PDF
 # → out/cv-yourname.pdf
 
@@ -373,10 +435,18 @@ pdflatex -output-directory=out main.tex
 
 ## Extensibility
 
-VITA ships with built-in role aliases and language codes. You can add your own in `.vita/extensions.json` (created by `vita init`):
+VITA ships with built-in role aliases, language codes, and LLM provider support. You can add your own in `.vita/extensions.json` (created by `vita init`):
 
 ```json
 {
+  "llm_providers": {
+    "codex": {
+      "model": ""
+    },
+    "gemini": {
+      "model": "gemini-2.0-flash"
+    }
+  },
   "role_aliases": {
     "research engineer": "re",
     "applied scientist": "as",
@@ -389,7 +459,7 @@ VITA ships with built-in role aliases and language codes. You can add your own i
 }
 ```
 
-Your entries are merged on top of the built-ins — your values win on conflict.
+Your entries are merged on top of the built-ins — your values win on conflict. Use `--provider` with `--auto` commands to choose a configured LLM provider.
 
 See [EXTENSIONS.md](EXTENSIONS.md) for the full list of built-in aliases and all format details.
 
@@ -423,4 +493,4 @@ VITA includes a library of AI agent skills for specialized tasks. Reference them
 - **CLI enforces naming** — roles are normalized automatically (`data engineer` → `de`, `machine learning engineer` → `ml`)
 - **Registry is the truth** — `.vita/companies.json` is the authoritative record; use `vita sync` if it drifts from git
 - **User-extensible** — role aliases and language codes are fully overridable via `.vita/extensions.json`
-- **No cloud** — everything is local; your CV data never leaves your machine
+- **Local-first** — prompt generation, git workflows, and LaTeX builds are local. `--auto` sends CV/job context to the LLM provider you configure.
