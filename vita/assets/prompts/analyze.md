@@ -7,6 +7,11 @@ If multiple job descriptions are provided, produce ONE unified cross-role analys
 - Compute an overall match probability across all jobs.
 - Recommend the highest-leverage CV changes that improve fit across the full set of roles.
 
+For both single-job and multi-job analysis, include:
+- The recommended CV title/headline for this application.
+- The recommended professional summary angle.
+- The top keywords that should appear in the title/headline or summary.
+
 **IMPORTANT INSTRUCTION**: 
 Please save your full analysis report to a new file at `results/analysis.md` so that the next steps in my workflow can read it.
 

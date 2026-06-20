@@ -305,7 +305,7 @@ vita adapt --language fr # French
 vita adapt --language ar # Arabic
 ```
 
-For multi-job `job.md` files, VITA adapts one coherent CV optimized for shared requirements across all listed roles instead of creating separate CV versions.
+VITA adapts the CV title/headline, professional summary, experience, and skills based on the job description. For multi-job `job.md` files, it creates one coherent CV optimized for shared requirements across all listed roles instead of separate CV versions.
 
 ---
 
