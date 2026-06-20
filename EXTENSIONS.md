@@ -1,8 +1,8 @@
 # VITA Extensions — Customization Guide
 
-VITA ships with built-in role aliases and language codes, but every CV project
-is different. The `.vita/extensions.json` file lets you extend or override these
-defaults **without touching the package source**.
+VITA ships with built-in role aliases, language codes, and LLM provider support,
+but every CV project is different. The `.vita/extensions.json` file lets you
+extend or override these defaults **without touching the package source**.
 
 ---
 
@@ -35,7 +35,8 @@ it is gitignored by default so your customizations stay local.
 }
 ```
 
-Keys prefixed with `_example_` are template placeholders — **delete them** and replace with your own entries.
+Keys starting with `_` are ignored. Use them for documentation or template
+placeholders, and delete/replace them when you want an entry to become active.
 
 ---
 
@@ -186,6 +187,14 @@ After adding `zh`, running `vita adapt --language zh` will instruct the AI to wr
 
 ```json
 {
+  "llm_providers": {
+    "codex": {
+      "model": ""
+    },
+    "gemini": {
+      "model": "gemini-2.0-flash"
+    }
+  },
   "role_aliases": {
     "research engineer": "re",
     "applied scientist": "as",
