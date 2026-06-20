@@ -281,6 +281,18 @@ vita analyze
 
 Saves the prompt to `.vita/current_prompt.md`. Open it and give it to your AI assistant.
 
+`job.md` can contain one role, or multiple roles from the same company using `# Job N` sections:
+
+```md
+# Job 1
+Software Engineer, Infrastructure
+
+# Job 2
+Research Engineer, GenAI
+```
+
+When multiple jobs are detected, `vita analyze --auto` and `vita run --auto` produce one unified cross-role analysis with per-job scores and an overall match probability.
+
 ---
 
 ### `vita adapt [--language <code>]`
@@ -292,6 +304,8 @@ vita adapt               # English (default)
 vita adapt --language fr # French
 vita adapt --language ar # Arabic
 ```
+
+VITA adapts the CV title/headline, professional summary, experience, and skills based on the job description. For multi-job `job.md` files, it creates one coherent CV optimized for shared requirements across all listed roles instead of separate CV versions.
 
 ---
 
