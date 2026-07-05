@@ -1,4 +1,5 @@
 """vita/helpers/context_builder.py — Packages local files into LLM context."""
+from datetime import date
 import re
 from pathlib import Path
 
@@ -44,10 +45,23 @@ def multi_job_instruction(job_count: int) -> str:
     )
 
 
+def current_date_instruction() -> str:
+    today = date.today().isoformat()
+    return (
+        "\n\nCURRENT DATE INSTRUCTION:\n"
+        f"Today's date is {today}.\n"
+        "When reviewing or adapting CV dates, treat this as the current date. "
+        "Do not rewrite, shorten, or correct CV dates just because they appear "
+        "to be in the future unless they are after today's date or clearly inconsistent."
+    )
+
+
 def build_system_context(prompt_text: str) -> str:
     """Scan the prompt and project for necessary files to inject as context."""
     context = "You are VITA, an expert AI agent that writes and adapts LaTeX CVs.\n"
     context += "Below is the context gathered from the user's local file system.\n\n"
+    context += current_date_instruction().strip()
+    context += "\n\n"
     
     # Inject main.tex
     if Path("main.tex").exists():
