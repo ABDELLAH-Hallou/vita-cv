@@ -63,7 +63,18 @@ def run(
     if step == "adapt" and language and language.lower() != "en":
         language_map = merged_language_map(_BUILTIN_LANGUAGE_MAP)
         target_lang = language_map.get(language.lower(), language)
-        prompt_text += f"\n\nCRITICAL LANGUAGE INSTRUCTION:\nThe tailored CV content you write must be translated and written ENTIRELY in **{target_lang}**.\nDo NOT leave the bullet points in English unless the job description explicitly asks for it."
+        prompt_text += (
+            f"\n\nCRITICAL LANGUAGE INSTRUCTION:\n"
+            f"The entire CV must be written in **{target_lang}**.\n"
+            "Translate every human-readable CV string in `main.tex`, including the title/headline, "
+            "professional summary, section headings, experience bullets, project descriptions, "
+            "education details, skills, labels, and any short helper text.\n"
+            "Preserve LaTeX commands, environments, formatting macros, URLs, email addresses, "
+            "company names, product names, proper nouns, and technical keywords that are normally "
+            "kept in English in the target language.\n"
+            "Do NOT leave English sections behind unless the job description explicitly requires "
+            "those exact words to remain in English."
+        )
 
     prompt_text += current_date_instruction()
 
