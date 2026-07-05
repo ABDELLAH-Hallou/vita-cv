@@ -7,6 +7,7 @@ Non-compatible (different API format, handled separately):
   anthropic, gemini / google
 """
 import json
+import os
 import shutil
 import subprocess
 import urllib.request
@@ -99,7 +100,7 @@ def generate(system_prompt: str, user_prompt: str, provider: str | None = None) 
 
 def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "") -> str:
     """Run Codex CLI non-interactively using the user's local Codex login."""
-    codex = shutil.which("codex")
+    codex = _find_codex_cli()
     if not codex:
         raise RuntimeError(
             "Codex CLI not found. Install/login to Codex first, then run `codex login`."
@@ -136,6 +137,38 @@ def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "") -> st
     output_path.unlink(missing_ok=True)
     return response
 
+
+def _find_codex_cli() -> str | None:
+    """Find Codex even when the VS Code extension version changes and PATH is stale."""
+    explicit = os.environ.get("VITA_CODEX") or os.environ.get("CODEX_EXE")
+    if explicit and Path(explicit).is_file():
+        return explicit
+
+    codex = shutil.which("codex")
+    if codex:
+        return codex
+
+    home = Path.home()
+    matches: list[Path] = []
+    for extensions_dir in [
+        home / ".vscode" / "extensions",
+        home / ".vscode-insiders" / "extensions",
+    ]:
+        if extensions_dir.exists():
+            matches.extend(
+                extensions_dir.glob(
+                    "openai.chatgpt-*-win32-x64/bin/windows-x86_64/codex.exe"
+                )
+            )
+
+    if not matches:
+        return None
+
+    latest = max(matches, key=lambda path: path.stat().st_mtime)
+    codex_dir = str(latest.parent)
+    if codex_dir not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = codex_dir + os.pathsep + os.environ.get("PATH", "")
+    return str(latest)
 
 # ── API Implementations ────────────────────────────────────────────────────────
 
