@@ -70,8 +70,8 @@ def run(
             "professional summary, section headings, experience bullets, project descriptions, "
             "education details, skills, labels, and any short helper text.\n"
             "Preserve LaTeX commands, environments, formatting macros, URLs, email addresses, "
-            "company names, product names, proper nouns, and technical keywords that are normally "
-            "kept in English in the target language.\n"
+            "company names, product names, certificate/certification names, proper nouns, and "
+            "technical keywords that are normally kept in English in the target language.\n"
             "Do NOT leave English sections behind unless the job description explicitly requires "
             "those exact words to remain in English."
         )
