@@ -3,6 +3,7 @@ from pathlib import Path
 from vita.helpers.extensions import merged_language_map
 from vita.helpers.context_builder import (
     build_system_context,
+    cv_knowledge_instruction,
     current_date_instruction,
     format_job_descriptions,
     multi_job_instruction,
@@ -75,6 +76,9 @@ def run(
             "Do NOT leave English sections behind unless the job description explicitly requires "
             "those exact words to remain in English."
         )
+
+    if step == "adapt":
+        prompt_text += cv_knowledge_instruction()
 
     prompt_text += current_date_instruction()
 
