@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 JOB_HEADER_RE = re.compile(r"(?im)^#\s*Job\s+\d+\b.*$")
+CV_KNOWLEDGE_FILE = Path(".vita") / "cv.yaml"
 
 
 def parse_job_descriptions(job_text: str) -> list[tuple[str, str]]:
@@ -53,6 +54,34 @@ def current_date_instruction() -> str:
         "When reviewing or adapting CV dates, treat this as the current date. "
         "Do not rewrite, shorten, or correct CV dates just because they appear "
         "to be in the future unless they are after today's date or clearly inconsistent."
+    )
+
+
+def read_cv_knowledge_base() -> str:
+    """Return .vita/cv.yaml content when the file exists and is not empty."""
+    if not CV_KNOWLEDGE_FILE.exists() or not CV_KNOWLEDGE_FILE.is_file():
+        return ""
+
+    content = CV_KNOWLEDGE_FILE.read_text(encoding="utf-8").strip()
+    return content
+
+
+def cv_knowledge_instruction() -> str:
+    content = read_cv_knowledge_base()
+    if not content:
+        return ""
+
+    return (
+        "\n\nMASTER CV KNOWLEDGE BASE INSTRUCTION:\n"
+        "The user has provided `.vita/cv.yaml` as a structured master CV knowledge base. "
+        "Use it as additional source material while editing the CV: prefer relevant facts, "
+        "role targets, skills, bullets, metrics, projects, certifications, and other truthful "
+        "details from this file when they strengthen the tailored `main.tex`.\n"
+        "Do not invent facts that are not supported by either `main.tex`, `job.md`, "
+        "`results/analysis.md`, or `.vita/cv.yaml`. Keep the final CV concise and credible.\n\n"
+        "==== FILE: .vita/cv.yaml ====\n"
+        f"{content}\n"
+        "=============================="
     )
 
 
