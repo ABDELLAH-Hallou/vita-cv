@@ -1,8 +1,10 @@
 """vita/helpers/context_builder.py — Packages local files into LLM context."""
+from datetime import date
 import re
 from pathlib import Path
 
 JOB_HEADER_RE = re.compile(r"(?im)^#\s*Job\s+\d+\b.*$")
+CV_KNOWLEDGE_FILE = Path(".vita") / "cv.yaml"
 
 
 def parse_job_descriptions(job_text: str) -> list[tuple[str, str]]:
@@ -44,10 +46,51 @@ def multi_job_instruction(job_count: int) -> str:
     )
 
 
+def current_date_instruction() -> str:
+    today = date.today().isoformat()
+    return (
+        "\n\nCURRENT DATE INSTRUCTION:\n"
+        f"Today's date is {today}.\n"
+        "When reviewing or adapting CV dates, treat this as the current date. "
+        "Do not rewrite, shorten, or correct CV dates just because they appear "
+        "to be in the future unless they are after today's date or clearly inconsistent."
+    )
+
+
+def read_cv_knowledge_base() -> str:
+    """Return .vita/cv.yaml content when the file exists and is not empty."""
+    if not CV_KNOWLEDGE_FILE.exists() or not CV_KNOWLEDGE_FILE.is_file():
+        return ""
+
+    content = CV_KNOWLEDGE_FILE.read_text(encoding="utf-8").strip()
+    return content
+
+
+def cv_knowledge_instruction() -> str:
+    content = read_cv_knowledge_base()
+    if not content:
+        return ""
+
+    return (
+        "\n\nMASTER CV KNOWLEDGE BASE INSTRUCTION:\n"
+        "The user has provided `.vita/cv.yaml` as a structured master CV knowledge base. "
+        "Use it as additional source material while editing the CV: prefer relevant facts, "
+        "role targets, skills, bullets, metrics, projects, certifications, and other truthful "
+        "details from this file when they strengthen the tailored `main.tex`.\n"
+        "Do not invent facts that are not supported by either `main.tex`, `job.md`, "
+        "`results/analysis.md`, or `.vita/cv.yaml`. Keep the final CV concise and credible.\n\n"
+        "==== FILE: .vita/cv.yaml ====\n"
+        f"{content}\n"
+        "=============================="
+    )
+
+
 def build_system_context(prompt_text: str) -> str:
     """Scan the prompt and project for necessary files to inject as context."""
     context = "You are VITA, an expert AI agent that writes and adapts LaTeX CVs.\n"
     context += "Below is the context gathered from the user's local file system.\n\n"
+    context += current_date_instruction().strip()
+    context += "\n\n"
     
     # Inject main.tex
     if Path("main.tex").exists():
