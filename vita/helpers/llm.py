@@ -13,8 +13,9 @@ import subprocess
 import urllib.request
 import urllib.error
 from pathlib import Path
+from vita.helpers.config import load_config
 from vita.helpers.env import load_env
-from vita.helpers.extensions import get_llm_providers
+from vita.helpers.extensions import add_llm_provider, get_llm_providers
 
 
 # ── OpenAI-Compatible Provider Registry ───────────────────────────────────────
@@ -60,11 +61,31 @@ def generate(system_prompt: str, user_prompt: str, provider: str | None = None) 
 
     provider_name = provider.lower() if provider else list(providers.keys())[0].lower()
     if provider_name not in providers:
-        configured = ", ".join(providers.keys())
-        raise ValueError(
-            f"Provider '{provider_name}' is not configured. "
-            f"Configured providers: {configured}"
-        )
+        if provider_name == "codex":
+            auto_add = load_config().get("auto_add_codex_provider", False)
+            if auto_add:
+                add_llm_provider("codex", {"model": ""})
+                providers["codex"] = {"model": ""}
+                print("Added Codex to .vita/extensions.json automatically.")
+            else:
+                answer = input(
+                    "Codex is not configured in .vita/extensions.json. Add it? (y/n): "
+                ).strip().lower()
+                if answer == "y":
+                    add_llm_provider("codex", {"model": ""})
+                    providers["codex"] = {"model": ""}
+                    print("Added Codex to .vita/extensions.json.")
+                else:
+                    raise ValueError(
+                        "Codex is not configured. Add it to .vita/extensions.json "
+                        "or rerun and answer 'y'."
+                    )
+        else:
+            configured = ", ".join(providers.keys())
+            raise ValueError(
+                f"Provider '{provider_name}' is not configured. "
+                f"Configured providers: {configured}"
+            )
 
     config = providers[provider_name]
     model = config.get("model") or _DEFAULT_MODELS.get(provider_name, "gpt-4o")
@@ -139,34 +160,45 @@ def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "") -> st
 
 
 def _find_codex_cli() -> str | None:
-    """Find Codex even when the VS Code extension version changes and PATH is stale."""
+    """Find Codex on PATH or in a locally installed VS Code ChatGPT extension."""
     explicit = os.environ.get("VITA_CODEX") or os.environ.get("CODEX_EXE")
     if explicit and Path(explicit).is_file():
         return explicit
 
-    codex = shutil.which("codex")
-    if codex:
+    if codex := shutil.which("codex"):
         return codex
 
+    executable = "codex.exe" if os.name == "nt" else "codex"
     home = Path.home()
-    matches: list[Path] = []
-    for extensions_dir in [
+    extension_roots = (
         home / ".vscode" / "extensions",
         home / ".vscode-insiders" / "extensions",
-    ]:
-        if extensions_dir.exists():
-            matches.extend(
-                extensions_dir.glob(
-                    "openai.chatgpt-*-win32-x64/bin/windows-x86_64/codex.exe"
-                )
-            )
+        home / ".vscode-server" / "extensions",
+        home / ".vscode-remote" / "extensions",
+    )
 
-    if not matches:
+    candidates: list[Path] = []
+    for root in extension_roots:
+        if not root.is_dir():
+            continue
+
+        for extension in root.glob("openai.chatgpt-*"):
+            if not extension.is_dir():
+                continue
+
+            for candidate in extension.rglob(executable):
+                if candidate.is_file() and (
+                    os.name == "nt" or os.access(candidate, os.X_OK)
+                ):
+                    candidates.append(candidate)
+
+    if not candidates:
         return None
 
-    latest = max(matches, key=lambda path: path.stat().st_mtime)
+    latest = max(candidates, key=lambda path: path.stat().st_mtime)
     codex_dir = str(latest.parent)
-    if codex_dir not in os.environ.get("PATH", ""):
+    path_entries = os.environ.get("PATH", "").split(os.pathsep)
+    if codex_dir not in path_entries:
         os.environ["PATH"] = codex_dir + os.pathsep + os.environ.get("PATH", "")
     return str(latest)
 

@@ -72,3 +72,29 @@ def get_llm_providers() -> dict[str, dict]:
         if not k.startswith("_")
     }
     return providers
+
+
+def add_llm_provider(name: str, config: dict | None = None) -> None:
+    """Add an LLM provider to extensions.json without changing existing settings."""
+    if EXTENSIONS_FILE.exists():
+        try:
+            with open(EXTENSIONS_FILE, encoding="utf-8") as f:
+                raw = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                "Cannot add an LLM provider because .vita/extensions.json is malformed. "
+                f"Fix the JSON first. ({e})"
+            ) from e
+    else:
+        raw = {}
+
+    providers = raw.setdefault("llm_providers", {})
+    if not isinstance(providers, dict):
+        raise ValueError(
+            "Cannot add an LLM provider because 'llm_providers' must be a JSON object."
+        )
+    providers.setdefault(name.lower(), config or {})
+
+    EXTENSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(EXTENSIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(raw, f, indent=2)
