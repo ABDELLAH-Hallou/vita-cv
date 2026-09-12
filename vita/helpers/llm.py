@@ -159,6 +159,16 @@ def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "") -> st
     return response
 
 
+def _codex_extension_roots(home: Path) -> tuple[Path, ...]:
+    """Return the standard local and remote VS Code extension directories."""
+    return (
+        home / ".vscode" / "extensions",
+        home / ".vscode-insiders" / "extensions",
+        home / ".vscode-server" / "extensions",
+        home / ".vscode-remote" / "extensions",
+    )
+
+
 def _find_codex_cli() -> str | None:
     """Find Codex on PATH or in a locally installed VS Code ChatGPT extension."""
     explicit = os.environ.get("VITA_CODEX") or os.environ.get("CODEX_EXE")
@@ -169,16 +179,9 @@ def _find_codex_cli() -> str | None:
         return codex
 
     executable = "codex.exe" if os.name == "nt" else "codex"
-    home = Path.home()
-    extension_roots = (
-        home / ".vscode" / "extensions",
-        home / ".vscode-insiders" / "extensions",
-        home / ".vscode-server" / "extensions",
-        home / ".vscode-remote" / "extensions",
-    )
 
     candidates: list[Path] = []
-    for root in extension_roots:
+    for root in _codex_extension_roots(Path.home()):
         if not root.is_dir():
             continue
 
