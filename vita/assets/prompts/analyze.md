@@ -8,9 +8,9 @@ If multiple job descriptions are provided, produce ONE unified cross-role analys
 - Recommend the highest-leverage CV changes that improve fit across the full set of roles.
 
 For both single-job and multi-job analysis, include:
-- The recommended CV title/headline for this application.
+- The recommended CV title/headline for this application: exactly one role name, such as `Applied AI Engineer`, `Data Engineer`, `Software Engineer`, or `ML Engineer`. Do not append taglines, specializations, technology lists, or additional roles with pipes, slashes, dashes, or ampersands. For example, use `Applied AI Engineer`, never `Applied AI Engineer | Production AI Agents & Enterprise AI Systems`. For multiple jobs, choose the single role that best fits the shared requirements and the candidate's experience.
 - The recommended professional summary angle.
-- The top keywords that should appear in the title/headline or summary.
+- The top keywords that should appear in the summary or skills; keep the title limited to the role name.
 
 **IMPORTANT INSTRUCTION**: 
 Please save your full analysis report to a new file at `results/analysis.md` so that the next steps in my workflow can read it.

@@ -336,6 +336,8 @@ vita adapt --auto --provider gemini
 
 VITA adapts the CV title/headline, professional summary, experience, and skills based on the job description. For multi-job `job.md` files, it creates one coherent CV optimized for shared requirements across all listed roles instead of separate CV versions.
 
+The CV title uses one role name, such as `Applied AI Engineer`, `Data Engineer`, `Software Engineer`, or `ML Engineer`. Specializations and keywords belong in the summary or skills, without a tagline appended to the title. For multiple jobs, VITA selects the single role that best fits the shared requirements and your experience.
+
 ---
 
 ### `vita review`
