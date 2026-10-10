@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77"]
+requires = ["setuptools>=84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -52,12 +52,12 @@ vita = ["assets/prompts/*.md", "assets/skills/*.md"]
 
 [dependency-groups]
 dev = [
-    "build>=1.0",
-    "pip-audit>=2.9",
-    "pytest>=8.0",
-    "pytest-cov>=6.0",
-    "ruff>=0.14",
-    "twine>=5.0",
+    "build>=1.6.1",
+    "pip-audit>=2.10.1",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.10",
+    "twine>=7.0.0",
 ]
 
 [tool.pytest.ini_options]
