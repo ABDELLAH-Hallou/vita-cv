@@ -473,7 +473,16 @@ See [EXTENSIONS.md](EXTENSIONS.md) for the full list of built-in aliases and all
 
 GitHub Actions runs linting, dependency auditing, package validation, CodeQL, regression tests on Python 3.10 through 3.14, and an isolated installed-package smoke test. The full pipeline also runs every Monday at 05:23 UTC. Dependabot checks Python and GitHub Actions dependencies every Monday.
 
-Pushing a stable version tag such as `v2.4.0` starts the release workflow. The workflow verifies that the tag matches `vita.__version__`, requires the tagged commit to be on `master`, runs every release check, builds the package once, publishes it to TestPyPI, installs and verifies that TestPyPI package, and only then publishes the same files to PyPI.
+Release Please manages versions and release notes from Conventional Commit pull request titles. It keeps a release pull request up to date, including `vita.__version__` and `CHANGELOG.md`. Merging that tested release pull request creates the version tag and GitHub Release. The tag starts the publishing workflow, which verifies that the tag matches `vita.__version__`, requires the tagged commit to be on `master`, runs every release check, builds the package once, publishes it to TestPyPI, installs and verifies that TestPyPI package, and only then publishes the same files to PyPI.
+
+Use these pull request title prefixes to select the next version automatically:
+
+- `fix: ...` creates a patch release, such as `2.3.0` to `2.3.1`.
+- `feat: ...` creates a minor release, such as `2.3.0` to `2.4.0`.
+- `feat!: ...`, `fix!: ...`, or a `BREAKING CHANGE:` footer creates a major release.
+- `chore: ...`, `ci: ...`, and `test: ...` normally do not create a release.
+
+Use a scope when useful, for example `fix(cli): handle a missing config file`. CI rejects pull request titles that are not Conventional Commits. To select an exact exceptional version, add `Release-As: X.Y.Z` to the squash commit body.
 
 ### Add the publishing tokens to GitHub
 
@@ -486,14 +495,17 @@ Never commit either token to this repository. Store each token as a GitHub envir
 
 The token value includes the `pypi-` prefix. The workflow supplies the required `__token__` username automatically.
 
-To publish a release after the version change is reviewed and merged:
+### Add the release automation token to GitHub
 
-```sh
-git checkout master
-git pull --ff-only
-git tag v2.4.0
-git push origin v2.4.0
-```
+Release Please needs a fine-grained GitHub personal access token so that its pull requests run the required CI checks and its version tags start the publishing workflow. In GitHub, open **Settings → Secrets and variables → Actions**, create a repository secret named **`RELEASE_PLEASE_TOKEN`**, and paste a fine-grained token with access only to this repository. Grant it **Contents: Read and write**, **Pull requests: Read and write**, and **Issues: Read and write**. Keep the token owner authorized to create tags and pull requests in this repository.
+
+After the three secrets are configured, normal development and releases use this flow:
+
+1. Merge a pull request with a Conventional Commit title into `master`.
+2. Release Please creates or updates the release pull request with the calculated version and release notes.
+3. Review and merge the release pull request after its required checks pass.
+4. Release Please creates the GitHub Release and `vX.Y.Z` tag.
+5. GitHub Actions publishes to TestPyPI, verifies the uploaded wheel, and publishes the identical files to PyPI.
 
 ---
 
