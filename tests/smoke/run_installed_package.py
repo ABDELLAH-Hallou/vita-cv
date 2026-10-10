@@ -9,8 +9,6 @@ import venv
 import zipfile
 from pathlib import Path
 
-from vita import __version__
-
 
 def run(command: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     environment = {**os.environ, "PYTHONUTF8": "1"}
@@ -30,11 +28,10 @@ def python_in(virtual_environment: Path) -> Path:
     return virtual_environment / "bin" / "python"
 
 
-def smoke_test(distribution_directory: Path) -> None:
-    wheels = list(distribution_directory.glob(f"vita_cv-{__version__}-*.whl"))
-    source_distributions = list(
-        distribution_directory.glob(f"vita_cv-{__version__}.tar.gz")
-    )
+def smoke_test(distribution_directory: Path, expected_version: str | None = None) -> None:
+    version_pattern = expected_version or "*"
+    wheels = list(distribution_directory.glob(f"vita_cv-{version_pattern}-*.whl"))
+    source_distributions = list(distribution_directory.glob(f"vita_cv-{version_pattern}.tar.gz"))
     if len(wheels) != 1 or len(source_distributions) != 1:
         raise AssertionError(
             "Expected exactly one vita-cv wheel and one source distribution in "
@@ -90,7 +87,7 @@ def smoke_test(distribution_directory: Path) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        raise SystemExit("usage: run_installed_package.py DIST_DIRECTORY")
-    smoke_test(Path(sys.argv[1]))
+    if len(sys.argv) not in (2, 3):
+        raise SystemExit("usage: run_installed_package.py DIST_DIRECTORY [VERSION]")
+    smoke_test(Path(sys.argv[1]), sys.argv[2] if len(sys.argv) == 3 else None)
     print("Installed package smoke test passed")
