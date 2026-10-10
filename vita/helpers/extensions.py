@@ -8,7 +8,7 @@ editing the package source.
 """
 
 import json
-from pathlib import Path
+
 from vita.helpers.config import VITA_DIR
 
 EXTENSIONS_FILE = VITA_DIR / "extensions.json"
