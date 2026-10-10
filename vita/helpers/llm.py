@@ -10,13 +10,13 @@ import json
 import os
 import shutil
 import subprocess
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
+
 from vita.helpers.config import load_config
 from vita.helpers.env import load_env
 from vita.helpers.extensions import add_llm_provider, get_llm_providers
-
 
 # ── OpenAI-Compatible Provider Registry ───────────────────────────────────────
 # All of these accept the exact same request/response format as OpenAI.
@@ -279,4 +279,4 @@ def _post(url: str, headers: dict, data: dict) -> dict:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         error_msg = e.read().decode("utf-8")
-        raise RuntimeError(f"API error {e.code}: {error_msg}")
+        raise RuntimeError(f"API error {e.code}: {error_msg}") from e

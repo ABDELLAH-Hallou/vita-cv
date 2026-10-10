@@ -2,11 +2,12 @@
 
 import json
 import shutil
-from vita.helpers.config import VITA_DIR, CONFIG_FILE, DEFAULT_CONFIG
-from vita.helpers.registry import REGISTRY_FILE
-from vita.helpers.extensions import EXTENSIONS_FILE
-from vita.helpers.env import ENV_FILE, ENV_EXAMPLE_FILE
+
 from vita.helpers import git
+from vita.helpers.config import CONFIG_FILE, DEFAULT_CONFIG, VITA_DIR
+from vita.helpers.env import ENV_EXAMPLE_FILE, ENV_FILE
+from vita.helpers.extensions import EXTENSIONS_FILE
+from vita.helpers.registry import REGISTRY_FILE
 
 
 def run(force: bool = False) -> None:

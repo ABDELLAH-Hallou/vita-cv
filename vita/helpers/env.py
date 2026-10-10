@@ -4,7 +4,7 @@ Responsible for reading and writing secrets to .vita/.env.
 """
 
 import os
-from pathlib import Path
+
 from vita.helpers.config import VITA_DIR
 
 ENV_FILE = VITA_DIR / ".env"

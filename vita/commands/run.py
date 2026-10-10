@@ -7,7 +7,6 @@ Usage:
 
 from vita.commands.ai_step import run as ai_step_run
 
-
 STEPS = ["analyze", "adapt", "review"]
 
 
