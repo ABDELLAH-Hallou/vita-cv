@@ -9,7 +9,7 @@ import vita
 from vita.commands import run as pipeline
 from vita.commands import sync
 from vita.helpers import config, env, registry
-from vita.helpers.release import validate_release_tag
+from vita.helpers.release import validate_pr_title, validate_release_tag
 
 pytestmark = pytest.mark.regression
 
@@ -27,6 +27,34 @@ def test_release_rejects_invalid_tags(tag: str) -> None:
 def test_release_rejects_version_mismatch() -> None:
     with pytest.raises(ValueError, match="does not match"):
         validate_release_tag("v9.9.9", "2.3.0")
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "fix: handle a missing config file",
+        "feat(cli): add JSON output",
+        "feat!: replace the configuration format",
+        "chore(deps): update pytest",
+        "chore(master): release 2.3.0",
+    ],
+)
+def test_release_accepts_conventional_pull_request_titles(title: str) -> None:
+    validate_pr_title(title)
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Add a feature",
+        "feature: unsupported type",
+        "fix missing colon",
+        "feat(API): uppercase scope",
+    ],
+)
+def test_release_rejects_nonconventional_pull_request_titles(title: str) -> None:
+    with pytest.raises(ValueError, match="Conventional Commits"):
+        validate_pr_title(title)
 
 
 def test_pipeline_runs_all_steps_and_only_localizes_adapt(
