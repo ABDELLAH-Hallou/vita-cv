@@ -7,7 +7,8 @@ Commands:
 """
 
 import sys
-from vita.helpers.env import load_env, set_env_key, ENV_FILE
+
+from vita.helpers.env import ENV_FILE, load_env, set_env_key
 from vita.helpers.logging import log
 
 

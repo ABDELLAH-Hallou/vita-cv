@@ -8,7 +8,6 @@ keeping business logic in commands/ free of raw subprocess calls.
 import subprocess
 from dataclasses import dataclass
 
-
 # ── Result type ───────────────────────────────────────────────────────────────
 
 @dataclass

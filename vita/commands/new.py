@@ -1,10 +1,11 @@
 """vita new — create a new tailored CV branch."""
 
 from datetime import date
-from vita.helpers.config import load_config
-from vita.helpers.registry import load_registry, save_registry, normalize_role
-from vita.helpers.logging import log
+
 from vita.helpers import git
+from vita.helpers.config import load_config
+from vita.helpers.logging import log
+from vita.helpers.registry import load_registry, normalize_role, save_registry
 
 
 def run(branch_type: str, company: str, role: str, force: bool = False, commit_changes: bool = False) -> None:
@@ -40,7 +41,7 @@ def run(branch_type: str, company: str, role: str, force: bool = False, commit_c
         print("No initial commit found. Branches created now will be 'unborn' until the first commit.")
         action = input("Would you like to make your initial commit now? [Y/n]: ").strip().lower()
         if action != 'n':
-            msg = input(f"Commit message [Initial commit]: ").strip()
+            msg = input("Commit message [Initial commit]: ").strip()
             if not msg:
                 msg = "Initial commit"
             git.add_and_commit(msg,git.current_branch())
@@ -109,4 +110,4 @@ def run(branch_type: str, company: str, role: str, force: bool = False, commit_c
     print()
     print(f"Branch created  : {branch}")
     print(f"Base branch     : {base}")
-    print(f"Registry updated: .vita/companies.json")
+    print("Registry updated: .vita/companies.json")

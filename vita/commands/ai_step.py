@@ -1,13 +1,14 @@
 import re
 from pathlib import Path
-from vita.helpers.extensions import merged_language_map
+
 from vita.helpers.context_builder import (
     build_system_context,
-    cv_knowledge_instruction,
     current_date_instruction,
+    cv_knowledge_instruction,
     format_job_descriptions,
     multi_job_instruction,
 )
+from vita.helpers.extensions import merged_language_map
 from vita.helpers.llm import generate as llm_generate
 
 # ── Built-in language codes ───────────────────────────────────────────────────

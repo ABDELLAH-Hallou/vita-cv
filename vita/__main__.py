@@ -8,7 +8,7 @@ import argparse
 import sys
 
 from vita import __version__
-from vita.commands import init, new, build, status, diff, lock, ai_step, sync, keys, run, push
+from vita.commands import ai_step, build, diff, init, keys, lock, new, push, run, status, sync
 
 
 def main() -> None:
