@@ -54,5 +54,6 @@ vita = ["assets/prompts/*.md", "assets/skills/*.md"]
 [dependency-groups]
 dev = [
     "build>=1.0",
+    "pytest>=8.0",
     "twine>=5.0",
 ]

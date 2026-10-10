@@ -76,6 +76,11 @@ codex login
 codex exec "Say hello"
 ```
 
+When you run a command with `--provider codex` and Codex is missing from
+`.vita/extensions.json`, VITA asks whether it should add the provider for you.
+Set `"auto_add_codex_provider": true` in `.vita/config.json` to add it
+automatically without a prompt.
+
 Then run:
 
 ```sh

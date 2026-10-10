@@ -158,7 +158,8 @@ Role: Senior Software Engineer
   "default_base_branch": "master",
   "strict_mode": false,
   "allow_multiple_per_company": true,
-  "warn_on_duplicate": true
+  "warn_on_duplicate": true,
+  "auto_add_codex_provider": false
 }
 ```
 
@@ -173,6 +174,7 @@ Role: Senior Software Engineer
 | `strict_mode` | Reserved stricter workflow setting (`false` by default) |
 | `allow_multiple_per_company` | Reserved duplicate-policy setting |
 | `warn_on_duplicate` | If `true`, warns (but doesn't block) on duplicate company |
+| `auto_add_codex_provider` | If `true`, automatically adds a missing Codex provider to `extensions.json` without prompting |
 
 ---
 

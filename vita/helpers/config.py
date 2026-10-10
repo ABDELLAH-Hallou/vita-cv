@@ -26,6 +26,7 @@ DEFAULT_CONFIG: dict = {
     "strict_mode": False,
     "allow_multiple_per_company": True,
     "warn_on_duplicate": True,
+    "auto_add_codex_provider": False,
 }
 
 # ── I/O ───────────────────────────────────────────────────────────────────────
