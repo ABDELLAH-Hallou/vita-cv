@@ -1,5 +1,5 @@
-from vita.helpers.registry import load_registry
 from vita.helpers import git
+from vita.helpers.registry import load_registry
 
 
 def run(company: str) -> None:

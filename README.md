@@ -469,6 +469,34 @@ See [EXTENSIONS.md](EXTENSIONS.md) for the full list of built-in aliases and all
 
 ---
 
+## CI/CD and automated releases
+
+GitHub Actions runs linting, dependency auditing, package validation, CodeQL, regression tests on Python 3.10 through 3.14, and an isolated installed-package smoke test. The full pipeline also runs every Monday at 05:23 UTC. Dependabot checks Python and GitHub Actions dependencies every Monday.
+
+Pushing a stable version tag such as `v2.4.0` starts the release workflow. The workflow verifies that the tag matches `vita.__version__`, requires the tagged commit to be on `master`, runs every release check, builds the package once, publishes it to TestPyPI, installs and verifies that TestPyPI package, and only then publishes the same files to PyPI.
+
+### Add the publishing tokens to GitHub
+
+Never commit either token to this repository. Store each token as a GitHub environment secret:
+
+1. Open the GitHub repository and go to **Settings → Environments**.
+2. Create an environment named **`testpypi`**. Under **Environment secrets**, add **`TEST_PYPI_API_TOKEN`** with a project-scoped token created at [TestPyPI account settings](https://test.pypi.org/manage/account/token/).
+3. Create an environment named **`pypi`**. Under **Environment secrets**, add **`PYPI_API_TOKEN`** with a project-scoped token created at [PyPI account settings](https://pypi.org/manage/account/token/).
+4. Restrict both environments to tags matching `v*`. For the strongest production control, enable **Required reviewers** on the `pypi` environment so production publishing waits for approval after TestPyPI verification. Leave required reviewers disabled if releases must be completely unattended.
+
+The token value includes the `pypi-` prefix. The workflow supplies the required `__token__` username automatically.
+
+To publish a release after the version change is reviewed and merged:
+
+```sh
+git checkout master
+git pull --ff-only
+git tag v2.4.0
+git push origin v2.4.0
+```
+
+---
+
 ## AI Skills
 
 VITA includes a library of AI agent skills for specialized tasks. Reference them when prompting your AI assistant:

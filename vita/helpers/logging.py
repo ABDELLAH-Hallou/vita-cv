@@ -5,7 +5,7 @@ Responsible for:
 """
 
 from datetime import datetime
-from pathlib import Path
+
 from vita.helpers.config import VITA_DIR
 
 LOG_FILE = VITA_DIR / "logs" / "vita.log"

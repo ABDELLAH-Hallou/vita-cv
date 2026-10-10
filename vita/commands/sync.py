@@ -10,13 +10,12 @@ comparing them against companies.json. It offers to fix discrepancies:
 import json
 from pathlib import Path
 
+from vita.helpers import git
 from vita.helpers.config import CONFIG_FILE, DEFAULT_CONFIG, VITA_DIR
 from vita.helpers.env import ENV_EXAMPLE_FILE, ENV_FILE
 from vita.helpers.extensions import EXTENSIONS_FILE
-from vita.helpers.registry import REGISTRY_FILE
-from vita.helpers.registry import load_registry, save_registry
 from vita.helpers.logging import log
-from vita.helpers import git
+from vita.helpers.registry import REGISTRY_FILE, load_registry, save_registry
 
 _ETP_PREFIX = "etp-"
 

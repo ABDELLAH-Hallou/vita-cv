@@ -1,7 +1,7 @@
 """vita lock / unlock — toggle the lock flag on a company in the registry."""
 
-from vita.helpers.registry import load_registry, save_registry
 from vita.helpers.logging import log
+from vita.helpers.registry import load_registry, save_registry
 
 
 def run(company: str, locked: bool = True) -> None:

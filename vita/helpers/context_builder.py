@@ -1,6 +1,6 @@
 """vita/helpers/context_builder.py — Packages local files into LLM context."""
-from datetime import date
 import re
+from datetime import date
 from pathlib import Path
 
 JOB_HEADER_RE = re.compile(r"(?im)^#\s*Job\s+\d+\b.*$")
@@ -126,6 +126,6 @@ def build_system_context(prompt_text: str) -> str:
         if skill_path.exists():
             context += f"==== SKILL: {skill_name} ====\n"
             context += skill_path.read_text(encoding="utf-8")
-            context += f"\n=============================\n\n"
+            context += "\n=============================\n\n"
             
     return context
