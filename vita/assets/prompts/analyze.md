@@ -13,7 +13,7 @@ For both single-job and multi-job analysis, include:
 - The top keywords that should appear in the summary or skills; keep the title limited to the role name.
 
 **IMPORTANT INSTRUCTION**: 
-Please save your full analysis report to a new file at `results/analysis.md` so that the next steps in my workflow can read it.
+Please save your full analysis report to a new file at `.vita/results/analyze.md` so that the next steps in my workflow can read it.
 
 -----------------------------------------
 JOB DESCRIPTION:

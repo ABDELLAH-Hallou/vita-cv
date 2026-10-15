@@ -21,6 +21,8 @@ DEFAULT_CONFIG: dict = {
     "output_dir": "out",
     "output_filename": "cv-{author}.pdf",
     "tex_entry": "main.tex",
+    "cover_tex_entry": "cover-letter.tex",
+    "cover_output_filename": "cover-letter-{author}.pdf",
     "build_mode": "auto",
     "default_base_branch": "master",
     "strict_mode": False,

@@ -57,7 +57,7 @@ def test_release_rejects_nonconventional_pull_request_titles(title: str) -> None
         validate_pr_title(title)
 
 
-def test_pipeline_runs_all_steps_and_only_localizes_adapt(
+def test_pipeline_runs_all_steps_and_localizes_both_documents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = []
@@ -73,6 +73,7 @@ def test_pipeline_runs_all_steps_and_only_localizes_adapt(
         ("analyze", {"language": None, "auto": True, "provider": "codex"}),
         ("adapt", {"language": "fr", "auto": True, "provider": "codex"}),
         ("review", {"language": None, "auto": True, "provider": "codex"}),
+        ("cover", {"language": "fr", "auto": True, "provider": "codex"}),
     ]
 
 

@@ -23,14 +23,14 @@ def main() -> None:
 commands:
   init                     Initialize VITA in the current directory
   new etp <company> <role> Create a new tailored CV branch
-  build                    Compile the LaTeX CV to PDF
+  build [both]             Compile the CV, cover letter, or both to PDF
   status                   Show all companies and branches
   sync                     Reconcile registry with git branches
   diff <company>           Show diff from base CV
   lock <company>           Lock a company (block new CVs)
   unlock <company>         Unlock a company
   keys                     Manage LLM API keys (list, set, remove)
-  run                      Run full AI pipeline: analyze → adapt → review
+  run                      Run full AI pipeline: analyze → adapt → review → cover
   save                     Save and push CV changes
         """,
     )
@@ -51,7 +51,11 @@ commands:
     new_p.add_argument("-c", "--commit", action="store_true", help="Commit uncommitted changes before branching")
 
     # ── build ─────────────────────────────────────────────────────────────────
-    subparsers.add_parser("build", help="Compile the LaTeX CV to PDF")
+    build_p = subparsers.add_parser("build", help="Compile the CV, cover letter, or both to PDF")
+    build_p.add_argument("target", nargs="?", choices=["both"], help="Build both documents")
+    build_group = build_p.add_mutually_exclusive_group()
+    build_group.add_argument("-r", "--resume", action="store_true", help="Build only the CV (default)")
+    build_group.add_argument("-c", "--cover", action="store_true", help="Build only the cover letter")
 
 
     # ── status ────────────────────────────────────────────────────────────────
@@ -87,9 +91,9 @@ commands:
     keys_remove_p.add_argument("provider", help="Provider name")
 
     # ── run (pipeline) ─────────────────────────────────────────────────────
-    run_p = subparsers.add_parser("run", help="Run full AI pipeline: analyze → adapt → review")
+    run_p = subparsers.add_parser("run", help="Run full AI pipeline: analyze → adapt → review → cover")
     run_p.add_argument("-a", "--auto",     action="store_true", help="Run autonomously using configured LLM")
-    run_p.add_argument("-l", "--language", default="en",         help="Target language for the adapt step")
+    run_p.add_argument("-l", "--language", default="en",         help="Target language for the CV and cover letter")
     run_p.add_argument("-p", "--provider", help="LLM provider to use for --auto")
 
     # ── AI Prompts ────────────────────────────────────────────────────────────
@@ -105,6 +109,11 @@ commands:
     review_p = subparsers.add_parser("review", help="Generate prompt to review the CV")
     review_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
     review_p.add_argument("-p", "--provider", help="LLM provider to use for --auto")
+
+    cover_p = subparsers.add_parser("cover", help="Create a cover letter from the CV and job.md")
+    cover_p.add_argument("-l", "--language", default="en", help="Target language for the cover letter")
+    cover_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
+    cover_p.add_argument("-p", "--provider", help="LLM provider to use for --auto")
 
     # ── save ──────────────────────────────────────────────────────────────────
     save_p = subparsers.add_parser("save", help="Save and push CV changes")
@@ -125,7 +134,11 @@ commands:
         new.run(args.type, args.company, args.role, args.force, args.commit)
 
     elif args.command == "build":
-        build.run()
+        if args.target and (args.resume or args.cover):
+            build_p.error("'both' cannot be combined with --resume or --cover")
+        target = args.target or ("cover" if args.cover else "resume")
+        if build.run(target) is False:
+            sys.exit(1)
 
     elif args.command == "status":
         status.run()
@@ -151,13 +164,15 @@ commands:
         keys.run(args.keys_command, provider, key)
 
     elif args.command == "run":
-        run.run(auto=args.auto, language=args.language, provider=args.provider)
+        if run.run(auto=args.auto, language=args.language, provider=args.provider) is False:
+            sys.exit(1)
 
-    elif args.command in ["analyze", "adapt", "review"]:
+    elif args.command in ["analyze", "adapt", "review", "cover"]:
         lang = getattr(args, "language", None)
         auto = getattr(args, "auto", False)
         provider = getattr(args, "provider", None)
-        ai_step.run(args.command, language=lang, auto=auto, provider=provider)
+        if ai_step.run(args.command, language=lang, auto=auto, provider=provider) is False:
+            sys.exit(1)
 
     elif args.command == "save":
         push.run(message=args.message, reconcile=args.reconcile)

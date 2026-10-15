@@ -91,6 +91,11 @@ jobs:
           cache-dependency-glob: uv.lock
       - name: Install locked development environment
         run: uv sync --locked --all-groups --python ${{ matrix.python-version }}
+      - name: Install LaTeX for document integration tests
+        if: matrix.python-version == '3.12'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends latexmk texlive-latex-base
       - name: Run regression suite with branch coverage
         run: uv run --python ${{ matrix.python-version }} pytest --ignore=tests/smoke --cov=vita --cov-report=term-missing
 

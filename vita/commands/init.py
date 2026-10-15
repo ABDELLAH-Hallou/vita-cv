@@ -8,6 +8,7 @@ from vita.helpers.config import CONFIG_FILE, DEFAULT_CONFIG, VITA_DIR
 from vita.helpers.env import ENV_EXAMPLE_FILE, ENV_FILE
 from vita.helpers.extensions import EXTENSIONS_FILE
 from vita.helpers.registry import REGISTRY_FILE
+from vita.helpers.skills import SKILLS_DIR, TASK_SKILLS
 
 
 def run(force: bool = False) -> None:
@@ -22,6 +23,8 @@ def run(force: bool = False) -> None:
 
     # Create directory structure
     (VITA_DIR / "logs").mkdir(parents=True)
+    for step in TASK_SKILLS:
+        (SKILLS_DIR / step).mkdir(parents=True)
 
     # Write default config
     with open(CONFIG_FILE, "w") as f:
@@ -65,6 +68,7 @@ def run(force: bool = False) -> None:
     print(f"   {EXTENSIONS_FILE}   — add your custom role aliases, languages, and LLMs")
     print(f"   {ENV_FILE}               — local API keys (managed via `vita keys`)")
     print(f"   {VITA_DIR}/logs/             — CLI activity logs")
+    print(f"   {SKILLS_DIR}/<task>/        — custom Markdown skills (analyze, adapt, review, cover)")
     print()
     print("Next: edit .vita/extensions.json to customize role aliases and languages.")
     print("   See EXTENSIONS.md for the full format reference.")

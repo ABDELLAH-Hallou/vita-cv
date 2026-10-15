@@ -43,7 +43,7 @@ placeholders, and delete/replace them when you want an entry to become active.
 ## `llm_providers`
 
 Configures the provider used by `vita analyze --auto`, `vita adapt --auto`,
-`vita review --auto`, and `vita run --auto`.
+`vita review --auto`, `vita cover --auto`, and `vita run --auto`.
 
 **API providers** require a matching API key saved with `vita keys set`.
 
@@ -236,6 +236,43 @@ a built-in alias if you disagree with the default short code:
 This overrides the built-in `ml` → your branches will use `mle` instead.
 
 ---
+
+## Custom task skills
+
+Place Markdown files directly in `.vita/skills/<task>/`. Run `vita sync --auto`
+to add these folders to an existing project without replacing your files.
+
+| Folder | Bundled skills used by default |
+|---|---|
+| `analyze/` | `job-description-analyzer.md` |
+| `adapt/` | `tech-resume-optimizer.md`, `resume-bullet-writer.md`, `resume-ats-optimizer.md`, `resume-tailor.md` |
+| `review/` | `resume-reviewer.md` |
+| `cover/` | `cover-letter-generator.md` |
+
+A nonempty file with the same filename replaces that bundled skill for that
+task. Other `.md` files add guidance after the default skills, in filename order.
+Empty files are ignored, and subfolders are not scanned. Project-local writing
+and style guidance takes precedence over bundled guidance; factual accuracy,
+the requested language, and the required output format still apply.
+
+For example, create `.vita/skills/adapt/writing-style.md`:
+
+```markdown
+Write the profile in natural French with connected sentences.
+Explain the candidate's main role and the kind of problems they solve.
+Use technologies selectively and avoid keyword quotas in the summary.
+Include a metric only when its context is clear from the source CV.
+```
+
+Add corresponding review guidance in `.vita/skills/review/` if you want the
+review to assess the same preferences. Put cover letter preferences in
+`.vita/skills/cover/`; CV-only skills are not loaded for the letter.
+
+Custom skills work with every configured provider and with manual prompt
+generation. They are embedded in the generated prompt, so regenerate it after
+editing a skill. `.vita/` is normally ignored by Git; back up or explicitly
+version your customizations if needed. `vita init --force` still replaces the
+whole `.vita/` directory, including custom skills; use `sync` for migration.
 
 ## Malformed JSON
 
