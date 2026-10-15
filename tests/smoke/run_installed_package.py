@@ -19,6 +19,7 @@ def run(command: list[str], cwd: Path | None = None) -> subprocess.CompletedProc
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
 
 
@@ -44,6 +45,8 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             "vita/assets/prompts/analyze.md",
             "vita/assets/prompts/adapt.md",
             "vita/assets/prompts/review.md",
+            "vita/assets/prompts/cover.md",
+            "vita/assets/skills/cover-letter-generator.md",
         }
         missing_assets = required_assets - names
         if missing_assets:
@@ -73,7 +76,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             raise AssertionError(f"Unexpected version output: {version!r}")
 
         help_text = run([str(python), "-m", "vita", "--help"], cwd=project).stdout
-        for command in ("init", "new", "build", "analyze", "adapt", "review", "run"):
+        for command in ("init", "new", "build", "analyze", "adapt", "review", "cover", "run"):
             if command not in help_text:
                 raise AssertionError(f"CLI help is missing command {command!r}")
 
@@ -84,6 +87,28 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             raise AssertionError("vita init did not create its required configuration files")
         if not isinstance(json.loads(config_file.read_text(encoding="utf-8")), dict):
             raise AssertionError("vita init created invalid config.json")
+
+        for task in ("analyze", "adapt", "review", "cover"):
+            if not (project / ".vita/skills" / task).is_dir():
+                raise AssertionError(f"Missing custom skill directory for {task}")
+        (project / "main.tex").write_text(
+            r"\documentclass{article}\begin{document}Python engineer\end{document}",
+            encoding="utf-8",
+        )
+        (project / "job.md").write_text("Acme seeks a Python engineer.", encoding="utf-8")
+        (project / ".vita/skills/cover/style.md").write_text(
+            "CUSTOM LETTER STYLE: use short paragraphs.", encoding="utf-8"
+        )
+        run([str(python), "-m", "vita", "run", "--language", "fr"], cwd=project)
+        cover_prompt = (project / ".vita/prompts/cover.md").read_text(encoding="utf-8")
+        if "CUSTOM LETTER STYLE" not in cover_prompt or "**French**" not in cover_prompt:
+            raise AssertionError("Installed cover workflow lost custom skills or language")
+        if "Cover Letter Philosophy" not in cover_prompt:
+            raise AssertionError("Installed cover workflow did not load its bundled skill")
+        build_help = run([str(python), "-m", "vita", "build", "--help"], cwd=project).stdout
+        for option in ("both", "--resume", "--cover"):
+            if option not in build_help:
+                raise AssertionError(f"Missing build option: {option}")
 
 
 if __name__ == "__main__":

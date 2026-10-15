@@ -3,6 +3,8 @@ import re
 from datetime import date
 from pathlib import Path
 
+from vita.helpers.skills import skill_context
+
 JOB_HEADER_RE = re.compile(r"(?im)^#\s*Job\s+\d+\b.*$")
 CV_KNOWLEDGE_FILE = Path(".vita") / "cv.yaml"
 
@@ -36,13 +38,13 @@ def format_job_descriptions(job_text: str) -> tuple[str, int]:
     return "\n".join(sections), len(jobs)
 
 
-def multi_job_instruction(job_count: int) -> str:
+def multi_job_instruction(job_count: int, document: str = "CV") -> str:
     return (
         f"\n\nMULTI-JOB OPTIMIZATION INSTRUCTION:\n"
         f"Multiple job descriptions detected ({job_count} jobs).\n"
-        "Your goal is to produce ONE optimized CV that maximizes the probability "
+        f"Your goal is to produce ONE optimized {document} that maximizes the probability "
         "of matching across ALL job descriptions. Prioritize keywords and "
-        "requirements that appear in more than one job. Do NOT produce separate CVs."
+        f"requirements that appear in more than one job. Do NOT produce separate {document}s."
     )
 
 
@@ -77,26 +79,52 @@ def cv_knowledge_instruction() -> str:
         "Use it as additional source material while editing the CV: prefer relevant facts, "
         "role targets, skills, bullets, metrics, projects, certifications, and other truthful "
         "details from this file when they strengthen the tailored `main.tex`.\n"
-        "Do not invent facts that are not supported by either `main.tex`, `job.md`, "
-        "`results/analysis.md`, or `.vita/cv.yaml`. Keep the final CV concise and credible.\n\n"
+        "Only the CV and `.vita/cv.yaml` establish candidate facts. Job descriptions "
+        "and generated analyses describe requirements, not evidence of qualifications. "
+        "Do not invent facts. Keep the final document concise and credible.\n\n"
         "==== FILE: .vita/cv.yaml ====\n"
         f"{content}\n"
         "=============================="
     )
 
 
-def build_system_context(prompt_text: str) -> str:
+def cv_source_context(entry: str) -> str:
+    """Include the configured CV and literal local input/include files, once each."""
+    root = Path.cwd().resolve()
+    seen: set[Path] = set()
+    blocks = []
+
+    def visit(path: Path) -> None:
+        resolved = path.resolve()
+        if not resolved.is_relative_to(root) or resolved in seen or not resolved.is_file():
+            return
+        seen.add(resolved)
+        content = resolved.read_text(encoding="utf-8")
+        blocks.append(f"==== FILE: {resolved.relative_to(root).as_posix()} ====\n{content}\n")
+        uncommented = re.sub(r"(?m)(?<!\\)%.*$", "", content)
+        for name in re.findall(r"\\(?:input|include)\s*\{([^{}]+)\}", uncommented):
+            if "\\" in name or "#" in name:
+                continue
+            included = Path(name)
+            if not included.suffix:
+                included = included.with_suffix(".tex")
+            visit(root / included)
+
+    visit(Path(entry))
+    return "\n".join(blocks)
+
+
+def build_system_context(
+    prompt_text: str, step: str | None = None, resume_entry: str = "main.tex"
+) -> str:
     """Scan the prompt and project for necessary files to inject as context."""
-    context = "You are VITA, an expert AI agent that writes and adapts LaTeX CVs.\n"
+    context = "You are VITA, an expert AI agent that writes LaTeX CVs and cover letters.\n"
     context += "Below is the context gathered from the user's local file system.\n\n"
     context += current_date_instruction().strip()
     context += "\n\n"
     
     # Inject main.tex
-    if Path("main.tex").exists():
-        context += "==== FILE: main.tex ====\n"
-        context += Path("main.tex").read_text(encoding="utf-8")
-        context += "\n========================\n\n"
+    context += cv_source_context(resume_entry)
         
     # Inject job.md
     if Path("job.md").exists():
@@ -109,18 +137,22 @@ def build_system_context(prompt_text: str) -> str:
         
     # Inject referenced results (e.g. results/analysis.md used by adapt prompt)
     # Note: results are stored in .vita/results/ internally
-    if "results/analysis.md" in prompt_text:
+    if "results/analysis.md" in prompt_text or ".vita/results/analyze.md" in prompt_text:
         res_file = Path(".vita") / "results" / "analyze.md"  # stored as analyze.md
         if res_file.exists():
-            context += "==== FILE: results/analysis.md ====\n"
+            context += "==== FILE: .vita/results/analyze.md ====\n"
             context += res_file.read_text(encoding="utf-8")
             context += "\n===================================\n\n"
             
-    # Inject referenced skills
+    # Explicit tasks select skills independently of text in the CV/job description.
+    if step is not None:
+        return context + "\n" + skill_context(step)
+
+    # Compatibility for callers that only supply a prompt.
     base_dir = Path(__file__).parent.parent
     skill_matches = set(re.findall(r"skills/[a-zA-Z0-9_-]+\.md", prompt_text))
     
-    for skill_ref in skill_matches:
+    for skill_ref in sorted(skill_matches):
         skill_name = skill_ref.split("/")[1]
         skill_path = base_dir / "assets" / "skills" / skill_name
         if skill_path.exists():

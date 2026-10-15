@@ -16,6 +16,7 @@ from vita.helpers.env import ENV_EXAMPLE_FILE, ENV_FILE
 from vita.helpers.extensions import EXTENSIONS_FILE
 from vita.helpers.logging import log
 from vita.helpers.registry import REGISTRY_FILE, load_registry, save_registry
+from vita.helpers.skills import SKILLS_DIR, TASK_SKILLS
 
 _ETP_PREFIX = "etp-"
 
@@ -43,6 +44,7 @@ def _missing_vita_paths() -> list[tuple[Path, str]]:
         (VITA_DIR / "logs", "dir"),
         (VITA_DIR / "results", "dir"),
         (VITA_DIR / "tmp", "dir"),
+        (VITA_DIR / "prompts", "dir"),
         (CONFIG_FILE, "json_config"),
         (REGISTRY_FILE, "json_registry"),
         (EXTENSIONS_FILE, "json_extensions"),
@@ -50,6 +52,7 @@ def _missing_vita_paths() -> list[tuple[Path, str]]:
         (ENV_EXAMPLE_FILE, "env_example"),
         (VITA_DIR / "logs" / ".gitkeep", "empty"),
     ]
+    expected.extend((SKILLS_DIR / step, "dir") for step in TASK_SKILLS)
     return [(path, kind) for path, kind in expected if not path.exists()]
 
 
