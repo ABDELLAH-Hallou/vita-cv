@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.3.0...v2.4.0) (2026-10-15)
+
+
+### Features
+
+* add custom task skills and cover letter workflow ([#26](https://github.com/ABDELLAH-Hallou/vita-cv/issues/26)) ([b3b8dcd](https://github.com/ABDELLAH-Hallou/vita-cv/commit/b3b8dcdf5c8b1e1f415dc3011c4f6d5fe71ef928))
+
 ## [2.3.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.2.0...v2.3.0) (2026-10-10)
 
 
