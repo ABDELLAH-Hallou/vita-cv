@@ -33,10 +33,11 @@ def github(endpoint: str, data: dict | None = None, *, missing_ok=False, method=
     if result.returncode:
         if missing_ok:
             try:
-                if str(json.loads(result.stdout).get("status")) == "404":
-                    return None
+                status = json.loads(result.stdout).get("status")
             except (ValueError, AttributeError):
-                pass
+                status = None
+            if str(status) == "404":
+                return None
         raise RuntimeError(f"GitHub API request failed: {endpoint}: {result.stderr.strip()}")
     return json.loads(result.stdout) if result.stdout.strip() else None
 
@@ -115,6 +116,7 @@ def verify_index_files(record: dict, data: dict, *, allow_partial=False) -> dict
 
 def download_verified(record: dict, destination: Path, index="testpypi") -> None:
     validate_record(record)
+    files = None
     for attempt in range(10):
         try:
             files = verify_index_files(record, metadata(record["version"], index))
@@ -123,6 +125,8 @@ def download_verified(record: dict, destination: Path, index="testpypi") -> None
             if attempt == 9:
                 raise
             time.sleep(15)
+    if files is None:
+        raise RuntimeError("The release could not be verified on the index")
     destination.mkdir(parents=True, exist_ok=True)
     if any(destination.iterdir()):
         raise ValueError("Download destination must be empty")
