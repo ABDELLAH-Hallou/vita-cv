@@ -509,7 +509,7 @@ See [EXTENSIONS.md](EXTENSIONS.md) for the full list of built-in aliases and all
 
 GitHub Actions runs linting, dependency auditing, package validation, CodeQL, regression tests on Python 3.10 through 3.14, and an isolated installed-package smoke test. The full pipeline also runs every Monday at 05:23 UTC. Dependabot checks Python and GitHub Actions dependencies every Monday.
 
-Release Please manages versions and release notes from Conventional Commit pull request titles. It keeps a release pull request up to date, including `vita.__version__` and `CHANGELOG.md`. Merging that tested release pull request creates the version tag and GitHub Release. The tag starts the publishing workflow, which verifies that the tag matches `vita.__version__`, requires the tagged commit to be on `master`, runs every release check, builds the package once, publishes it to TestPyPI, installs and verifies that TestPyPI package, and only then publishes the same files to PyPI.
+Releases require **two separate PR merges**. Release Please maintains a **TestPyPI release PR**, including `vita.__version__` and `CHANGELOG.md`. Merging it creates the version tag and a draft GitHub release, runs the release checks, builds once, and publishes to TestPyPI only. After verifying the uploaded package, automation publishes the GitHub prerelease and opens a **PyPI promotion PR** with the exact file hashes and testing instructions. Test the package yourself, then merge that second PR when ready. Only that merge publishes the same files to PyPI and marks the GitHub release stable.
 
 Use these pull request title prefixes to select the next version automatically:
 
@@ -527,21 +527,26 @@ Never commit either token to this repository. Store each token as a GitHub envir
 1. Open the GitHub repository and go to **Settings → Environments**.
 2. Create an environment named **`testpypi`**. Under **Environment secrets**, add **`TEST_PYPI_API_TOKEN`** with a project-scoped token created at [TestPyPI account settings](https://test.pypi.org/manage/account/token/).
 3. Create an environment named **`pypi`**. Under **Environment secrets**, add **`PYPI_API_TOKEN`** with a project-scoped token created at [PyPI account settings](https://pypi.org/manage/account/token/).
-4. Restrict both environments to tags matching `v*`. For the strongest production control, enable **Required reviewers** on the `pypi` environment so production publishing waits for approval after TestPyPI verification. Leave required reviewers disabled if releases must be completely unattended.
+4. Restrict both environments to tags matching `v*`. Merging the promotion PR dispatches PyPI publication on its tested version tag, preserving existing environment restrictions. Environment reviewers are optional extra protection; merging the promotion PR is already the explicit production approval.
 
 The token value includes the `pypi-` prefix. The workflow supplies the required `__token__` username automatically.
 
 ### Add the release automation token to GitHub
 
-Release Please needs a fine-grained GitHub personal access token so that its pull requests run the required CI checks and its version tags start the publishing workflow. In GitHub, open **Settings → Secrets and variables → Actions**, create a repository secret named **`RELEASE_PLEASE_TOKEN`**, and paste a fine-grained token with access only to this repository. Grant it **Contents: Read and write**, **Pull requests: Read and write**, and **Issues: Read and write**. Keep the token owner authorized to create tags and pull requests in this repository.
+Release Please needs a fine-grained GitHub personal access token so that its pull requests run the required CI checks and its version tags start the publishing workflow. The same token creates the separate promotion PR. In GitHub, open **Settings → Secrets and variables → Actions**, create a repository secret named **`RELEASE_PLEASE_TOKEN`**, and paste a fine-grained token with access only to this repository. Grant it **Contents: Read and write**, **Pull requests: Read and write**, and **Issues: Read and write**. Keep the token owner authorized to create branches, tags, and pull requests in this repository.
 
 After the three secrets are configured, normal development and releases use this flow:
 
 1. Merge a pull request with a Conventional Commit title into `master`.
-2. Release Please creates or updates the release pull request with the calculated version and release notes.
-3. Review and merge the release pull request after its required checks pass.
-4. Release Please creates the GitHub Release and `vX.Y.Z` tag.
-5. GitHub Actions publishes to TestPyPI, verifies the uploaded wheel, and publishes the identical files to PyPI.
+2. Release Please creates or updates `chore(testpypi): release X.Y.Z` with the calculated version and release notes.
+3. Review and merge that PR after its checks pass. The `vX.Y.Z` tag triggers TestPyPI publication and verification.
+4. Automation opens `chore(pypi): release X.Y.Z`, adding only `.github/releases/pypi/vX.Y.Z.json`. Its body includes a TestPyPI install command and SHA-256 hashes for the wheel and source distribution.
+5. Install from TestPyPI in a separate environment and test your workflow. Leave the promotion PR open while testing; closing it without merging does not publish anything to PyPI.
+6. Merge the promotion PR when satisfied. Automation dispatches publication on the tested version tag, verifies the merged approval, successful TestPyPI run, tag/commit provenance, and hashes, downloads the exact tested files, smoke-tests them, and uploads them to PyPI without rebuilding. It verifies PyPI's files before marking the GitHub release stable. Manually dispatching this workflow also requires a valid, already-merged promotion PR; selecting an unapproved PR or a different tag fails validation.
+
+Promotion uses TestPyPI as the durable source of the files, so it does not depend on an expiring Actions artifact. A newer `master` commit or a newer pending release cannot alter an older promotion's package. Keep these promotion PRs limited to their generated JSON record; adding other changes makes the production check fail.
+
+If publication fails, rerun the failed jobs in the original workflow. Already uploaded files are accepted only when their hashes match. Retrying the TestPyPI workflow reuses its existing promotion PR and refreshes the run provenance only when the package bytes are unchanged. Closed promotion PRs are not automatically reopened. If testing finds a package problem, close the promotion PR, merge a fix, and release a new version: an uploaded version's files must not be replaced. A full rebuild can produce different bytes and will be rejected for an already uploaded version.
 
 ---
 

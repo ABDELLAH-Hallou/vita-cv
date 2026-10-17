@@ -4,6 +4,10 @@
   "include-component-in-tag": false,
   "include-v-in-tag": true,
   "include-v-in-release-name": true,
+  "draft": true,
+  "force-tag-creation": true,
+  "pull-request-title-pattern": "chore(testpypi): release${component} ${version}",
+  "pull-request-header": "Merge this PR to publish to TestPyPI only. After verification, automation opens a separate PyPI promotion PR. Test the package before merging that second PR.",
   "packages": {
     ".": {
       "package-name": "vita-cv",

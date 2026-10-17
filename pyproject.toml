@@ -63,6 +63,7 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = [
     "regression: protects established behavior from regressions",
     "smoke: validates an installed distribution end to end",

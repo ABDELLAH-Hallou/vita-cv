@@ -7,5 +7,6 @@ include tests/conftest.py
 
 recursive-include vita/assets *.md
 recursive-include vita *.py
+recursive-include scripts *.py
 
 global-exclude *.py[cod] __pycache__ *.so
