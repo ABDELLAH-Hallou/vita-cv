@@ -98,14 +98,18 @@ def run(
         prompt_text += (
             f"\n\nCRITICAL LANGUAGE INSTRUCTION:\n"
             f"The entire CV must be written in **{target_lang}**.\n"
-            "Translate every human-readable CV string in `main.tex`, including the title/headline, "
-            "professional summary, section headings, experience bullets, project descriptions, "
-            "education details, skills, labels, and any short helper text.\n"
-            "Preserve LaTeX commands, environments, formatting macros, URLs, email addresses, "
-            "company names, product names, certificate/certification names, proper nouns, and "
-            "technical keywords that are normally kept in English in the target language.\n"
-            "Do NOT leave English sections behind unless the job description explicitly requires "
-            "those exact words to remain in English."
+            "Translate every human-readable CV string in `main.tex`, including all headings, "
+            "the title/headline, professional summary, experience, education, projects, "
+            "publications/articles, skills, awards, volunteering, custom sections, labels, "
+            "and short helper text. Translate human-readable text inside LaTeX macro arguments too.\n"
+            "Translation applies to the whole document, even where job-tailoring instructions "
+            "focus on particular sections. Do not leave untranslated source-language prose "
+            "in sections outside that tailoring focus.\n"
+            "Preserve LaTeX commands, environments, formatting macros, layout, document structure, "
+            "URLs, email addresses, citation keys, and LaTeX label/reference keys. Preserve all "
+            "factual information, including dates, metrics, and qualifications. Keep proper nouns "
+            "such as personal, company, product, and official certification names unchanged when "
+            "appropriate, along with technical terms conventionally retained in the target language."
         )
 
     if step == "cover":
