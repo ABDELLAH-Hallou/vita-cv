@@ -360,6 +360,8 @@ vita adapt --auto --provider gemini
 
 VITA adapts the CV title/headline, professional summary, experience, and skills based on the job description. For multi-job `job.md` files, it creates one coherent CV optimized for shared requirements across all listed roles instead of separate CV versions.
 
+The target language applies to the whole CV, even where job tailoring focuses on selected sections. English and other targets explicitly cover education, publications/articles, awards, volunteering, and custom sections as well as the headline, summary, experience, projects, and skills. Translation instructions preserve LaTeX structure, layout, URLs, citation/reference keys, facts, and appropriate proper nouns. The CLI still defaults to English. These instructions guide the provider; review the generated CV to confirm translation quality and completeness.
+
 The CV title uses one role name, such as `Applied AI Engineer`, `Data Engineer`, `Software Engineer`, or `ML Engineer`. Specializations and keywords belong in the summary or skills, without a tagline appended to the title. For multiple jobs, VITA selects the single role that best fits the shared requirements and your experience.
 
 ---

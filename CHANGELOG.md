@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.1](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.5.0...v2.5.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* apply target language across all CV sections ([#30](https://github.com/ABDELLAH-Hallou/vita-cv/issues/30)) ([20191f3](https://github.com/ABDELLAH-Hallou/vita-cv/commit/20191f3268a50c4ebf8c399d9f8baeec60be9bd3))
+
 ## [2.5.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.4.0...v2.5.0) (2026-10-17)
 
 
