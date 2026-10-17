@@ -307,6 +307,18 @@ vita unlock amazon
 
 ---
 
+### `vita extract`
+
+Extract structured job metadata without sending the CV to the extraction provider.
+
+```sh
+vita extract                           # Generate an extraction prompt
+vita extract --auto                    # Refresh job.json and job.toon
+vita extract --auto --provider openai
+```
+
+Extraction is optional and off by default. Enable it with `ENABLE_JD_EXTRACTION=true` in `.vita/.env` to prepend extraction to `vita run`. Configure a lightweight extraction model independently from the evaluator. See [pipeline configuration and data contracts](PIPELINE.md) for routing, cache behavior, schemas, and score comparisons.
+
 ### `vita analyze`
 
 Generate an AI prompt to analyze your CV against the job in `job.md`.
@@ -319,7 +331,7 @@ vita analyze --auto --provider codex
 
 Without `--auto`, VITA saves the prompt to `.vita/current_prompt.md`; open it and give it to your AI assistant.
 
-With `--auto`, VITA sends the prompt and local context to your configured LLM provider and saves the report to `.vita/results/analyze.md`.
+With `--auto`, VITA sends the prompt and local context to your configured LLM provider and saves validated `.vita/results/analysis.json` plus a rendered `analysis.md`. `analyze.md` remains a compatibility alias. Analysis uses validated TOON metadata when available, otherwise raw `job.md`.
 
 `job.md` can contain one role, or multiple roles from the same company using `# Job N` sections:
 
@@ -331,7 +343,7 @@ Software Engineer, Infrastructure
 Research Engineer, GenAI
 ```
 
-When multiple jobs are detected, `vita analyze --auto` and `vita run --auto` produce one unified cross-role analysis with per-job scores and an overall match probability.
+When multiple jobs are detected, `vita analyze --auto` and `vita run --auto` produce one unified cross-role analysis with criteria identified by job and an overall documented-fit score. This score describes evidence in the CV, not hiring probability.
 
 ---
 
@@ -354,7 +366,7 @@ The CV title uses one role name, such as `Applied AI Engineer`, `Data Engineer`,
 
 ### `vita review`
 
-Generate an AI prompt to review and improve your CV in general.
+Evaluate the updated CV against `job.md`. Review saves `review.json` and `review.md` using the same schema and scoring rubric as analysis. A matching initial analysis locks the criteria and produces `delta.json` and `delta.md` with before/after score changes. Review recommends improvements without editing the CV.
 
 ```sh
 vita review
@@ -365,7 +377,7 @@ vita review --auto
 
 ### `vita run`
 
-Run the full AI workflow: `analyze → adapt → review → cover`.
+Run the full AI workflow: `(optional extract) → analyze → adapt → review → cover`.
 
 ```sh
 vita run
@@ -376,7 +388,7 @@ vita run --auto --provider gemini --language fr
 
 Without `--auto`, this saves each task to `.vita/prompts/<task>.md` and writes an ordered workflow to `.vita/current_prompt.md` for your assistant to execute. Each prompt includes its bundled and custom skills.
 
-With `--auto`, VITA writes reports into `.vita/results/`, updates the configured CV source during adaptation, and creates the configured cover letter source after review. All tasks use the same provider/model configuration; `--language` applies to both documents. A failed step stops the pipeline. Review produces an audit report rather than automatically applying its suggestions. Run `vita build both` to compile the PDFs.
+With `--auto`, VITA writes reports into `.vita/results/`, updates the configured CV source during adaptation, and creates the configured cover letter source after review. Each stage supports its own provider/model settings; review inherits analysis settings by default. Existing provider configuration remains the fallback. `--language` applies to both documents. A failed step stops the pipeline. Run `vita build both` to compile the PDFs.
 
 ### `vita cover [--language <code>]`
 
@@ -544,6 +556,7 @@ Add project-specific Markdown skills under the folder for their task:
 
 ```text
 .vita/skills/
+├── extract/                 # Optional JD extraction guidance
 ├── analyze/                 # Job analysis
 ├── adapt/                   # CV adaptation
 │   ├── writing-style.md     # Additional guidance

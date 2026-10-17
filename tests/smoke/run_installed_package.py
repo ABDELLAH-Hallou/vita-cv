@@ -42,6 +42,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
     with zipfile.ZipFile(wheels[0]) as archive:
         names = set(archive.namelist())
         required_assets = {
+            "vita/assets/prompts/extract.md",
             "vita/assets/prompts/analyze.md",
             "vita/assets/prompts/adapt.md",
             "vita/assets/prompts/review.md",
@@ -76,7 +77,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             raise AssertionError(f"Unexpected version output: {version!r}")
 
         help_text = run([str(python), "-m", "vita", "--help"], cwd=project).stdout
-        for command in ("init", "new", "build", "analyze", "adapt", "review", "cover", "run"):
+        for command in ("init", "new", "build", "extract", "analyze", "adapt", "review", "cover", "run"):
             if command not in help_text:
                 raise AssertionError(f"CLI help is missing command {command!r}")
 
@@ -88,7 +89,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
         if not isinstance(json.loads(config_file.read_text(encoding="utf-8")), dict):
             raise AssertionError("vita init created invalid config.json")
 
-        for task in ("analyze", "adapt", "review", "cover"):
+        for task in ("extract", "analyze", "adapt", "review", "cover"):
             if not (project / ".vita/skills" / task).is_dir():
                 raise AssertionError(f"Missing custom skill directory for {task}")
         (project / "main.tex").write_text(
@@ -105,6 +106,16 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             raise AssertionError("Installed cover workflow lost custom skills or language")
         if "Cover Letter Philosophy" not in cover_prompt:
             raise AssertionError("Installed cover workflow did not load its bundled skill")
+        run([str(python), "-m", "vita", "extract"], cwd=project)
+        extraction_prompt = (project / ".vita/prompts/extract.md").read_text(encoding="utf-8")
+        if "source_sha256" not in extraction_prompt or "job.toon" not in extraction_prompt:
+            raise AssertionError("Installed extraction workflow lost its schema or TOON instructions")
+        run([str(python), "-c", (
+            "from vita.helpers.structured import JOB_SCHEMA, EVALUATION_SCHEMA; "
+            "from vita.helpers.toon import encode_job; "
+            "from vita.helpers.evaluation import compute_delta; "
+            "assert JOB_SCHEMA['type'] == EVALUATION_SCHEMA['type'] == 'object'"
+        )], cwd=project)
         build_help = run([str(python), "-m", "vita", "build", "--help"], cwd=project).stdout
         for option in ("both", "--resume", "--cover"):
             if option not in build_help:

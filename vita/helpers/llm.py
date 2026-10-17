@@ -1,7 +1,7 @@
 """vita/helpers/llm.py — Zero-dependency HTTP client for popular LLM APIs.
 
 Supported providers (OpenAI-compatible):
-  openai, groq, mistral, deepseek, xai, together, perplexity, cohere
+  openai, openrouter, groq, mistral, deepseek, xai, together, perplexity, cohere
 
 Non-compatible (different API format, handled separately):
   anthropic, gemini / google
@@ -51,7 +51,10 @@ _DEFAULT_MODELS = {
 }
 
 
-def generate(system_prompt: str, user_prompt: str, provider: str | None = None) -> str:
+def generate(
+    system_prompt: str, user_prompt: str, provider: str | None = None,
+    model: str | None = None,
+) -> str:
     """Auto-detect provider from config and call the appropriate API."""
     env = load_env()
     providers = get_llm_providers()
@@ -80,6 +83,9 @@ def generate(system_prompt: str, user_prompt: str, provider: str | None = None) 
                         "Codex is not configured. Add it to .vita/extensions.json "
                         "or rerun and answer 'y'."
                     )
+        elif provider_name in _OPENAI_COMPATIBLE or provider_name in ("gemini", "google", "anthropic"):
+            # Explicit routing via .env does not require a duplicate extensions.json entry.
+            providers[provider_name] = {}
         else:
             configured = ", ".join(providers.keys())
             raise ValueError(
@@ -88,13 +94,15 @@ def generate(system_prompt: str, user_prompt: str, provider: str | None = None) 
             )
 
     config = providers[provider_name]
-    model = config.get("model") or _DEFAULT_MODELS.get(provider_name, "gpt-4o")
+    model = model or config.get("model") or _DEFAULT_MODELS.get(provider_name, "gpt-4o")
 
     if provider_name == "codex":
         return _call_codex_cli(system_prompt, user_prompt, model)
 
     key_env_var = f"{provider_name.upper()}_API_KEY"
     api_key = env.get(key_env_var)
+    if provider_name == "google":
+        api_key = api_key or env.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError(
             f"Missing API key for '{provider_name}'. "
@@ -104,7 +112,11 @@ def generate(system_prompt: str, user_prompt: str, provider: str | None = None) 
     print(f"🧠 Calling {provider_name} ({model})...")
 
     # Route to the correct API format
-    if provider_name in _OPENAI_COMPATIBLE:
+    if provider_name == "openai":
+        return _call_openai(system_prompt, user_prompt, api_key, model)
+    elif provider_name == "openrouter":
+        return _call_openrouter(system_prompt, user_prompt, api_key, model)
+    elif provider_name in _OPENAI_COMPATIBLE:
         url = _OPENAI_COMPATIBLE[provider_name]
         return _call_openai_compatible(system_prompt, user_prompt, api_key, model, url)
     elif provider_name == "anthropic":
@@ -207,6 +219,13 @@ def _find_codex_cli() -> str | None:
 
 # ── API Implementations ────────────────────────────────────────────────────────
 
+def _call_openai(system_prompt: str, user_prompt: str, api_key: str, model: str) -> str:
+    return _call_openai_compatible(system_prompt, user_prompt, api_key, model, _OPENAI_COMPATIBLE["openai"])
+
+
+def _call_openrouter(system_prompt: str, user_prompt: str, api_key: str, model: str) -> str:
+    return _call_openai_compatible(system_prompt, user_prompt, api_key, model, _OPENAI_COMPATIBLE["openrouter"])
+
 def _call_openai_compatible(
     system_prompt: str, user_prompt: str, api_key: str, model: str, url: str
 ) -> str:
@@ -221,9 +240,16 @@ def _call_openai_compatible(
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": user_prompt},
         ],
-        "temperature": 0.2,
     }
-    return _post(url, headers, data)["choices"][0]["message"]["content"]
+    # Leave optional sampling controls unset: reasoning/nano models can reject them.
+    result = _post(url, headers, data)
+    choice = result["choices"][0]
+    if choice.get("finish_reason") not in (None, "stop"):
+        raise RuntimeError(f"Provider did not complete its response: {choice['finish_reason']}")
+    content = choice["message"].get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise RuntimeError("Provider returned no text (possibly a refusal)")
+    return content
 
 
 def _call_anthropic(
@@ -275,7 +301,7 @@ def _post(url: str, headers: dict, data: dict) -> dict:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=120) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         error_msg = e.read().decode("utf-8")
