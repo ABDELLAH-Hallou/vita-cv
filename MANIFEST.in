@@ -2,8 +2,11 @@ include README.md
 include LICENSE
 include pyproject.toml
 include EXTENSIONS.md
+include PIPELINE.md
+include tests/conftest.py
 
 recursive-include vita/assets *.md
 recursive-include vita *.py
+recursive-include scripts *.py
 
 global-exclude *.py[cod] __pycache__ *.so

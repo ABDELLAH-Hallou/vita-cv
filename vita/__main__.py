@@ -30,7 +30,7 @@ commands:
   lock <company>           Lock a company (block new CVs)
   unlock <company>         Unlock a company
   keys                     Manage LLM API keys (list, set, remove)
-  run                      Run full AI pipeline: analyze → adapt → review → cover
+  run                      Run pipeline: optional extract → analyze → adapt → review → cover
   save                     Save and push CV changes
         """,
     )
@@ -91,7 +91,7 @@ commands:
     keys_remove_p.add_argument("provider", help="Provider name")
 
     # ── run (pipeline) ─────────────────────────────────────────────────────
-    run_p = subparsers.add_parser("run", help="Run full AI pipeline: analyze → adapt → review → cover")
+    run_p = subparsers.add_parser("run", help="Run pipeline: optional extract → analyze → adapt → review → cover")
     run_p.add_argument("-a", "--auto",     action="store_true", help="Run autonomously using configured LLM")
     run_p.add_argument("-l", "--language", default="en",         help="Target language for the CV and cover letter")
     run_p.add_argument("-p", "--provider", help="LLM provider to use for --auto")
@@ -100,6 +100,10 @@ commands:
     analyze_p = subparsers.add_parser("analyze", help="Generate prompt to analyze CV vs Job")
     analyze_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
     analyze_p.add_argument("-p", "--provider", help="LLM provider to use for --auto")
+
+    extract_p = subparsers.add_parser("extract", help="Extract job.json and job.toon from job.md")
+    extract_p.add_argument("-a", "--auto", action="store_true", help="Run extraction with the configured LLM")
+    extract_p.add_argument("-p", "--provider", help="Override the extraction provider")
     
     adapt_p = subparsers.add_parser("adapt", help="Generate prompt to adapt CV to Job")
     adapt_p.add_argument("-l", "--language", default="en", help="Target language for the CV (e.g., en, fr, ar, de)")
@@ -167,7 +171,7 @@ commands:
         if run.run(auto=args.auto, language=args.language, provider=args.provider) is False:
             sys.exit(1)
 
-    elif args.command in ["analyze", "adapt", "review", "cover"]:
+    elif args.command in ["extract", "analyze", "adapt", "review", "cover"]:
         lang = getattr(args, "language", None)
         auto = getattr(args, "auto", False)
         provider = getattr(args, "provider", None)

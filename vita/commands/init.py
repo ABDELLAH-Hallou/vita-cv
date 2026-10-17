@@ -5,7 +5,7 @@ import shutil
 
 from vita.helpers import git
 from vita.helpers.config import CONFIG_FILE, DEFAULT_CONFIG, VITA_DIR
-from vita.helpers.env import ENV_EXAMPLE_FILE, ENV_FILE
+from vita.helpers.env import ENV_EXAMPLE_FILE, ENV_FILE, env_example_text
 from vita.helpers.extensions import EXTENSIONS_FILE
 from vita.helpers.registry import REGISTRY_FILE
 from vita.helpers.skills import SKILLS_DIR, TASK_SKILLS
@@ -49,7 +49,7 @@ def run(force: bool = False) -> None:
         json.dump(extensions_template, f, indent=2)
 
     # Scaffold .env and .env.example
-    env_template = "OPENAI_API_KEY=your_key_here\nANTHROPIC_API_KEY=your_key_here\n"
+    env_template = env_example_text()
     with open(ENV_EXAMPLE_FILE, "w", encoding="utf-8") as f:
         f.write(env_template)
     with open(ENV_FILE, "w", encoding="utf-8") as f:
@@ -68,7 +68,7 @@ def run(force: bool = False) -> None:
     print(f"   {EXTENSIONS_FILE}   — add your custom role aliases, languages, and LLMs")
     print(f"   {ENV_FILE}               — local API keys (managed via `vita keys`)")
     print(f"   {VITA_DIR}/logs/             — CLI activity logs")
-    print(f"   {SKILLS_DIR}/<task>/        — custom Markdown skills (analyze, adapt, review, cover)")
+    print(f"   {SKILLS_DIR}/<task>/        — custom Markdown skills (extract, analyze, adapt, review, cover)")
     print()
     print("Next: edit .vita/extensions.json to customize role aliases and languages.")
     print("   See EXTENSIONS.md for the full format reference.")

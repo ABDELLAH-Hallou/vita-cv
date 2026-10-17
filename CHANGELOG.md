@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.4.0...v2.5.0) (2026-10-17)
+
+
+### Features
+
+* decouple job extraction and comparable evaluation pipeline ([#28](https://github.com/ABDELLAH-Hallou/vita-cv/issues/28)) ([6e69970](https://github.com/ABDELLAH-Hallou/vita-cv/commit/6e6997019e4db4e4cfab587defbea3aa85a8fdf0))
+
 ## [2.4.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.3.0...v2.4.0) (2026-10-15)
 
 
