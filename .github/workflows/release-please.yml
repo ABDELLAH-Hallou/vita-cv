@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   release-please:
-    name: Update or create release
+    name: Update or create TestPyPI release PR
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,7 +28,7 @@ jobs:
             echo "::error::Add RELEASE_PLEASE_TOKEN as a repository Actions secret."
             exit 1
           fi
-      - name: Create release pull request or GitHub release
+      - name: Create TestPyPI release PR or draft GitHub release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
