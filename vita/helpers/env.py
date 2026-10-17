@@ -4,6 +4,7 @@ Responsible for reading and writing secrets to .vita/.env.
 """
 
 import os
+import re
 
 from vita.helpers.config import VITA_DIR
 
@@ -11,8 +12,8 @@ ENV_FILE = VITA_DIR / ".env"
 ENV_EXAMPLE_FILE = VITA_DIR / ".env.example"
 
 
-def load_env() -> dict[str, str]:
-    """Load the .env file into a dictionary and into os.environ."""
+def read_env_file() -> dict[str, str]:
+    """Read project settings without leaking them into subsequent project runs."""
     env_vars = {}
     if not ENV_FILE.exists():
         return env_vars
@@ -27,11 +28,44 @@ def load_env() -> dict[str, str]:
             if "=" in line:
                 key, value = line.split("=", 1)
                 key = key.strip()
-                value = value.strip().strip('"\'') # remove optional quotes
+                value = value.strip()
+                if value.startswith(("\"", "'")):
+                    quote = value[0]
+                    end = value.find(quote, 1)
+                    if end == -1 or (value[end + 1:].strip() and not value[end + 1:].strip().startswith("#")):
+                        raise ValueError(f"Invalid quoted value for {key} in .vita/.env")
+                    value = value[1:end]
+                else:
+                    value = re.split(r"\s+#", value, maxsplit=1)[0].rstrip()
                 env_vars[key] = value
-                os.environ[key] = value
                 
     return env_vars
+
+
+def load_env() -> dict[str, str]:
+    """Return project settings with process environment taking precedence."""
+    return {**read_env_file(), **os.environ}
+
+
+def env_example_text() -> str:
+    return """# Extraction is opt-in; existing provider settings remain the fallback.
+ENABLE_JD_EXTRACTION=false
+# EXTRACTION_PROVIDER=gemini
+# EXTRACTION_MODEL=gemini-2.5-flash
+# ANALYSIS_PROVIDER=openai
+# ANALYSIS_MODEL=gpt-4o
+# Review inherits ANALYSIS_* unless explicitly configured.
+# REVIEW_PROVIDER=openai
+# REVIEW_MODEL=gpt-4o
+# ADAPT_PROVIDER=gemini
+# ADAPT_MODEL=gemini-2.5-flash
+# COVER_PROVIDER=gemini
+# COVER_MODEL=gemini-2.5-flash
+OPENAI_API_KEY=your_openai_key
+OPENROUTER_API_KEY=your_openrouter_key
+GEMINI_API_KEY=your_gemini_key
+ANTHROPIC_API_KEY=your_anthropic_key
+"""
 
 
 def set_env_key(key: str, value: str) -> None:

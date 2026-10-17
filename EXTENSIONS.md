@@ -43,9 +43,15 @@ placeholders, and delete/replace them when you want an entry to become active.
 ## `llm_providers`
 
 Configures the provider used by `vita analyze --auto`, `vita adapt --auto`,
-`vita review --auto`, `vita cover --auto`, and `vita run --auto`.
+`vita review --auto`, `vita cover --auto`, and `vita run --auto`. Stage-specific
+settings in `.vita/.env` can override this fallback, including an independent
+provider for `vita extract --auto`. See [pipeline configuration](PIPELINE.md).
 
-**API providers** require a matching API key saved with `vita keys set`.
+**API providers** require a matching API key saved with `vita keys set`, in
+`.vita/.env`, or in the process environment. OpenAI uses `OPENAI_API_KEY`,
+OpenRouter uses `OPENROUTER_API_KEY`, and Gemini uses `GEMINI_API_KEY`.
+Explicitly selecting a supported API provider does not require a duplicate
+entry in `extensions.json`; an entry can still supply its default model.
 
 ```json
 {
@@ -244,6 +250,7 @@ to add these folders to an existing project without replacing your files.
 
 | Folder | Bundled skills used by default |
 |---|---|
+| `extract/` | None; optional local extraction guidance |
 | `analyze/` | `job-description-analyzer.md` |
 | `adapt/` | `tech-resume-optimizer.md`, `resume-bullet-writer.md`, `resume-ats-optimizer.md`, `resume-tailor.md` |
 | `review/` | `resume-reviewer.md` |

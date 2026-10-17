@@ -22,7 +22,7 @@ def _obfuscate(key: str) -> str:
 def run(action: str, provider: str = None, key: str = None) -> None:
     if action == "list":
         env_vars = load_env()
-        print("LLM API Keys Configured (.vita/.env):\n")
+        print("LLM API Keys Configured (.vita/.env and process environment):\n")
         
         found = False
         for env_key, env_val in env_vars.items():

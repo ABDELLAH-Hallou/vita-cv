@@ -12,7 +12,7 @@ from pathlib import Path
 
 from vita.helpers import git
 from vita.helpers.config import CONFIG_FILE, DEFAULT_CONFIG, VITA_DIR
-from vita.helpers.env import ENV_EXAMPLE_FILE, ENV_FILE
+from vita.helpers.env import ENV_EXAMPLE_FILE, ENV_FILE, env_example_text
 from vita.helpers.extensions import EXTENSIONS_FILE
 from vita.helpers.logging import log
 from vita.helpers.registry import REGISTRY_FILE, load_registry, save_registry
@@ -35,7 +35,7 @@ def _default_extensions() -> dict:
 
 
 def _env_example_text() -> str:
-    return "OPENAI_API_KEY=your_key_here\nANTHROPIC_API_KEY=your_key_here\n"
+    return env_example_text()
 
 
 def _missing_vita_paths() -> list[tuple[Path, str]]:
