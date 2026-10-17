@@ -52,12 +52,14 @@ def test_empty_custom_skill_keeps_bundled_default(project):
     assert "Cover Letter Philosophy" in skill_context("cover")
 
 
-@pytest.mark.parametrize("task", TASK_SKILLS)
-def test_manual_and_auto_use_same_task_skills(project, monkeypatch, task):
+@pytest.mark.parametrize("task", ["analyze", "adapt", "review", "cover"])
+def test_manual_and_auto_use_same_task_skills(project, monkeypatch, task, evaluation_report):
     custom_skill(project, task, "my-style.md", f"UNIQUE {task} STYLE")
     assert ai_step.run(task, language="fr")
     manual = (project / f".vita/prompts/{task}.md").read_text(encoding="utf-8")
-    provider = Mock(return_value="Changes\n```latex\n" + LATEX % "Updated" + "\n```")
+    response = (json.dumps(evaluation_report()) if task in ("analyze", "review")
+                else "Changes\n```latex\n" + LATEX % "Updated" + "\n```")
+    provider = Mock(return_value=response)
     monkeypatch.setattr(ai_step, "llm_generate", provider)
     assert ai_step.run(task, auto=True, language="fr", provider="codex")
     system, prompt = provider.call_args.args
@@ -69,7 +71,7 @@ def test_manual_and_auto_use_same_task_skills(project, monkeypatch, task):
         assert "**French**" in prompt
 
 
-def test_full_pipeline_uses_adapted_cv_for_cover_and_same_provider(project, monkeypatch):
+def test_full_pipeline_uses_adapted_cv_for_cover_and_same_provider(project, monkeypatch, evaluation_report):
     calls = []
 
     def generate(system, prompt, provider=None):
@@ -77,12 +79,12 @@ def test_full_pipeline_uses_adapted_cv_for_cover_and_same_provider(project, monk
         if "TASK SKILLS" in system and "Cover Letter Philosophy" in system:
             assert "Tailored CV" in system
             assert "Original CV" not in system
-            assert "Acme seeks a Python engineer" in system
+            assert "Acme seeks a Python engineer" in prompt
             assert "**French**" in prompt
             return "Letter created.\n```latex\n" + LATEX % "Madame, Monsieur" + "\n```"
         if "exactly one ```latex" in prompt:
             return "CV updated.\n```latex\n" + LATEX % "Tailored CV" + "\n```"
-        return "Analysis/review report"
+        return json.dumps(evaluation_report())
 
     monkeypatch.setattr(ai_step, "llm_generate", generate)
     assert run.run(auto=True, language="fr", provider="codex")
@@ -90,14 +92,14 @@ def test_full_pipeline_uses_adapted_cv_for_cover_and_same_provider(project, monk
     assert all(provider == "codex" for _, _, provider in calls)
     assert "Tailored CV" in (project / "main.tex").read_text(encoding="utf-8")
     assert "Madame, Monsieur" in (project / "cover-letter.tex").read_text(encoding="utf-8")
-    assert all((project / f".vita/results/{task}.md").is_file() for task in TASK_SKILLS)
+    assert all((project / f".vita/results/{task}.md").is_file() for task in ("analyze", "adapt", "review", "cover"))
 
 
 def test_manual_pipeline_preserves_every_prompt_and_order(project):
     assert run.run(language="fr")
     instructions = (project / ".vita/current_prompt.md").read_text(encoding="utf-8")
     positions = []
-    for task in TASK_SKILLS:
+    for task in ("analyze", "adapt", "review", "cover"):
         assert (project / f".vita/prompts/{task}.md").is_file()
         positions.append(instructions.index(f".vita/prompts/{task}.md"))
     assert positions == sorted(positions)
@@ -269,14 +271,14 @@ def test_cli_build_failure_returns_nonzero(project, monkeypatch):
         main()
 
 
-def test_pipeline_reuses_configured_model_for_cover(project, monkeypatch):
+def test_pipeline_reuses_configured_model_for_cover(project, monkeypatch, evaluation_report):
     from vita.helpers import llm
 
     monkeypatch.setattr(llm, "load_env", lambda: {})
     monkeypatch.setattr(llm, "get_llm_providers", lambda: {"codex": {"model": "configured-model"}})
     backend = Mock(side_effect=[
-        "Analysis", "```latex\n" + LATEX % "CV" + "\n```",
-        "Review", "```latex\n" + LATEX % "Cover" + "\n```",
+        json.dumps(evaluation_report()), "```latex\n" + LATEX % "CV" + "\n```",
+        json.dumps(evaluation_report()), "```latex\n" + LATEX % "Cover" + "\n```",
     ])
     monkeypatch.setattr(llm, "_call_codex_cli", backend)
     assert run.run(auto=True, language="en", provider="codex")

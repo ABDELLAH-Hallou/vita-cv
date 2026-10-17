@@ -115,7 +115,8 @@ def cv_source_context(entry: str) -> str:
 
 
 def build_system_context(
-    prompt_text: str, step: str | None = None, resume_entry: str = "main.tex"
+    prompt_text: str, step: str | None = None, resume_entry: str = "main.tex",
+    include_job: bool = True,
 ) -> str:
     """Scan the prompt and project for necessary files to inject as context."""
     context = "You are VITA, an expert AI agent that writes LaTeX CVs and cover letters.\n"
@@ -127,7 +128,7 @@ def build_system_context(
     context += cv_source_context(resume_entry)
         
     # Inject job.md
-    if Path("job.md").exists():
+    if include_job and Path("job.md").exists():
         job_text = Path("job.md").read_text(encoding="utf-8")
         formatted_jobs, job_count = format_job_descriptions(job_text)
         label = f"job.md ({job_count} jobs)" if job_count > 1 else "job.md"
@@ -137,8 +138,12 @@ def build_system_context(
         
     # Inject referenced results (e.g. results/analysis.md used by adapt prompt)
     # Note: results are stored in .vita/results/ internally
-    if "results/analysis.md" in prompt_text or ".vita/results/analyze.md" in prompt_text:
-        res_file = Path(".vita") / "results" / "analyze.md"  # stored as analyze.md
+    if step in (None, "adapt", "cover") and (
+        "results/analysis.md" in prompt_text or ".vita/results/analyze.md" in prompt_text
+    ):
+        res_file = Path(".vita/results/analysis.md")
+        if not res_file.exists():
+            res_file = Path(".vita/results/analyze.md")
         if res_file.exists():
             context += "==== FILE: .vita/results/analyze.md ====\n"
             context += res_file.read_text(encoding="utf-8")

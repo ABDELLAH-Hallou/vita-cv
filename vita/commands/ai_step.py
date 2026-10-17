@@ -6,11 +6,20 @@ from vita.helpers.context_builder import (
     build_system_context,
     current_date_instruction,
     cv_knowledge_instruction,
-    format_job_descriptions,
     multi_job_instruction,
 )
+from vita.helpers.evaluation import (
+    compute_delta,
+    evaluation_instruction,
+    finalize,
+    load_baseline,
+    save_delta,
+    save_evaluation,
+)
 from vita.helpers.extensions import merged_language_map
+from vita.helpers.job_extraction import extract, prepare_job
 from vita.helpers.llm import generate as llm_generate
+from vita.helpers.pipeline_config import load_pipeline_settings
 from vita.helpers.skills import skill_context
 
 # ── Built-in language codes ───────────────────────────────────────────────────
@@ -33,6 +42,14 @@ def run(
     auto: bool = False,
     provider: str | None = None,
 ) -> bool:
+    if step == "extract":
+        return extract(auto=auto, provider=provider)
+    try:
+        settings = load_pipeline_settings()
+        job = prepare_job(settings, auto=auto)
+    except (ValueError, OSError, RuntimeError) as exc:
+        print(f"Cannot prepare job criteria: {exc}")
+        return False
     config = load_config()
     resume_entry = config.get("tex_entry", "main.tex")
     cover_entry = config.get("cover_tex_entry", "cover-letter.tex")
@@ -57,26 +74,23 @@ def run(
     with open(prompt_file, "r", encoding="utf-8") as f:
         prompt_text = f.read()
 
-    job_count = 0
-    if "{{JOB_DESCRIPTION}}" in prompt_text:
-        job_file = Path("job.md")
-        if not job_file.exists():
-            print("'job.md' not found. Creating an empty 'job.md'.")
-            print("Please paste the job description into 'job.md' and run this command again.")
-            job_file.write_text("", encoding="utf-8")
-            return False
-        
-        with open(job_file, "r", encoding="utf-8") as f:
-            job_text = f.read().strip()
-        if not job_text:
-            print("'job.md' is empty. Add a job description before running this task.")
-            return False
+    job_text = job.text
+    if not auto and settings.extraction_enabled:
+        job_text = (
+            "At execution time, read .vita/results/job.json and job.toon produced by extraction. "
+            f"Require job.json source_sha256={job.source_sha256}; use its TOON representation. "
+            "If no matching validated extraction exists, read the raw job.md."
+        )
+    if "{{JOB_DESCRIPTION}}" not in prompt_text:
+        prompt_text += "\n\nJOB CRITERIA:\n{{JOB_DESCRIPTION}}"
+    prompt_text = prompt_text.replace("{{JOB_DESCRIPTION}}", job_text)
+    if len(job.ids) > 1:
+        document = "cover letter" if step == "cover" else "CV"
+        prompt_text += multi_job_instruction(len(job.ids), document)
 
-        formatted_jobs, job_count = format_job_descriptions(job_text)
-        prompt_text = prompt_text.replace("{{JOB_DESCRIPTION}}", formatted_jobs)
-        if job_count > 1:
-            document = "cover letter" if step == "cover" else "CV"
-            prompt_text += multi_job_instruction(job_count, document)
+    baseline = load_baseline(job) if step == "review" else None
+    if step in ("analyze", "review"):
+        prompt_text += evaluation_instruction(step, job, baseline if auto else None)
 
     if step == "adapt" and language:
         language_map = merged_language_map(_BUILTIN_LANGUAGE_MAP)
@@ -112,6 +126,15 @@ def run(
     prompt_text = prompt_text.replace("`cover-letter.tex`", f"`{cover_entry}`")
 
     if not auto:
+        if step in ("analyze", "review"):
+            prompt_text += (
+                "\nAt execution time prepare the current job context with "
+                "vita.helpers.job_extraction.prepare_job. For review, load the matching "
+                "analysis.json with load_baseline and preserve its locked criteria. "
+                "Use vita.helpers.evaluation.finalize and save_evaluation to validate and save "
+                "both JSON and Markdown. For a matching review, use compute_delta and save_delta. "
+                "Do not hand-edit provenance hashes or numeric scores."
+            )
         prompt_text = skill_context(step) + "\n\n==== TASK ====\n" + prompt_text
         print(f"\n{'='*60}")
         print(f"AI Prompt for '{step}'")
@@ -133,7 +156,9 @@ def run(
 
     # ── Auto Execution ────────────────────────────────────────────────────────
     print(f"🚀 Running '{step}' autonomously...")
-    system_context = build_system_context(prompt_text, step=step, resume_entry=resume_entry)
+    system_context = build_system_context(
+        prompt_text, step=step, resume_entry=resume_entry, include_job=False,
+    )
     
     # Override prompt instructions for autonomous mode
     # Strip mentions of 'save' since the LLM can't do it — we do it instead.
@@ -144,19 +169,34 @@ def run(
         target = cover_entry if step == "cover" else resume_entry
         prompt_text += f"\nYou MUST output the complete {target} file in exactly one ```latex code block."
         prompt_text += "\nBefore the code block, write a short summary of the changes you made."
-    elif step == "analyze":
-        prompt_text += "\nOutput your full gap analysis and match score as a markdown report. No code blocks needed."
-    elif step == "review":
-        prompt_text += "\nOutput your full CV review as a markdown report. No code blocks needed."
+    elif step in ("analyze", "review"):
+        prompt_text += "\nReturn only the evaluation JSON. VITA writes both JSON and Markdown."
 
     try:
-        response = llm_generate(system_context, prompt_text, provider=provider)
+        response = llm_generate(system_context, prompt_text, **settings.route(step, provider).kwargs())
     except Exception as e:
         print(f"❌ Failed to run AI: {e}")
         return False
         
     results_dir = Path(".vita") / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
+
+    if step in ("analyze", "review"):
+        try:
+            report = finalize(response, job, baseline)
+            delta = compute_delta(baseline, report) if baseline else None
+            save_evaluation(step, report)
+            if delta is not None:
+                save_delta(delta)
+            else:
+                # A new baseline or an unrelated review invalidates the old comparison.
+                for extension in ("json", "md"):
+                    (results_dir / f"delta.{extension}").unlink(missing_ok=True)
+            print(f"Validated {step} saved as JSON and Markdown in {results_dir}")
+            return True
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            print(f"Could not validate or save {step} evaluation: {exc}")
+            return False
     
     if step in ("adapt", "cover"):
         # Extract latex

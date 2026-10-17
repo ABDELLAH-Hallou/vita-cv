@@ -85,7 +85,7 @@ def test_environment_file_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyP
     env.set_env_key("OPENAI_API_KEY", "first")
     env.set_env_key("OPENAI_API_KEY", "second=value")
 
-    assert env.load_env() == {"OPENAI_API_KEY": "second=value"}
+    assert env.load_env()["OPENAI_API_KEY"] == "second=value"
     assert os.environ["OPENAI_API_KEY"] == "second=value"
     assert env_file.read_text(encoding="utf-8") == "OPENAI_API_KEY=second=value\n"
 
