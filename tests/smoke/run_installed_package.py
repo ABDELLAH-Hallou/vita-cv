@@ -105,6 +105,25 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             raise AssertionError("Installed cover workflow lost custom skills or language")
         if "Cover Letter Philosophy" not in cover_prompt:
             raise AssertionError("Installed cover workflow did not load its bundled skill")
+        # Exercise the installed translation code using only generated prompts.
+        # No provider call or assertion about model translation quality is involved.
+        for language, target, content in (
+            ("en", "English", r"\section{Formation}Master.\section{Articles}Analyse.\section{Engagements}Ateliers."),
+            ("fr", "French", r"\section{Education}Master.\section{Articles}Analysis.\section{Community}Workshops."),
+        ):
+            (project / "main.tex").write_text(
+                r"\documentclass{article}\begin{document}" + content + r"\end{document}",
+                encoding="utf-8",
+            )
+            run([str(python), "-m", "vita", "adapt", "--language", language], cwd=project)
+            prompt = (project / ".vita/prompts/adapt.md").read_text(encoding="utf-8")
+            required = (f"The entire CV must be written in **{target}**",
+                        "Translation applies to the whole document", "publications/articles",
+                        "custom sections", "citation keys", "factual information")
+            if not all(text in prompt for text in required):
+                raise AssertionError(f"Installed {language} adaptation lost full-document translation")
+            if "Do NOT leave English sections behind" in prompt:
+                raise AssertionError("Installed adaptation retained contradictory translation wording")
         build_help = run([str(python), "-m", "vita", "build", "--help"], cwd=project).stdout
         for option in ("both", "--resume", "--cover"):
             if option not in build_help:
