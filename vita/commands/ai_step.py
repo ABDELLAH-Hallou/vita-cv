@@ -21,6 +21,8 @@ from vita.helpers.job_extraction import extract, prepare_job
 from vita.helpers.llm import generate as llm_generate
 from vita.helpers.pipeline_config import load_pipeline_settings
 from vita.helpers.skills import skill_context
+from vita.helpers.structured import EVALUATION_OUTPUT_SCHEMA, json_text
+from vita.helpers.structured_output import StructuredOutputError, run_structured
 
 # ── Built-in language codes ───────────────────────────────────────────────────
 # Users can extend this via .vita/extensions.json ("language_map" key).
@@ -176,18 +178,11 @@ def run(
     elif step in ("analyze", "review"):
         prompt_text += "\nReturn only the evaluation JSON. VITA writes both JSON and Markdown."
 
-    try:
-        response = llm_generate(system_context, prompt_text, **settings.route(step, provider).kwargs())
-    except Exception as e:
-        print(f"❌ Failed to run AI: {e}")
-        return False
-        
     results_dir = Path(".vita") / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
 
     if step in ("analyze", "review"):
-        try:
-            report = finalize(response, job, baseline)
+        def save(report):
             delta = compute_delta(baseline, report) if baseline else None
             save_evaluation(step, report)
             if delta is not None:
@@ -196,11 +191,24 @@ def run(
                 # A new baseline or an unrelated review invalidates the old comparison.
                 for extension in ("json", "md"):
                     (results_dir / f"delta.{extension}").unlink(missing_ok=True)
+
+        try:
+            run_structured(
+                step=step, generate=llm_generate, system=system_context, prompt=prompt_text,
+                route=settings.route(step, provider).kwargs(), schema=EVALUATION_OUTPUT_SCHEMA,
+                finalize=lambda data: finalize(json_text(data), job, baseline), save=save,
+            )
             print(f"Validated {step} saved as JSON and Markdown in {results_dir}")
             return True
-        except (ValueError, OSError, KeyError, TypeError) as exc:
+        except (StructuredOutputError, ValueError, OSError, KeyError, TypeError) as exc:
             print(f"Could not validate or save {step} evaluation: {exc}")
             return False
+
+    try:
+        response = llm_generate(system_context, prompt_text, **settings.route(step, provider).kwargs())
+    except Exception as e:
+        print(f"❌ Failed to run AI: {e}")
+        return False
     
     if step in ("adapt", "cover"):
         # Extract latex

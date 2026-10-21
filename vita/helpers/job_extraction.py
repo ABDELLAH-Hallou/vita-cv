@@ -9,6 +9,7 @@ from vita.helpers.llm import generate
 from vita.helpers.pipeline_config import PipelineSettings, load_pipeline_settings
 from vita.helpers.skills import skill_context
 from vita.helpers.structured import JOB_SCHEMA, json_text, parse_json, validate, write_artifact
+from vita.helpers.structured_output import run_structured
 from vita.helpers.toon import encode_job
 
 RESULTS = Path(".vita") / "results"
@@ -67,17 +68,18 @@ def extract(*, auto: bool = False, provider: str | None = None) -> bool:
             write_artifact(Path(".vita/current_prompt.md"), prompt)
             print("Extraction prompt saved to .vita/prompts/extract.md")
             return True
-        response = generate(
-            "You extract job metadata. " + skills, prompt,
-            **settings.route("extract", provider).kwargs(),
-        )
-        data = parse_json(response)
-        # The fingerprint is trusted host metadata, not an LLM prediction.
-        data["source_sha256"] = fingerprint(raw)
-        validate_job(data, raw)
-        toon = encode_job(data)
-        write_artifact(RESULTS / "job.toon", toon)
-        write_artifact(RESULTS / "job.json", json_text(data))
+        def finalize(data):
+            validate_job(data, raw)
+            return data
+
+        def save(data):
+            write_artifact(RESULTS / "job.toon", encode_job(data))
+            write_artifact(RESULTS / "job.json", json_text(data))
+
+        run_structured(step="extract", generate=generate,
+                       system="You extract job metadata. " + skills, prompt=prompt,
+                       route=settings.route("extract", provider).kwargs(), schema=JOB_SCHEMA,
+                       finalize=finalize, save=save)
         print("Job metadata saved to .vita/results/job.json and job.toon")
         return True
     except (ValueError, OSError, RuntimeError, KeyError, UnicodeError) as exc:

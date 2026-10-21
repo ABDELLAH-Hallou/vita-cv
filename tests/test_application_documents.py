@@ -65,7 +65,11 @@ def test_manual_and_auto_use_same_task_skills(project, monkeypatch, task, evalua
     system, prompt = provider.call_args.args
     assert skill_context(task) in manual
     assert skill_context(task) in system
-    assert provider.call_args.kwargs == {"provider": "codex"}
+    assert provider.call_args.kwargs["provider"] == "codex"
+    if task in ("analyze", "review"):
+        assert "response_schema" in provider.call_args.kwargs
+    else:
+        assert provider.call_args.kwargs == {"provider": "codex"}
     if task in ("cover", "adapt"):
         assert "**French**" in manual
         assert "**French**" in prompt

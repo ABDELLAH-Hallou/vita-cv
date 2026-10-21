@@ -125,7 +125,10 @@ def test_extraction_only_sends_job_and_preserves_json_toon(workspace, monkeypatc
     system, prompt = provider.call_args.args
     assert "Original CV" not in system + prompt
     assert "RAW_ONLY_MARKER" in prompt
-    assert provider.call_args.kwargs == {"provider": "gemini", "model": "gemini-2.5-flash"}
+    assert {key: provider.call_args.kwargs[key] for key in ("provider", "model")} == {
+        "provider": "gemini", "model": "gemini-2.5-flash",
+    }
+    assert provider.call_args.kwargs["response_schema"] == JOB_SCHEMA
     saved = parse_json(Path(".vita/results/job.json").read_text(encoding="utf-8"))
     assert saved == job_data
     assert Path(".vita/results/job.toon").read_text(encoding="utf-8") == encode_job(saved)
@@ -196,8 +199,12 @@ def test_pipeline_toggle_dual_outputs_and_comparable_delta(workspace, monkeypatc
     assert run.run(auto=True, language="fr")
     assert extractor.call_count == int(enabled)
     if enabled:
-        assert extractor.call_args.kwargs == {"provider": "openrouter", "model": "vendor/fast"}
-    assert calls[0][2] == calls[2][2] == {"provider": "openai", "model": "gpt-4o"}
+        assert {key: extractor.call_args.kwargs[key] for key in ("provider", "model")} == {
+            "provider": "openrouter", "model": "vendor/fast",
+        }
+    for call in (calls[0], calls[2]):
+        assert {key: call[2][key] for key in ("provider", "model")} == {"provider": "openai", "model": "gpt-4o"}
+        assert "response_schema" in call[2]
     before = parse_json(Path(".vita/results/analysis.json").read_text(encoding="utf-8"))
     after = parse_json(Path(".vita/results/review.json").read_text(encoding="utf-8"))
     assert set(before) == set(after)

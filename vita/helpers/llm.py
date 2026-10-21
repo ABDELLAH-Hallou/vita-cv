@@ -8,8 +8,10 @@ Non-compatible (different API format, handled separately):
 """
 import json
 import os
+import re
 import shutil
 import subprocess
+import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -17,6 +19,8 @@ from pathlib import Path
 from vita.helpers.config import load_config
 from vita.helpers.env import load_env
 from vita.helpers.extensions import add_llm_provider, get_llm_providers
+from vita.helpers.provider_errors import ProviderError, UnsupportedSchema
+from vita.helpers.structured import generation_schema
 
 # ── OpenAI-Compatible Provider Registry ───────────────────────────────────────
 # All of these accept the exact same request/response format as OpenAI.
@@ -53,9 +57,58 @@ _DEFAULT_MODELS = {
 
 def generate(
     system_prompt: str, user_prompt: str, provider: str | None = None,
-    model: str | None = None,
+    model: str | None = None, *, response_schema: dict | None = None,
+    session: dict | None = None,
 ) -> str:
     """Auto-detect provider from config and call the appropriate API."""
+    # A structured operation reuses this private snapshot across attempts. It
+    # contains credentials and must never be serialized into outcome records.
+    if session is not None and "resolved" in session:
+        resolved = session["resolved"]
+    else:
+        resolved = _resolve(provider, model)
+        if session is not None:
+            session["resolved"] = resolved
+    provider_name, model, config, env = resolved
+    native = response_schema is not None and provider_name in {"codex", "openai", "openrouter", "gemini", "google"}
+    native = native and config.get("structured_output", "auto") != "off"
+    if session is not None:
+        session["mode"] = "native_schema" if native else "validated_prompt"
+        session["route"] = {"provider": provider_name, "model": model or None,
+                            "reasoning_effort": config.get("reasoning_effort")}
+    options = {"response_schema": generation_schema(response_schema)} if native else {}
+    reasoning = config.get("reasoning_effort")
+    if reasoning is not None and provider_name in {"codex", "openai", "openrouter"}:
+        options["reasoning_effort"] = reasoning
+
+    if provider_name == "codex":
+        return _call_codex_cli(system_prompt, user_prompt, model, **options)
+
+    key_env_var = f"{provider_name.upper()}_API_KEY"
+    api_key = env.get(key_env_var)
+    if provider_name == "google":
+        api_key = api_key or env.get("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError(
+            f"Missing API key for '{provider_name}'. "
+            f"Run: vita keys set {provider_name} <your-key>"
+        )
+    print(f"🧠 Calling {provider_name} ({model})...")
+    if provider_name == "openai":
+        return _call_openai(system_prompt, user_prompt, api_key, model, **options)
+    if provider_name == "openrouter":
+        return _call_openrouter(system_prompt, user_prompt, api_key, model, **options)
+    if provider_name in _OPENAI_COMPATIBLE:
+        return _call_openai_compatible(system_prompt, user_prompt, api_key, model, _OPENAI_COMPATIBLE[provider_name])
+    if provider_name == "anthropic":
+        return _call_anthropic(system_prompt, user_prompt, api_key, model)
+    if provider_name in ("gemini", "google"):
+        return _call_gemini(system_prompt, user_prompt, api_key, model, **options)
+    raise ValueError(f"Unknown provider '{provider_name}'")
+
+
+def _resolve(provider: str | None, model: str | None) -> tuple:
+    """Resolve configuration once, without changing the requested model."""
     env = load_env()
     providers = get_llm_providers()
 
@@ -93,45 +146,15 @@ def generate(
                 f"Configured providers: {configured}"
             )
 
-    config = providers[provider_name]
+    config = dict(providers[provider_name])
     model = model or config.get("model") or _DEFAULT_MODELS.get(provider_name, "gpt-4o")
-
-    if provider_name == "codex":
-        return _call_codex_cli(system_prompt, user_prompt, model)
-
-    key_env_var = f"{provider_name.upper()}_API_KEY"
-    api_key = env.get(key_env_var)
-    if provider_name == "google":
-        api_key = api_key or env.get("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError(
-            f"Missing API key for '{provider_name}'. "
-            f"Run: vita keys set {provider_name} <your-key>"
-        )
-
-    print(f"🧠 Calling {provider_name} ({model})...")
-
-    # Route to the correct API format
-    if provider_name == "openai":
-        return _call_openai(system_prompt, user_prompt, api_key, model)
-    elif provider_name == "openrouter":
-        return _call_openrouter(system_prompt, user_prompt, api_key, model)
-    elif provider_name in _OPENAI_COMPATIBLE:
-        url = _OPENAI_COMPATIBLE[provider_name]
-        return _call_openai_compatible(system_prompt, user_prompt, api_key, model, url)
-    elif provider_name == "anthropic":
-        return _call_anthropic(system_prompt, user_prompt, api_key, model)
-    elif provider_name in ("gemini", "google"):
-        return _call_gemini(system_prompt, user_prompt, api_key, model)
-    else:
-        supported = list(_OPENAI_COMPATIBLE.keys()) + ["anthropic", "gemini"]
-        raise ValueError(
-            f"Unknown provider '{provider_name}'. "
-            f"Supported: {', '.join(supported)}"
-        )
+    if config.get("structured_output", "auto") not in {"auto", "off"}:
+        raise ValueError("structured_output must be auto or off")
+    return provider_name, model, config, dict(env)
 
 
-def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "") -> str:
+def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "", *,
+                    response_schema: dict | None = None, reasoning_effort: str | None = None) -> str:
     """Run Codex CLI non-interactively using the user's local Codex login."""
     codex = _find_codex_cli()
     if not codex:
@@ -142,33 +165,28 @@ def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "") -> st
     prompt = f"{system_prompt}\n\n==== TASK ====\n{user_prompt}"
     output_dir = Path(".vita") / "tmp"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "codex-output.md"
-
-    cmd = [
-        codex,
-        "exec",
-        "--sandbox",
-        "read-only",
-        "--output-last-message",
-        str(output_path),
-    ]
-    if model:
-        cmd.extend(["--model", model])
-    cmd.append("-")
-
-    result = subprocess.run(
-        cmd,
-        input=prompt,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or result.stdout.strip())
-
-    response = output_path.read_text(encoding="utf-8").strip()
-    output_path.unlink(missing_ok=True)
-    return response
+    # Separate paths prevent stale responses or concurrent runs sharing output.
+    with tempfile.TemporaryDirectory(prefix="codex-", dir=output_dir) as temporary:
+        output_path = Path(temporary) / "output.txt"
+        cmd = [codex, "exec", "--sandbox", "read-only", "--output-last-message", str(output_path)]
+        if response_schema is not None:
+            schema_path = Path(temporary) / "schema.json"
+            schema_path.write_text(json.dumps(response_schema), encoding="utf-8")
+            cmd.extend(["--output-schema", str(schema_path)])
+        if model:
+            cmd.extend(["--model", model])
+        if reasoning_effort is not None:
+            cmd.extend(["--config", "model_reasoning_effort=" + json.dumps(reasoning_effort)])
+        cmd.append("-")
+        result = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8")
+        if result.returncode != 0:
+            error = result.stderr.strip() or result.stdout.strip()
+            if response_schema is not None and re.search(r"unexpected argument ['\"]--output-schema['\"]", error):
+                raise UnsupportedSchema()
+            raise ProviderError(error)
+        if not output_path.is_file():
+            raise ProviderError("Codex returned no final output file", "empty_response")
+        return output_path.read_text(encoding="utf-8").strip()
 
 
 def _codex_extension_roots(home: Path) -> tuple[Path, ...]:
@@ -219,15 +237,16 @@ def _find_codex_cli() -> str | None:
 
 # ── API Implementations ────────────────────────────────────────────────────────
 
-def _call_openai(system_prompt: str, user_prompt: str, api_key: str, model: str) -> str:
-    return _call_openai_compatible(system_prompt, user_prompt, api_key, model, _OPENAI_COMPATIBLE["openai"])
+def _call_openai(system_prompt: str, user_prompt: str, api_key: str, model: str, **options) -> str:
+    return _call_openai_compatible(system_prompt, user_prompt, api_key, model, _OPENAI_COMPATIBLE["openai"], **options)
 
 
-def _call_openrouter(system_prompt: str, user_prompt: str, api_key: str, model: str) -> str:
-    return _call_openai_compatible(system_prompt, user_prompt, api_key, model, _OPENAI_COMPATIBLE["openrouter"])
+def _call_openrouter(system_prompt: str, user_prompt: str, api_key: str, model: str, **options) -> str:
+    return _call_openai_compatible(system_prompt, user_prompt, api_key, model, _OPENAI_COMPATIBLE["openrouter"], **options)
 
 def _call_openai_compatible(
-    system_prompt: str, user_prompt: str, api_key: str, model: str, url: str
+    system_prompt: str, user_prompt: str, api_key: str, model: str, url: str, *,
+    response_schema: dict | None = None, reasoning_effort: str | None = None,
 ) -> str:
     """Handles OpenAI and all OpenAI-compatible APIs (Groq, Mistral, DeepSeek, etc.)."""
     headers = {
@@ -242,13 +261,26 @@ def _call_openai_compatible(
         ],
     }
     # Leave optional sampling controls unset: reasoning/nano models can reject them.
+    if response_schema is not None:
+        data["response_format"] = {"type": "json_schema", "json_schema": {
+            "name": "vita_output", "strict": True, "schema": response_schema,
+        }}
+        if url == _OPENAI_COMPATIBLE["openrouter"]:
+            data["provider"] = {"require_parameters": True}
+    if reasoning_effort is not None:
+        if url == _OPENAI_COMPATIBLE["openrouter"]:
+            data["reasoning"] = {"effort": reasoning_effort}
+        else:
+            data["reasoning_effort"] = reasoning_effort
     result = _post(url, headers, data)
     choice = result["choices"][0]
+    if choice["message"].get("refusal") or choice.get("finish_reason") == "content_filter":
+        raise ProviderError("Provider refused the response", "refusal")
     if choice.get("finish_reason") not in (None, "stop"):
-        raise RuntimeError(f"Provider did not complete its response: {choice['finish_reason']}")
+        raise ProviderError("Provider did not complete its response", "incomplete_response")
     content = choice["message"].get("content")
     if not isinstance(content, str) or not content.strip():
-        raise RuntimeError("Provider returned no text (possibly a refusal)")
+        raise ProviderError("Provider returned no text", "empty_response")
     return content
 
 
@@ -269,11 +301,16 @@ def _call_anthropic(
         "messages": [{"role": "user", "content": user_prompt}],
         "temperature": 0.2,
     }
-    return _post(url, headers, data)["content"][0]["text"]
+    result = _post(url, headers, data)
+    if result.get("stop_reason") == "refusal":
+        raise ProviderError("Provider refused the response", "refusal")
+    if result.get("stop_reason") not in (None, "end_turn", "stop_sequence"):
+        raise ProviderError("Provider did not complete its response", "incomplete_response")
+    return "".join(part.get("text", "") for part in result.get("content", []) if part.get("type", "text") == "text")
 
 
 def _call_gemini(
-    system_prompt: str, user_prompt: str, api_key: str, model: str
+    system_prompt: str, user_prompt: str, api_key: str, model: str, *, response_schema: dict | None = None,
 ) -> str:
     """Handles Google Gemini (API key as query param, different body format)."""
     url = (
@@ -286,8 +323,19 @@ def _call_gemini(
         "contents": [{"parts": [{"text": user_prompt}]}],
         "generationConfig": {"temperature": 0.2},
     }
+    if response_schema is not None:
+        data["generationConfig"].update(responseMimeType="application/json", responseJsonSchema=response_schema)
     result = _post(url, headers, data)
-    return result["candidates"][0]["content"]["parts"][0]["text"]
+    if result.get("promptFeedback", {}).get("blockReason"):
+        raise ProviderError("Provider blocked the response", "refusal")
+    candidate = result.get("candidates", [{}])[0]
+    reason = candidate.get("finishReason")
+    if reason in {"SAFETY", "RECITATION", "PROHIBITED_CONTENT", "BLOCKLIST"}:
+        raise ProviderError("Provider blocked the response", "refusal")
+    if reason not in (None, "STOP"):
+        raise ProviderError("Provider did not complete its response", "incomplete_response")
+    return "".join(part.get("text", "") for part in candidate.get("content", {}).get("parts", [])
+                   if not part.get("thought"))
 
 
 # ── HTTP Helper ───────────────────────────────────────────────────────────────
@@ -305,4 +353,20 @@ def _post(url: str, headers: dict, data: dict) -> dict:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         error_msg = e.read().decode("utf-8")
-        raise RuntimeError(f"API error {e.code}: {error_msg}") from e
+        # Only explicit lack of format support permits a prompt-only fallback.
+        # Invalid schemas, auth, quota, and transport failures never trigger it.
+        constrained = "response_format" in data or "responseJsonSchema" in data.get("generationConfig", {})
+        if constrained and e.code in (400, 422) and unsupported_schema_error(error_msg):
+            raise UnsupportedSchema() from e
+        raise ProviderError(f"API request failed (HTTP {e.code})", status=e.code) from e
+
+
+def unsupported_schema_error(message: str) -> bool:
+    text = message.lower()
+    if any(term in text for term in ("invalid schema", "invalid json schema", "schema keyword", "schema for",
+                                     "additionalproperties", "minitems", "minlength")):
+        return False
+    fields = ("response_format", "json_schema", "responsejsonschema", "response_mime_type", "responsemimetype")
+    return any(field in text for field in fields) and any(
+        phrase in text for phrase in ("not supported", "unsupported parameter", "unknown field", "unknown name")
+    )
