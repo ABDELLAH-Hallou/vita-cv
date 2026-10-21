@@ -49,6 +49,12 @@ EVALUATION_SCHEMA = object_schema({
     "overall_score": SCORE,
     "category_scores": object_schema({category: SCORE for category in CATEGORIES}),
     "executive_summary": TEXT,
+    "qualitative_summary": STRING,
+    "comparison": object_schema({
+        "status": {"type": "string", "enum": ["available", "unavailable", "not_applicable", "not_recorded"]},
+        "baseline_overall_score": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+        "overall_delta": {"type": ["number", "null"], "minimum": -100, "maximum": 100},
+    }),
     "strengths": STRINGS, "gaps": STRINGS, "recommendations": STRINGS,
     "metrics": object_schema({
         "criteria": {"type": "array", "minItems": 1, "items": CRITERION_SCHEMA},
@@ -58,7 +64,7 @@ EVALUATION_SCHEMA = object_schema({
         "job_sha256": TEXT, "context_sha256": TEXT, "criteria_sha256": TEXT,
         "rubric_version": {"type": "string", "const": "weighted-criteria-v1"},
     }),
-}, optional=("metadata",))
+}, optional=("metadata", "qualitative_summary", "comparison"))
 
 
 def validate(value, schema: dict, path: str = "$") -> None:

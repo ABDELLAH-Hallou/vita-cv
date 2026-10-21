@@ -187,7 +187,7 @@ def run(
 
     if step in ("analyze", "review"):
         try:
-            report = finalize(response, job, baseline)
+            report = finalize(response, job, baseline, step=step)
             delta = compute_delta(baseline, report) if baseline else None
             save_evaluation(step, report)
             if delta is not None:

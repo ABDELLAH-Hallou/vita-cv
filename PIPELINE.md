@@ -113,7 +113,10 @@ Both evaluations contain:
 - `overall_score`: number from 0 to 100.
 - `category_scores`: `hard_skills`, `soft_skills`, `experience`,
   `responsibilities`, and `keywords`, each from 0 to 100.
-- `executive_summary`, `strengths`, `gaps`, and `recommendations`.
+- Host-rendered `executive_summary`, qualitative `qualitative_summary`,
+  `strengths`, `gaps`, and `recommendations`.
+- Host-rendered `comparison`: `status`, `baseline_overall_score`, and
+  `overall_delta` (percentage points).
 - `metrics.criteria`: objects with stable `id`, `job_id`, `category`,
   `criterion`, `importance`, `status`, `evidence`, and `feedback`.
 - `metrics.matched_count`, `partial_count`, `missing_count`, and `total_count`.
@@ -132,10 +135,36 @@ and category scores are weighted earned credit divided by available credit,
 multiplied by 100 and rounded to two decimals. A category without criteria is
 stored as zero and displayed as N/A. Repeated keywords earn no extra credit.
 
+JSON, the Markdown executive summary, and scoring/comparison tables use the
+same calculated record. All displayed scores and changes use two decimal places;
+deltas subtract the already rounded before/after scores. The executive summary
+contains the host's overall documented-coverage score and baseline statement.
+Model commentary is requested as qualitative prose, stored separately in
+`qualitative_summary`, and displayed under **Qualitative commentary**. Assessment
+score and baseline-comparison clauses are removed from model narrative fields;
+candidate achievement percentages such as a 40% cost reduction are retained.
+Criteria wording and quoted source evidence are preserved.
+
+For a review, `comparison.status` is `available` only when the host validates a
+matching initial assessment and calculates a comparable delta. Otherwise it is
+`unavailable`, with null baseline score/delta. Initial assessments use
+`not_applicable`. These fields describe the baseline at assessment time, not a
+later filesystem lookup. Model-authored availability claims cannot set them.
+When calling `finalize` directly for a review without a baseline, pass
+`step="review"`; without an explicit step the helper retains its initial-analysis
+default. The CLI and generated instructions pass the appropriate step.
+
+Older schema-version-1 reports remain accepted: the new fields are optional on
+input. Loading a legacy baseline or rendering an old report recalculates its
+scores and normalizes commentary in memory, leaving the saved source unchanged.
+If a legacy report did not record baseline availability, its rendered summary
+says so (`not_recorded`) rather than trusting a model's claim. Legacy reports
+with valid provenance still work as baselines for new comparisons.
+
 Review reuses exactly the initial criterion IDs, job IDs, categories, wording,
 and importance. A response that adds, removes, or changes those criteria fails
 validation. Models still make subjective judgments about evidence; scores
-measure documented fit and are not calibrated hiring probabilities. Extraction
+measure documented coverage and are not calibrated hiring probabilities. Extraction
 can omit or misinterpret a requirement, so inspect its output for important
 applications.
 
