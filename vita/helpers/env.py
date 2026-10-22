@@ -52,6 +52,8 @@ def env_example_text() -> str:
 ENABLE_JD_EXTRACTION=false
 # EXTRACTION_PROVIDER=gemini
 # EXTRACTION_MODEL=gemini-2.5-flash
+# Optional shared approved-requirements store (otherwise Git common dir or .vita).
+# VITA_REQUIREMENTS_DIR=/absolute/path/to/shared-requirements
 # ANALYSIS_PROVIDER=openai
 # ANALYSIS_MODEL=gpt-4o
 # Review inherits ANALYSIS_* unless explicitly configured.

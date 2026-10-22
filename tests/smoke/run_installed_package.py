@@ -42,6 +42,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
     with zipfile.ZipFile(wheels[0]) as archive:
         names = set(archive.namelist())
         required_assets = {
+            "vita/assets/prompts/requirements.md",
             "vita/assets/prompts/extract.md",
             "vita/assets/prompts/analyze.md",
             "vita/assets/prompts/adapt.md",
@@ -77,7 +78,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             raise AssertionError(f"Unexpected version output: {version!r}")
 
         help_text = run([str(python), "-m", "vita", "--help"], cwd=project).stdout
-        for command in ("init", "new", "build", "extract", "analyze", "adapt", "review", "cover", "run"):
+        for command in ("init", "new", "build", "extract", "requirements", "analyze", "adapt", "review", "cover", "run"):
             if command not in help_text:
                 raise AssertionError(f"CLI help is missing command {command!r}")
 
@@ -137,6 +138,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
         )], cwd=project)
         run([str(python), str(Path(__file__).with_name("assessment_authority.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("structured_recovery.py").resolve())], cwd=project)
+        run([str(python), str(Path(__file__).with_name("canonical_requirements.py").resolve())], cwd=project)
         build_help = run([str(python), "-m", "vita", "build", "--help"], cwd=project).stdout
         for option in ("both", "--resume", "--cover"):
             if option not in build_help:
