@@ -265,6 +265,95 @@ The provider request formats follow the official
 [OpenAI Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
 and [OpenRouter Chat Completions API](https://openrouter.ai/docs/api/api-reference/chat/create-a-chat-completion).
 
+## Candidate evidence provenance
+
+Analyze and Review capture the configured `tex_entry` and the supported literal
+project-local `\input{file}` / `\include{file}` graph before contacting the model.
+Extensionless includes resolve to `.tex` from the project working directory;
+cycles are visited once, commented/dynamic includes and paths outside the project
+are excluded. Missing or unsupported sources cannot supply verified evidence.
+The existing job-hash, context-hash, approved requirement revision, and locked
+taxonomy checks still apply.
+
+Each captured source has a `src-…` identity covering its relative path, kind,
+text SHA-256, and any approved knowledge spans. `metadata.candidate_snapshot`
+stores the captured text and identities with an integrity hash, so reports can
+be inspected offline. It contains candidate content; handle it like the CV.
+Text is UTF-8 with universal newlines normalized to LF. Lines are 1-based and
+inclusive, including blank and comment lines. The snapshot proves local text
+support, not authorship, factual truth, or real-world employment.
+
+Provider criteria return `evidence_kind` (`direct`, `inference`, or `none`) and
+`evidence_refs`. A reference has `source_id`, `quote`, `line_start`, and `line_end`.
+Either supply both line numbers or set both to `null` for quotation-only lookup.
+The quote must occur exactly within the cited span or eligible source text.
+`evidence` must equal the referenced quotes joined with a newline; explanatory
+or inferred prose belongs in `feedback`. This prevents replacing evidence with
+an invented employer while retaining unrelated, otherwise valid references.
+Missing criteria use empty evidence/references and `evidence_kind: "none"`.
+
+The host always replaces `evidence_verification` with a status and actionable
+reason. Unknown IDs, unsupported text, stale sources/approvals, invalid spans,
+and quotes outside approved knowledge spans are explicitly **unverified**.
+Changes anywhere in the captured candidate graph during generation invalidate
+that capture; rerun with current sources. Supported quotes are **verified**;
+empty missing-evidence claims are **not_applicable**. Old reports without a
+snapshot are **not_recorded**, explicitly described as unverified. Input fields
+remain optional for backward compatibility; missing citations in new reports
+are unverified. Native generation schemas require all evidence fields.
+
+Verification and semantic adjudication are separate. Finding a quote never
+promotes a partial criterion to matched. Inference receives at most partial
+credit, even if the model requests matched. Direct but incomplete evidence must
+remain partial; scope, duration, proficiency, and compound requirements still
+need model/user judgment. Unverified judgments retain their model-assigned
+statuses and calculated scores for compatibility, with a host warning in JSON,
+Markdown, and the executive summary. They are not certified coverage. Check the
+criterion verification status before treating a score as source-backed.
+
+Review captures the updated CV and uses its current source IDs. An initial
+assessment's older snapshot is valid historical evidence, not proof about the
+current CV. Delta comparison ignores differences in candidate snapshots while
+continuing to require identical job, context, rubric, and criterion provenance.
+Rendering a historical report rechecks its embedded hashes and quotations; it
+does not silently rebind them to files currently on disk.
+
+### Verified knowledge-base spans
+
+`.vita/cv.yaml` is eligible assessment evidence only for explicitly user-verified
+line ranges. Mere file presence, YAML keys named `verified`, and previous AI
+reports do not confer verification. Record approval in `.vita/cv-verified.json`:
+
+```json
+{
+  "schema_version": 1,
+  "source_sha256": "<SHA-256 of normalized UTF-8 cv.yaml text>",
+  "verified_spans": [{"line_start": 3, "line_end": 5}]
+}
+```
+
+After reviewing those lines, an authorized caller can write this approval with
+`vita.helpers.structured.write_artifact` and `json_text`; compute the hash using
+`vita.helpers.candidate_evidence.digest(Path(".vita/cv.yaml").read_text(encoding="utf-8"))`.
+Do not approve content automatically from a model assertion. Invalid/missing
+approvals or a changed knowledge file exclude it until explicitly reapproved.
+Only quotations wholly inside an approved range can verify. Adapt/Cover retain
+their existing knowledge context behavior; this approval governs assessment
+evidence, not edits to the CV.
+
+For direct integrations, capture with
+`capture_candidate_sources(configured_entry)`, pass the snapshot as `sources=`
+to both `evaluation_instruction` and `finalize`, then use `save_evaluation`.
+Generated prompts embed the same contract and instruct the executing agent to
+recapture current sources before finalizing if files changed. Standalone
+`finalize` without `sources=` captures current configured sources at call time;
+pass the original snapshot to detect changes during a provider call.
+
+Regression and installed-wheel checks replay issue #42's fictional-employer
+mutation beside legitimate, included-file, verified-knowledge, and stale-source
+controls. These synthetic checks verify provenance handling, not model honesty
+or factual/semantic accuracy on real candidate documents.
+
 ## Structured output and format recovery
 
 Automatic `extract`, `analyze`, and `review` request schema-constrained output

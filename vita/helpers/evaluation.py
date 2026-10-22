@@ -4,6 +4,12 @@ import copy
 from pathlib import Path
 
 from vita.helpers.assessment_narrative import qualitative_text
+from vita.helpers.candidate_evidence import (
+    candidate_instruction,
+    capture_candidate_sources,
+    verification_notice,
+    verify_criteria,
+)
 from vita.helpers.job_extraction import JobContext, fingerprint, read_job
 from vita.helpers.requirements import IMPORTANCE, WEIGHTS, assert_current
 from vita.helpers.structured import (
@@ -95,7 +101,7 @@ def load_baseline(job: JobContext) -> dict | None:
         return None
 
 
-def evaluation_instruction(step: str, job: JobContext, baseline: dict | None = None) -> str:
+def evaluation_instruction(step: str, job: JobContext, baseline: dict | None = None, *, sources: dict | None = None) -> str:
     name = "analysis" if step == "analyze" else "review"
     instruction = (
         "\n\nSTRUCTURED EVALUATION CONTRACT (overrides skill output-format advice):\n"
@@ -132,7 +138,7 @@ def evaluation_instruction(step: str, job: JobContext, baseline: dict | None = N
             "Do not derive, split, duplicate, remove, or reweight criteria based on the candidate. "
             "Required=2, preferred=1, unclear=0. Unclear items remain for clarification, not capability penalties. "
             "Employment conditions are separate and unscored; unknown home-office logistics are not skill gaps. "
-            "Only judge status, evidence, and feedback. The host supplies canonical source references, "
+            "Only judge status, evidence, evidence_kind, evidence_refs, and feedback. The host supplies canonical JD source references, "
             "classifications, weights, employment conditions, denominators, and the approved revision. "
             "Do not return those host-only fields in the provider JSON.\n"
             + json_text({"revision": job.requirements["revision"], "criteria": [
@@ -143,13 +149,15 @@ def evaluation_instruction(step: str, job: JobContext, baseline: dict | None = N
         instruction += (
             "\n\nLOCKED JD CRITERIA:\nRe-evaluate exactly these criteria against the updated CV. "
             "Preserve every id, job_id, category, criterion, and importance value. "
-            "Change only status, evidence, and feedback. Do not add or remove criteria.\n"
+            "Change only status, evidence, evidence_kind, evidence_refs, and feedback. Do not add or remove criteria. "
+            "Cite the CURRENT candidate snapshot; never reuse baseline source IDs for changed CV content.\n"
             + json_text({"criteria": [{key: item[key] for key in TAXONOMY_FIELDS} for item in taxonomy(baseline)]})
         )
-    return instruction
+    return instruction + candidate_instruction(sources if sources is not None else capture_candidate_sources())
 
 
-def finalize(response: str, job: JobContext, baseline: dict | None = None, *, step: str | None = None) -> dict:
+def finalize(response: str, job: JobContext, baseline: dict | None = None, *, step: str | None = None,
+             sources: dict | None = None) -> dict:
     report = parse_json(response)
     validate_evaluation(report)
     criteria = report["metrics"]["criteria"]
@@ -185,6 +193,15 @@ def finalize(response: str, job: JobContext, baseline: dict | None = None, *, st
         "criteria_sha256": fingerprint(json_text(taxonomy(report))),
         "rubric_version": "weighted-criteria-v1",
     }
+    # Bind citations to the host capture supplied to the provider, not a snapshot
+    # or verification status returned by it. Standalone/manual callers capture now.
+    current = capture_candidate_sources(sources["entry"] if sources is not None else None)
+    report["metadata"]["candidate_snapshot"] = sources if sources is not None else current
+    report["metadata"]["candidate_capture_status"] = (
+        "stale" if sources is not None and current != sources else "captured")
+    verify_criteria(criteria, report["metadata"]["candidate_snapshot"],
+                    stale=report["metadata"]["candidate_capture_status"] == "stale")
+    report["overall_score"], report["category_scores"] = scores(criteria)
     if job.requirements is not None:
         report["metadata"]["requirements_revision"] = job.requirements["revision"]
         report["metrics"]["employment_conditions"] = [
@@ -221,7 +238,8 @@ def executive_summary(report: dict) -> str:
     score = score_text(report["overall_score"])
     if report.get("metadata", {}).get("requirements_revision") and report["metrics"].get("weighted_available") == 0:
         return ("No confirmed capability requirements carry weight; documented coverage is not scored. "
-                "Ambiguous requirements are retained for clarification.")
+                "Ambiguous requirements are retained for clarification. "
+                + verification_notice(report["metrics"]["criteria"]))
     text = f"Overall documented coverage: {score}/100 ({score}%)."
     comparison = report["comparison"]
     if comparison["status"] == "available":
@@ -235,13 +253,16 @@ def executive_summary(report: dict) -> str:
         text += " This is the initial assessment; no baseline comparison applies."
     else:
         text += " Baseline availability was not recorded in this legacy report; no comparison is asserted."
-    return text
+    return text + " " + verification_notice(report["metrics"]["criteria"])
 
 
 def canonical_report(report: dict) -> dict:
     """Normalize new and legacy reports without mutating the supplied artifact."""
     validate_evaluation(report)
     report = copy.deepcopy(report)
+    metadata = report.get("metadata", {})
+    verify_criteria(report["metrics"]["criteria"], metadata.get("candidate_snapshot"),
+                    stale=metadata.get("candidate_capture_status") == "stale")
     report["overall_score"], report["category_scores"] = scores(report["metrics"]["criteria"])
     for status in STATUS_VALUE:
         report["metrics"][f"{status}_count"] = sum(
@@ -287,6 +308,10 @@ def render_report(report: dict, title: str) -> str:
     report = canonical_report(report)
     rows = [f"# {title}", "", "## Executive summary", "", markdown_text(report["executive_summary"]),
             "", "Scores describe documented CV coverage, not a hiring probability.", ""]
+    rows += ["## Evidence verification", "", verification_notice(report["metrics"]["criteria"]),
+             "", "Verified means the exact quotation occurs in a captured candidate source. "
+             "It does not verify real-world employment or prove full criterion satisfaction. "
+             "Inference can receive at most partial credit. Historical reports refer to their captured source versions.", ""]
     if report["qualitative_summary"]:
         rows += ["## Qualitative commentary", "", markdown_text(report["qualitative_summary"]), ""]
     rows += ["## Scoring", "", "| Category | Score | Criteria |", "|---|---:|---:|"]
@@ -298,10 +323,17 @@ def render_report(report: dict, title: str) -> str:
     for heading, key in (("Strengths", "strengths"), ("Gaps", "gaps"), ("Actionable feedback", "recommendations")):
         rows += ["", f"## {heading}", ""]
         rows += ["- " + markdown_text(item) for item in report[key]] or ["None identified."]
-    rows += ["", "## Criteria and evidence", "", "| Job / criterion | Status | Evidence | Feedback |",
-             "|---|---|---|---|"]
+    rows += ["", "## Criteria and evidence", "", "| Job / criterion | Status | Evidence | Verification / kind | Sources | Feedback |",
+             "|---|---|---|---|---|---|"]
+    sources = {source["id"]: source for source in report.get("metadata", {}).get("candidate_snapshot", {}).get("sources", [])}
     for item in criteria:
-        cells = [f"{item['job_id']} / {item['criterion']}", item["status"], item["evidence"], item["feedback"]]
+        references = "; ".join(
+            f"{sources.get(ref['source_id'], {}).get('path', ref['source_id'])} "
+            + (f"lines {ref['line_start']}-{ref['line_end']}" if ref["line_start"] is not None else "(exact quote)")
+            for ref in item["evidence_refs"])
+        verification = item["evidence_verification"]
+        cells = [f"{item['job_id']} / {item['criterion']}", item["status"], item["evidence"],
+                 f"{verification['status']} / {item['evidence_kind']}: {verification['reason']}", references, item["feedback"]]
         rows.append("| " + " | ".join(map(markdown_text, cells)) + " |")
     if report.get("metadata", {}).get("requirements_revision"):
         rows += ["", "## Approved requirement revision", "", report["metadata"]["requirements_revision"],
@@ -314,6 +346,11 @@ def render_report(report: dict, title: str) -> str:
             rows.append("| " + " | ".join(map(markdown_text, cells)) + " |")
         rows += ["", "## Employment conditions (not scored)", ""]
         rows += ["- " + markdown_text(item["criterion"]) for item in report["metrics"].get("employment_conditions", [])] or ["None recorded."]
+    if sources:
+        rows += ["", "## Captured candidate source versions", "",
+                 "These identities refer to the captured text in the JSON report, not live files.", ""]
+        for source in sources.values():
+            rows += ["- " + markdown_text(f"{source['path']} ({source['kind']}): {source['id']}; SHA-256 {source['sha256']}")]
     return "\n".join(rows) + "\n"
 
 
@@ -336,10 +373,16 @@ def compute_delta(before: dict, after: dict) -> dict:
             raise ValueError("Cannot compare evaluations without provenance metadata")
         if report["metadata"]["criteria_sha256"] != fingerprint(json_text(taxonomy(report))):
             raise ValueError("Evaluation criteria fingerprint is inconsistent")
-    if before["metadata"] != after["metadata"] or taxonomy(before) != taxonomy(after):
+    # Analyze and Review necessarily capture different CV versions. Job/taxonomy
+    # provenance must match; candidate source identities are assessment-specific.
+    def comparison_metadata(report):
+        return {key: value for key, value in report["metadata"].items()
+                if key not in ("candidate_snapshot", "candidate_capture_status")}
+
+    if comparison_metadata(before) != comparison_metadata(after) or taxonomy(before) != taxonomy(after):
         raise ValueError("Cannot compare evaluations for different jobs or criteria")
     # Recompute from evidence statuses, including for imported JSON artifacts.
-    before, after = copy.deepcopy(before), copy.deepcopy(after)
+    before, after = canonical_report(before), canonical_report(after)
     for report in (before, after):
         report["overall_score"], report["category_scores"] = scores(report["metrics"]["criteria"])
     previous = {item["id"]: item for item in before["metrics"]["criteria"]}

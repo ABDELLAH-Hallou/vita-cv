@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 
+from vita.helpers.candidate_evidence import capture_candidate_sources
 from vita.helpers.config import load_config
 from vita.helpers.context_builder import (
     build_system_context,
@@ -91,8 +92,14 @@ def run(
         prompt_text += multi_job_instruction(len(job.ids), document)
 
     baseline = load_baseline(job) if step == "review" else None
+    sources = None
     if step in ("analyze", "review"):
-        prompt_text += evaluation_instruction(step, job, baseline if auto else None)
+        try:
+            sources = capture_candidate_sources(resume_entry)
+        except (ValueError, OSError, UnicodeError) as exc:
+            print(f"Cannot capture candidate sources: {exc}")
+            return False
+        prompt_text += evaluation_instruction(step, job, baseline if auto else None, sources=sources)
 
     if step == "adapt" and language:
         language_map = merged_language_map(_BUILTIN_LANGUAGE_MAP)
@@ -140,6 +147,9 @@ def run(
                 "Use vita.helpers.evaluation.finalize and save_evaluation to validate and save "
                 "both JSON and Markdown. For a matching review, use compute_delta and save_delta. "
                 "Do not hand-edit provenance hashes or numeric scores."
+                " Capture current candidate sources with vita.helpers.candidate_evidence.capture_candidate_sources "
+                "using the configured CV entry, use their source IDs and quotes, and pass that snapshot as "
+                "sources= to finalize. If sources changed since this prompt, regenerate citations first."
             )
         prompt_text = skill_context(step) + "\n\n==== TASK ====\n" + prompt_text
         print(f"\n{'='*60}")
@@ -196,7 +206,7 @@ def run(
             run_structured(
                 step=step, generate=llm_generate, system=system_context, prompt=prompt_text,
                 route=settings.route(step, provider).kwargs(), schema=EVALUATION_OUTPUT_SCHEMA,
-                finalize=lambda data: finalize(json_text(data), job, baseline, step=step), save=save,
+                finalize=lambda data: finalize(json_text(data), job, baseline, step=step, sources=sources), save=save,
             )
             print(f"Validated {step} saved as JSON and Markdown in {results_dir}")
             return True

@@ -88,11 +88,15 @@ def cv_knowledge_instruction() -> str:
     )
 
 
-def cv_source_context(entry: str) -> str:
-    """Include the configured CV and literal local input/include files, once each."""
+def cv_source_files(entry: str) -> dict[str, str]:
+    """Capture the CV and literal project-local input/include files, once each.
+
+    Includes use TeX's project working directory, not the including file's directory.
+    Dynamic macros and paths outside the project are intentionally unsupported.
+    """
     root = Path.cwd().resolve()
     seen: set[Path] = set()
-    blocks = []
+    files = {}
 
     def visit(path: Path) -> None:
         resolved = path.resolve()
@@ -100,7 +104,7 @@ def cv_source_context(entry: str) -> str:
             return
         seen.add(resolved)
         content = resolved.read_text(encoding="utf-8")
-        blocks.append(f"==== FILE: {resolved.relative_to(root).as_posix()} ====\n{content}\n")
+        files[resolved.relative_to(root).as_posix()] = content
         uncommented = re.sub(r"(?m)(?<!\\)%.*$", "", content)
         for name in re.findall(r"\\(?:input|include)\s*\{([^{}]+)\}", uncommented):
             if "\\" in name or "#" in name:
@@ -111,7 +115,12 @@ def cv_source_context(entry: str) -> str:
             visit(root / included)
 
     visit(Path(entry))
-    return "\n".join(blocks)
+    return files
+
+
+def cv_source_context(entry: str) -> str:
+    return "\n".join(f"==== FILE: {path} ====\n{content}\n"
+                     for path, content in cv_source_files(entry).items())
 
 
 def build_system_context(
