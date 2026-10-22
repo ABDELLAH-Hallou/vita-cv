@@ -53,6 +53,12 @@ def capture_candidate_sources(entry: str | None = None) -> dict:
     files = cv_source_files(entry)
     entry_path = Path(entry).resolve()
     for path, content in files.items():
+        # Including a JD/report/skill does not turn requirements or generated
+        # assertions into candidate facts. Knowledge always needs its approval.
+        candidate_path = path.casefold()
+        if (candidate_path in ("job.md", KNOWLEDGE.as_posix())
+                or candidate_path.startswith((".vita/results/", ".vita/skills/", ".vita/prompts/"))):
+            continue
         source = {"path": path, "content": content, "sha256": digest(content),
                   "kind": "cv" if Path(path).resolve() == entry_path else "include", "verified_spans": []}
         source["id"] = source_identity(source)

@@ -252,6 +252,21 @@ def test_literal_include_graph_and_configured_entry_only(project):
     assert {s["path"] for s in snapshot["sources"]} == {"alternate.tex", "sections/work.tex", ".vita/cv.yaml"}
 
 
+@pytest.mark.parametrize("results_dir", ["results", "RESULTS"])
+def test_including_non_candidate_files_cannot_establish_evidence(project, results_dir):
+    directory = Path(".vita") / results_dir
+    directory.mkdir()
+    (directory / "old.tex").write_text("Generated unsupported claim", encoding="utf-8")
+    with Path("main.tex").open("a", encoding="utf-8") as stream:
+        stream.write(f"\\input{{job.md}}\n\\input{{{directory.as_posix()}/old.tex}}\n\\input{{.vita/cv.yaml}}\n")
+    Path(".vita/cv-verified.json").unlink()
+    snapshot = capture_candidate_sources()
+    assert {source["path"] for source in snapshot["sources"]} == {"main.tex", "sections/work.tex"}
+    approve_knowledge()
+    knowledge = next(source for source in capture_candidate_sources()["sources"] if source["path"] == ".vita/cv.yaml")
+    assert knowledge["kind"] == "verified_knowledge" and knowledge["verified_spans"] == [{"line_start": 1, "line_end": 1}]
+
+
 @pytest.mark.parametrize("step", ["analyze", "review"])
 def test_auto_and_generated_prompts_capture_same_sources(project, evaluation_report, monkeypatch, step):
     sources = capture_candidate_sources()

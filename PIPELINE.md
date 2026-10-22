@@ -271,7 +271,9 @@ Analyze and Review capture the configured `tex_entry` and the supported literal
 project-local `\input{file}` / `\include{file}` graph before contacting the model.
 Extensionless includes resolve to `.tex` from the project working directory;
 cycles are visited once, commented/dynamic includes and paths outside the project
-are excluded. Missing or unsupported sources cannot supply verified evidence.
+are excluded. Including `job.md`, generated `.vita/results/`, skills, or prompt
+files does not make them eligible candidate evidence. Including `.vita/cv.yaml`
+does not bypass knowledge approval. Missing or unsupported sources cannot supply verified evidence.
 The existing job-hash, context-hash, approved requirement revision, and locked
 taxonomy checks still apply.
 
