@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.5.3...v2.6.0) (2026-10-22)
+
+
+### Features
+
+* freeze approved canonical job requirements across assessments ([#53](https://github.com/ABDELLAH-Hallou/vita-cv/issues/53)) ([67af82a](https://github.com/ABDELLAH-Hallou/vita-cv/commit/67af82a38df22b01088a903fa29ee76c5441785e))
+
 ## [2.5.3](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.5.2...v2.5.3) (2026-10-22)
 
 
