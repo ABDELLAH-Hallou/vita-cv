@@ -93,9 +93,16 @@ jobs:
         run: uv sync --locked --all-groups --python ${{ matrix.python-version }}
       - name: Install LaTeX for document integration tests
         if: matrix.python-version == '3.12'
+        timeout-minutes: 5
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends latexmk texlive-latex-base
+          # The runner's Azure mirror has stalled LaTeX downloads until job timeout.
+          if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+            sudo sed -i 's|https\?://azure\.archive\.ubuntu\.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+          apt_options=(-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)
+          sudo apt-get "${apt_options[@]}" update
+          sudo apt-get "${apt_options[@]}" install --yes --no-install-recommends latexmk texlive-latex-base
       - name: Run regression suite with branch coverage
         run: uv run --python ${{ matrix.python-version }} pytest --ignore=tests/smoke --cov=vita --cov-report=term-missing
 

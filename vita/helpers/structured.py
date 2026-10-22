@@ -29,6 +29,29 @@ SOURCE_REF_SCHEMA = object_schema({
     "line_end": {"type": "integer", "minimum": 1}, "quote": TEXT,
 })
 CANONICAL_CRITERION_FIELDS = ("classification", "weight", "ambiguity", "source_refs")
+EVIDENCE_REF_SCHEMA = object_schema({
+    "source_id": TEXT, "quote": TEXT,
+    "line_start": {"type": ["integer", "null"], "minimum": 1},
+    "line_end": {"type": ["integer", "null"], "minimum": 1},
+})
+EVIDENCE_VERIFICATION_SCHEMA = object_schema({
+    "status": {"type": "string", "enum": ["verified", "unverified", "not_applicable", "not_recorded"]},
+    "reason": TEXT,
+})
+LINE_SPAN_SCHEMA = object_schema({
+    "line_start": {"type": "integer", "minimum": 1},
+    "line_end": {"type": "integer", "minimum": 1},
+})
+CANDIDATE_SOURCE_SCHEMA = object_schema({
+    "id": TEXT, "path": TEXT, "sha256": TEXT, "content": STRING,
+    "kind": {"type": "string", "enum": ["cv", "include", "verified_knowledge"]},
+    "verified_spans": {"type": "array", "items": LINE_SPAN_SCHEMA},
+})
+CANDIDATE_SNAPSHOT_SCHEMA = object_schema({
+    "schema_version": {"type": "integer", "const": 1}, "entry": TEXT,
+    "sources": {"type": "array", "items": CANDIDATE_SOURCE_SCHEMA},
+    "sha256": TEXT,
+})
 
 
 JOB_SCHEMA = object_schema({
@@ -50,10 +73,13 @@ CRITERION_SCHEMA = object_schema({
     "criterion": TEXT, "importance": {"type": "string", "enum": ["must_have", "nice_to_have", "unclear"]},
     "status": {"type": "string", "enum": ["matched", "partial", "missing"]},
     "evidence": STRING, "feedback": STRING,
+    "evidence_kind": {"type": "string", "enum": ["direct", "inference", "none", "unspecified"]},
+    "evidence_refs": {"type": "array", "items": EVIDENCE_REF_SCHEMA},
+    "evidence_verification": EVIDENCE_VERIFICATION_SCHEMA,
     "classification": {"type": "string", "enum": ["required", "preferred", "unclear"]},
     "weight": {"type": "integer", "enum": [0, 1, 2]}, "ambiguity": STRING,
     "source_refs": {"type": "array", "minItems": 1, "items": SOURCE_REF_SCHEMA},
-}, optional=CANONICAL_CRITERION_FIELDS)
+}, optional=(*CANONICAL_CRITERION_FIELDS, "evidence_kind", "evidence_refs", "evidence_verification"))
 EVALUATION_SCHEMA = object_schema({
     "schema_version": {"type": "integer", "const": 1},
     "overall_score": SCORE,
@@ -81,7 +107,9 @@ EVALUATION_SCHEMA = object_schema({
         "job_sha256": TEXT, "context_sha256": TEXT, "criteria_sha256": TEXT,
         "rubric_version": {"type": "string", "const": "weighted-criteria-v1"},
         "requirements_revision": TEXT,
-    }, optional=("requirements_revision",)),
+        "candidate_snapshot": CANDIDATE_SNAPSHOT_SCHEMA,
+        "candidate_capture_status": {"type": "string", "enum": ["captured", "stale"]},
+    }, optional=("requirements_revision", "candidate_snapshot", "candidate_capture_status")),
 }, optional=("metadata", "qualitative_summary", "comparison"))
 
 # Provenance and public report summaries/comparisons are supplied by the host.
@@ -96,8 +124,9 @@ EVALUATION_OUTPUT_SCHEMA["properties"] = {**EVALUATION_OUTPUT_SCHEMA["properties
     **{key: value for key, value in EVALUATION_SCHEMA["properties"]["metrics"]["properties"].items()
        if key not in {"weighted_available", "weighted_earned", "category_denominators", "employment_conditions", "criteria"}},
     "criteria": {"type": "array", "minItems": 1, "items": object_schema({
-        key: value for key, value in CRITERION_SCHEMA["properties"].items() if key not in CANONICAL_CRITERION_FIELDS
-    })},
+        key: value for key, value in CRITERION_SCHEMA["properties"].items()
+        if key not in (*CANONICAL_CRITERION_FIELDS, "evidence_verification")
+    }, optional=("evidence_kind", "evidence_refs"))},
 })}
 
 

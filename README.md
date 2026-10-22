@@ -415,6 +415,13 @@ vita build --cover                              # Compile its PDF
 
 The letter uses supported CV facts, optional `.vita/cv.yaml` knowledge, and the job's requirements. It uses the same model settings as the CV commands in `.vita/extensions.json`. The CV and a nonempty `job.md` must exist. Multiple jobs from one company produce one coherent letter. The generated letter is standalone LaTeX; it does not require the CV's custom class or assets.
 
+Analyze and Review verify evidence quotations against captured CV sources,
+literal included files, and explicitly approved knowledge-base spans. Each
+criterion shows whether its text support is verified, unverified, or absent;
+inference is separate from direct evidence. Legacy reports remain readable with
+explicit verification status. See [candidate evidence provenance](PIPELINE.md#candidate-evidence-provenance)
+for source identities, knowledge approval, and the limits of source verification.
+
 ---
 
 ### `vita keys`
