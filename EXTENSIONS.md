@@ -283,6 +283,14 @@ whole `.vita/` directory, including custom skills; use `sync` for migration.
 
 ## Malformed JSON
 
+For AI-generated JSON (extraction and evaluations), see
+[structured output and recovery](PIPELINE.md#structured-output-and-format-recovery).
+Provider entries in `llm_providers` accept `"structured_output": "auto"` (default)
+or `"off"` (validated prompt mode). Codex, OpenAI, and OpenRouter entries also
+accept `"reasoning_effort": "low"` (or another value supported by the selected
+model); retries preserve this value. Omitting reasoning effort preserves the
+provider/CLI default. No retry changes the selected model.
+
 If `.vita/extensions.json` contains invalid JSON, VITA will print a warning and
 fall back to the built-in defaults — no commands will fail.
 

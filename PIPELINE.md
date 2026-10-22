@@ -151,3 +151,55 @@ unrelated review removes stale delta files.
 The provider request formats follow the official
 [OpenAI Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
 and [OpenRouter Chat Completions API](https://openrouter.ai/docs/api/api-reference/chat/create-a-chat-completion).
+
+## Structured output and format recovery
+
+Automatic `extract`, `analyze`, and `review` request schema-constrained output
+through Codex `--output-schema`, OpenAI/OpenRouter `response_format`, or Gemini
+`responseMimeType`/`responseJsonSchema`. OpenRouter requests endpoints that support
+the supplied parameters. The generation schema uses a conservative JSON Schema
+subset; the host still enforces the full schema, finite score ranges, unique IDs,
+job provenance, evidence requirements, and locked review criteria. Evaluation
+metadata is excluded from model output and supplied by the host. Extraction must
+return the source fingerprint supplied in its prompt; a mismatch is rejected.
+
+There are at most **three provider attempts per structured step**, including any
+schema-negotiation rejection. Malformed JSON, schema violations, and invalid job
+or review criteria can trigger a new generation from the original evidence and
+contract. VITA does not patch candidate facts or accept a partial assessment.
+The selected provider, model, and configured reasoning effort stay fixed across
+attempts. Codex settings not overridden by VITA remain inherited from the CLI.
+
+An endpoint explicitly rejecting the structured-output feature (or an older
+Codex CLI rejecting `--output-schema`) can fall back to prompt-based JSON with
+the same host validation. Other adapters use this validated prompt mode directly.
+Set `"structured_output": "off"` in that provider's `.vita/extensions.json`
+configuration to select it explicitly. Authentication, quota, transport errors,
+refusals, incomplete responses, and invalid native schemas fail promptly; they
+are not repaired by changing models or by format retries. Transient-error backoff
+is outside this feature's scope.
+
+Each execution records `.vita/results/attempts/<step>-<run_id>.json` and updates
+`.vita/results/<step>.outcome.json`. Read `status` (`running`, `success`, `failed`)
+before consuming existing reports: a failed rerun preserves previous successful
+artifacts. Each attempt records its number, response category, output mode, route,
+and response hash/length when text was returned; JSON syntax failures include a
+line/column/offset. Host validation failures include a safe constraint description.
+The final record includes `recovered` on success, or an
+`error.code` and actionable `error.action` on failure. Failure codes include
+`structured_output_invalid`, `provider_error`, and `artifact_error`; the CLI exits
+nonzero. Provider HTTP status is recorded when available. Raw model responses,
+CV text, prompts, credentials, and provider error bodies are not stored in these
+records. Keep per-run records when reporting a failure; each rerun has a new ID.
+
+Generated-prompt mode does not call providers or run this retry loop. Its prompts
+retain the host-validation instructions for the agent executing them. Tests and
+the installed-wheel smoke check replay issue #37's constructed malformed JSON
+fixture and recover successfully. The original live S01 response was not retained,
+so this is a deterministic regression replay, not a rerun of that exact response
+or evidence of live-model factual accuracy.
+
+Protocol references: [Codex schema output](https://learn.chatgpt.com/docs/non-interactive-mode),
+[OpenAI structured output](https://developers.openai.com/api/docs/guides/structured-outputs),
+[OpenRouter structured output](https://openrouter.ai/docs/guides/features/structured-outputs),
+and [Gemini generation configuration](https://ai.google.dev/api/generate-content#v1beta.GenerationConfig).

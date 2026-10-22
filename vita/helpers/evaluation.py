@@ -6,6 +6,7 @@ from pathlib import Path
 from vita.helpers.job_extraction import JobContext, fingerprint
 from vita.helpers.structured import (
     CATEGORIES,
+    EVALUATION_OUTPUT_SCHEMA,
     EVALUATION_SCHEMA,
     json_text,
     parse_json,
@@ -72,7 +73,7 @@ def evaluation_instruction(step: str, job: JobContext, baseline: dict | None = N
     instruction = (
         "\n\nSTRUCTURED EVALUATION CONTRACT (overrides skill output-format advice):\n"
         "Return only one JSON object matching this schema; VITA renders the Markdown report.\n"
-        + json_text(EVALUATION_SCHEMA)
+        + json_text(EVALUATION_OUTPUT_SCHEMA)
         + "\nUse the same weighted-criteria-v1 rubric for analysis and review. "
         "Evaluate the current CV against every relevant stated JD requirement. "
         "Use these categories: hard_skills, soft_skills, experience, responsibilities, keywords. "
