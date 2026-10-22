@@ -308,10 +308,13 @@ def render_report(report: dict, title: str) -> str:
     report = canonical_report(report)
     rows = [f"# {title}", "", "## Executive summary", "", markdown_text(report["executive_summary"]),
             "", "Scores describe documented CV coverage, not a hiring probability.", ""]
+    verification_explanation = (
+        "Verified means the exact quotation occurs in a captured candidate source. "
+        "It does not verify real-world employment or prove full criterion satisfaction. "
+        "Inference can receive at most partial credit. Historical reports refer to their captured source versions."
+    )
     rows += ["## Evidence verification", "", verification_notice(report["metrics"]["criteria"]),
-             "", "Verified means the exact quotation occurs in a captured candidate source. "
-             "It does not verify real-world employment or prove full criterion satisfaction. "
-             "Inference can receive at most partial credit. Historical reports refer to their captured source versions.", ""]
+             "", verification_explanation, ""]
     if report["qualitative_summary"]:
         rows += ["## Qualitative commentary", "", markdown_text(report["qualitative_summary"]), ""]
     rows += ["## Scoring", "", "| Category | Score | Criteria |", "|---|---:|---:|"]

@@ -76,6 +76,8 @@ def capture_candidate_sources(entry: str | None = None) -> dict:
                 source["id"] = source_identity(source)
                 sources.append(source)
     except (ValueError, OSError, UnicodeError):
+        # Missing/invalid optional knowledge approval excludes that source;
+        # the captured CV/include sources remain usable without trusting the KB.
         pass
     snapshot = {"schema_version": 1, "entry": str(entry), "sources": sorted(sources, key=lambda s: s["path"])}
     snapshot["sha256"] = stable_hash(snapshot)
