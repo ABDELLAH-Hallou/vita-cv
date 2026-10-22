@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "version": "2.5.2",
+  "tag": "v2.5.2",
+  "source_sha": "9cafc23c49298f831e20275dece6c117de00b6c5",
+  "testpypi_run_id": 39699395687,
+  "testpypi_run_attempt": 1,
+  "files": {
+    "vita_cv-2.5.2-py3-none-any.whl": "21c2fb4838ae6684393a2048a61be7df917d6029adefb6effe3237aa338f30b7",
+    "vita_cv-2.5.2.tar.gz": "722c95ba47b1154de2ef765f04bfdc1a91fc48cc4b63e7a8469f870c183dcdef"
+  }
+}
