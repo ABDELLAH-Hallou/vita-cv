@@ -66,6 +66,27 @@ EVALUATION_SCHEMA = object_schema({
     }),
 }, optional=("metadata", "qualitative_summary", "comparison"))
 
+# Provenance and public report summaries/comparisons are supplied by the host.
+# Excluding host-owned fields also avoids optional fields in strict APIs.
+EVALUATION_OUTPUT_SCHEMA = object_schema({
+    key: value for key, value in EVALUATION_SCHEMA["properties"].items()
+    if key not in {"metadata", "qualitative_summary", "comparison"}
+})
+
+
+def generation_schema(schema: dict) -> dict:
+    """Conservative provider subset; the full host contract stays authoritative."""
+    result = {key: schema[key] for key in ("type", "enum") if key in schema}
+    if "const" in schema:
+        result["enum"] = [schema["const"]]
+    if "properties" in schema:
+        result["properties"] = {key: generation_schema(value) for key, value in schema["properties"].items()}
+        result["required"] = list(schema["properties"])
+        result["additionalProperties"] = False
+    if "items" in schema:
+        result["items"] = generation_schema(schema["items"])
+    return result
+
 
 def validate(value, schema: dict, path: str = "$") -> None:
     expected = schema["type"]

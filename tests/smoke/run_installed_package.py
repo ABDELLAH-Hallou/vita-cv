@@ -136,6 +136,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             "assert JOB_SCHEMA['type'] == EVALUATION_SCHEMA['type'] == 'object'"
         )], cwd=project)
         run([str(python), str(Path(__file__).with_name("assessment_authority.py").resolve())], cwd=project)
+        run([str(python), str(Path(__file__).with_name("structured_recovery.py").resolve())], cwd=project)
         build_help = run([str(python), "-m", "vita", "build", "--help"], cwd=project).stdout
         for option in ("both", "--resume", "--cover"):
             if option not in build_help:

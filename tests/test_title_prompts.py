@@ -35,8 +35,9 @@ class TitlePromptTests(unittest.TestCase):
                 ) as generate:
                     run(step, auto=auto, language=language)
                 if auto:
-                    generate.assert_called_once()
-                    prompt = generate.call_args.args[1]
+                    # The deliberately non-JSON report exhausts format recovery.
+                    self.assertEqual(generate.call_count, 3 if step in ("analyze", "review") else 1)
+                    prompt = generate.call_args_list[0].args[1]
                 else:
                     generate.assert_not_called()
                     prompt = Path(".vita/current_prompt.md").read_text(encoding="utf-8")

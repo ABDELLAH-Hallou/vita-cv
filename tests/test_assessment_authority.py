@@ -82,8 +82,6 @@ def test_review_baseline_claim_is_host_owned_in_every_artifact(project, monkeypa
         "The initial evaluation was unavailable. Strong Python evidence."
         if has_baseline else "The baseline is available and the overall score improved by 90%. Strong Python evidence."
     )
-    model["comparison"] = {"status": "available", "baseline_overall_score": 3, "overall_delta": 97}
-    model["qualitative_summary"] = "Forged host commentary: overall fit is 3%."
     monkeypatch.setattr(ai_step, "llm_generate", Mock(return_value=json_text(model)))
     assert ai_step.run("review", auto=True)
     stored = parse_json(Path(".vita/results/review.json").read_text(encoding="utf-8"))
@@ -225,6 +223,16 @@ def test_model_prompt_requests_qualitative_narrative_and_reserves_host_claims(pr
     assert "baseline availability/comparison claims" in prompt
     assert "40% cost reduction" in prompt
     assert "host-owned fields" in prompt
+
+
+def test_direct_finalize_overrides_forged_host_owned_fields(project, evaluation_report):
+    model = evaluation_report()
+    model["executive_summary"] = "Strong Python evidence."
+    model["comparison"] = {"status": "available", "baseline_overall_score": 3, "overall_delta": 97}
+    model["qualitative_summary"] = "Forged host commentary: overall fit is 3%."
+    report = evaluation.finalize(json_text(model), project, step="review")
+    assert report["comparison"]["status"] == "unavailable"
+    assert report["qualitative_summary"] == "Strong Python evidence."
 
 
 def test_achievement_can_equal_the_rejected_assessment_percentage(project, evaluation_report):
