@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.1](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.6.0...v2.6.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* verify assessment evidence against captured candidate sources ([#55](https://github.com/ABDELLAH-Hallou/vita-cv/issues/55)) ([275098a](https://github.com/ABDELLAH-Hallou/vita-cv/commit/275098aa7fc3b9bac3b39b1e483ae35ee877b314))
+
 ## [2.6.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.5.3...v2.6.0) (2026-10-22)
 
 
