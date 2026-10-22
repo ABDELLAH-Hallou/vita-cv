@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.3](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.5.2...v2.5.3) (2026-10-22)
+
+
+### Bug Fixes
+
+* make assessment scores and comparison prose authoritative ([#48](https://github.com/ABDELLAH-Hallou/vita-cv/issues/48)) ([f41c05c](https://github.com/ABDELLAH-Hallou/vita-cv/commit/f41c05c70f354e2a4e1d63baa743ae7b951ec132))
+
 ## [2.5.2](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.5.1...v2.5.2) (2026-10-22)
 
 
