@@ -77,7 +77,7 @@ def run(
         prompt_text = f.read()
 
     job_text = job.text
-    if not auto and settings.extraction_enabled:
+    if not auto and settings.extraction_enabled and job.requirements is None:
         job_text = (
             "At execution time, read .vita/results/job.json and job.toon produced by extraction. "
             f"Require job.json source_sha256={job.source_sha256}; use its TOON representation. "

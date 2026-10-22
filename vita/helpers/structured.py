@@ -24,6 +24,13 @@ def object_schema(properties: dict, optional: tuple = ()) -> dict:
             "additionalProperties": False}
 
 
+SOURCE_REF_SCHEMA = object_schema({
+    "job_id": TEXT, "line_start": {"type": "integer", "minimum": 1},
+    "line_end": {"type": "integer", "minimum": 1}, "quote": TEXT,
+})
+CANONICAL_CRITERION_FIELDS = ("classification", "weight", "ambiguity", "source_refs")
+
+
 JOB_SCHEMA = object_schema({
     "schema_version": {"type": "integer", "const": 1},
     "source_sha256": TEXT,
@@ -40,10 +47,13 @@ JOB_SCHEMA = object_schema({
 
 CRITERION_SCHEMA = object_schema({
     "id": TEXT, "job_id": TEXT, "category": {"type": "string", "enum": list(CATEGORIES)},
-    "criterion": TEXT, "importance": {"type": "string", "enum": ["must_have", "nice_to_have"]},
+    "criterion": TEXT, "importance": {"type": "string", "enum": ["must_have", "nice_to_have", "unclear"]},
     "status": {"type": "string", "enum": ["matched", "partial", "missing"]},
     "evidence": STRING, "feedback": STRING,
-})
+    "classification": {"type": "string", "enum": ["required", "preferred", "unclear"]},
+    "weight": {"type": "integer", "enum": [0, 1, 2]}, "ambiguity": STRING,
+    "source_refs": {"type": "array", "minItems": 1, "items": SOURCE_REF_SCHEMA},
+}, optional=CANONICAL_CRITERION_FIELDS)
 EVALUATION_SCHEMA = object_schema({
     "schema_version": {"type": "integer", "const": 1},
     "overall_score": SCORE,
@@ -59,11 +69,19 @@ EVALUATION_SCHEMA = object_schema({
     "metrics": object_schema({
         "criteria": {"type": "array", "minItems": 1, "items": CRITERION_SCHEMA},
         "matched_count": COUNT, "partial_count": COUNT, "missing_count": COUNT, "total_count": COUNT,
-    }),
+        "weighted_available": COUNT, "weighted_earned": {"type": "number", "minimum": 0},
+        "category_denominators": object_schema({category: COUNT for category in CATEGORIES}),
+        "employment_conditions": {"type": "array", "items": object_schema({
+            "id": TEXT, "job_id": TEXT, "criterion": TEXT,
+            "classification": {"type": "string", "enum": ["required", "preferred", "unclear"]},
+            "ambiguity": STRING, "source_refs": {"type": "array", "minItems": 1, "items": SOURCE_REF_SCHEMA},
+        })},
+    }, optional=("weighted_available", "weighted_earned", "category_denominators", "employment_conditions")),
     "metadata": object_schema({
         "job_sha256": TEXT, "context_sha256": TEXT, "criteria_sha256": TEXT,
         "rubric_version": {"type": "string", "const": "weighted-criteria-v1"},
-    }),
+        "requirements_revision": TEXT,
+    }, optional=("requirements_revision",)),
 }, optional=("metadata", "qualitative_summary", "comparison"))
 
 # Provenance and public report summaries/comparisons are supplied by the host.
@@ -72,6 +90,15 @@ EVALUATION_OUTPUT_SCHEMA = object_schema({
     key: value for key, value in EVALUATION_SCHEMA["properties"].items()
     if key not in {"metadata", "qualitative_summary", "comparison"}
 })
+# Provider responses contain judgments only; canonical weights, source references,
+# and denominators are always enriched/validated by the host.
+EVALUATION_OUTPUT_SCHEMA["properties"] = {**EVALUATION_OUTPUT_SCHEMA["properties"], "metrics": object_schema({
+    **{key: value for key, value in EVALUATION_SCHEMA["properties"]["metrics"]["properties"].items()
+       if key not in {"weighted_available", "weighted_earned", "category_denominators", "employment_conditions", "criteria"}},
+    "criteria": {"type": "array", "minItems": 1, "items": object_schema({
+        key: value for key, value in CRITERION_SCHEMA["properties"].items() if key not in CANONICAL_CRITERION_FIELDS
+    })},
+})}
 
 
 def generation_schema(schema: dict) -> dict:

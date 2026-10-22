@@ -128,6 +128,90 @@ gaps, actionable feedback, and criterion-level evidence.
 
 ## Scoring and deltas
 
+### Approved canonical requirements
+
+To compare CVs on a common scale, freeze JD requirements before evaluating any
+candidate. This workflow uses only `job.md`, independently of `main.tex` or
+`.vita/cv.yaml`:
+
+```sh
+vita requirements draft --auto
+vita requirements show
+vita requirements approve FULL_REVISION_ID
+vita analyze --auto
+vita review --auto
+```
+
+`draft --auto` uses the extraction-stage provider/model and bounded structured-output
+validation. `draft` without `--auto` generates a JD-only prompt. To compile a
+proposal produced by an external agent or edited during review, use
+`vita requirements draft --input proposal.json`. Show accepts an optional revision
+ID to inspect earlier versions. It reports approval status separately from the
+immutable revision document. Draft generation never approves anything. Review
+the atomicity, deduplication keys, source references, and classifications, then
+approve that exact full revision ID. Drafting a replacement for an already
+approved JD leaves the previous approval active until the replacement is approved.
+
+Revisions use schema version 1 and content-addressed immutable IDs. Each capability
+has a stable concept ID/key, criterion text, category, `required`/`preferred`/`unclear`
+classification, importance, weight, ambiguity explanation, and exact quoted source
+references with job IDs and original 1-based line ranges. IDs derive from job ID
+and normalized concept key, so they do not depend on a candidate or evidence status.
+Changing text, classifications, references, or job content changes the revision ID.
+
+Required capabilities weigh 2, preferred capabilities 1, and unclear capabilities 0.
+Explicit preferences such as “6sense is a significant plus” remain preferred.
+“Must-Have or Strong Plus” sections remain unclear unless an item explicitly resolves
+its importance. Unclear items stay in the assessment for clarification rather than
+becoming confirmed capability penalties. Alternatives retain their meaning; independent
+requirements should be atomic. Employment conditions (including conditional home-office
+logistics) are kept in a separate, unscored list. Source quotes and ranges are validated.
+
+The compiler merges repeated normalized concepts/text across skill, keyword, and
+responsibility labels within each job. There are no separately weighted keyword-only
+criteria. Semantic grouping still requires review: extraction cannot prove that
+differently worded concepts are equivalent. Approval freezes the reviewed result.
+Analyze and Review must return exactly that taxonomy; the host supplies weights,
+classifications, source references, and denominators, rejecting changed or extra criteria.
+Reports include `metadata.requirements_revision`, `metrics.weighted_available`,
+`weighted_earned`, `category_denominators`, and separate `employment_conditions`.
+A revision with only unclear capabilities has denominator 0 and is shown as unscored.
+
+Approved requirements override optional job-metadata extraction. The pipeline reuses
+them without regenerating metadata or canonical criteria. Thus changing extraction
+wording, CV content, or candidate branch cannot change the scoring denominator.
+Context and criteria fingerprints include the approved revision. A changed job creates
+a pending source revision on the next preparation and stops assessment until new
+requirements are drafted and approved. Changing the approved revision also invalidates
+dependent baselines. Prior revisions and reports remain intact for history; they are
+not silently accepted as current assessments.
+
+The default store is `<git-common-dir>/vita/requirements`, shared by branches and Git
+worktrees. Non-Git projects use `.vita/requirements`. To share between separate projects
+or repositories, set an absolute `VITA_REQUIREMENTS_DIR` in the environment or `.vita/.env`.
+Alternatively, transport an approved revision explicitly:
+
+```sh
+vita requirements export approved-job.json
+# In another project containing the identical job.md:
+vita requirements import approved-job.json
+```
+
+Import is an explicit reuse/approval action for that exported revision; hashes, source
+references, classifications, and the current job content are checked before activation.
+The export includes the JD, not candidate data. Local `.vita/requirements-state.json`
+tracks the project binding/latest draft. Back up/export approvals when moving projects;
+the default shared Git store is not part of ordinary tracked source files.
+
+Integration helpers live in `vita.helpers.requirements`: `compile_revision`,
+`save_revision`, `approve_revision`, `approved_revision`, and `active_requirements`,
+with public `PROPOSAL_SCHEMA`/`REVISION_SCHEMA`. An approval action belongs to the user
+or authorized UI, never the extraction model. Existing `job.json`/TOON and version-1
+assessment files remain readable. Projects with no approval or canonical-project
+binding keep the legacy flow; its CV-derived taxonomies are not a common candidate
+ranking scale. Once opted in, an unapproved or changed JD cannot silently fall back
+to that legacy flow.
+
 VITA computes scores and counts from criterion statuses instead of trusting
 model arithmetic. Must-have criteria weigh 2; nice-to-have criteria weigh 1.
 Matched earns full credit, partial earns half, and missing earns zero. Overall

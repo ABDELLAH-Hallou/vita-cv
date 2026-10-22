@@ -319,6 +319,17 @@ vita extract --auto --provider openai
 
 Extraction is optional and off by default. Enable it with `ENABLE_JD_EXTRACTION=true` in `.vita/.env` to prepend extraction to `vita run`. Configure a lightweight extraction model independently from the evaluator. See [pipeline configuration and data contracts](PIPELINE.md) for routing, cache behavior, schemas, and score comparisons.
 
+To evaluate several CVs against the same criteria, draft and approve a canonical JD revision first:
+
+```sh
+vita requirements draft --auto
+vita requirements show
+vita requirements approve FULL_REVISION_ID
+vita analyze --auto
+```
+
+Analyze and Review then reuse that revision's IDs, classifications, source references, and weights across candidates and Git worktrees. Required capabilities weigh 2, preferences 1, and unclear requirements 0; employment conditions are separate and unscored. A changed JD requires a new approved revision. Use `requirements export`/`import` or `VITA_REQUIREMENTS_DIR` to reuse approvals across separate projects. The [canonical requirements guide](PIPELINE.md#approved-canonical-requirements) covers manual drafts, approval, revision history, and legacy compatibility.
+
 ### `vita analyze`
 
 Generate an AI prompt to analyze your CV against the job in `job.md`.

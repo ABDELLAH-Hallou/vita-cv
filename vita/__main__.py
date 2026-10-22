@@ -8,7 +8,20 @@ import argparse
 import sys
 
 from vita import __version__
-from vita.commands import ai_step, build, diff, init, keys, lock, new, push, run, status, sync
+from vita.commands import (
+    ai_step,
+    build,
+    diff,
+    init,
+    keys,
+    lock,
+    new,
+    push,
+    requirements,
+    run,
+    status,
+    sync,
+)
 
 
 def main() -> None:
@@ -30,6 +43,7 @@ commands:
   lock <company>           Lock a company (block new CVs)
   unlock <company>         Unlock a company
   keys                     Manage LLM API keys (list, set, remove)
+  requirements             Draft, approve, and reuse canonical JD requirements
   run                      Run pipeline: optional extract → analyze → adapt → review → cover
   save                     Save and push CV changes
         """,
@@ -104,6 +118,20 @@ commands:
     extract_p = subparsers.add_parser("extract", help="Extract job.json and job.toon from job.md")
     extract_p.add_argument("-a", "--auto", action="store_true", help="Run extraction with the configured LLM")
     extract_p.add_argument("-p", "--provider", help="Override the extraction provider")
+
+    requirements_p = subparsers.add_parser("requirements", help="Manage approved canonical JD requirements")
+    requirements_sub = requirements_p.add_subparsers(dest="requirements_action", required=True)
+    draft_p = requirements_sub.add_parser("draft", help="Generate a JD-only draft for approval")
+    draft_p.add_argument("--auto", action="store_true", help="Use the extraction-stage provider/model")
+    draft_p.add_argument("--provider", help="Override the extraction provider")
+    draft_p.add_argument("--input", dest="path", help="Compile a reviewed proposal JSON file without AI")
+    approve_p = requirements_sub.add_parser("approve", help="Approve an immutable revision for the current JD")
+    approve_p.add_argument("revision", help="Full revision ID shown by draft/show")
+    show_p = requirements_sub.add_parser("show", help="Show the current approved revision or latest draft")
+    show_p.add_argument("revision", nargs="?", help="An earlier revision to inspect")
+    for action in ("export", "import"):
+        transport_p = requirements_sub.add_parser(action, help=f"{action.title()} an approved revision")
+        transport_p.add_argument("path", help="Portable approved-requirements JSON file")
     
     adapt_p = subparsers.add_parser("adapt", help="Generate prompt to adapt CV to Job")
     adapt_p.add_argument("-l", "--language", default="en", help="Target language for the CV (e.g., en, fr, ar, de)")
@@ -169,6 +197,12 @@ commands:
 
     elif args.command == "run":
         if run.run(auto=args.auto, language=args.language, provider=args.provider) is False:
+            sys.exit(1)
+
+    elif args.command == "requirements":
+        if requirements.run(args.requirements_action, auto=getattr(args, "auto", False),
+                            provider=getattr(args, "provider", None), revision=getattr(args, "revision", None),
+                            path=getattr(args, "path", None)) is False:
             sys.exit(1)
 
     elif args.command in ["extract", "analyze", "adapt", "review", "cover"]:

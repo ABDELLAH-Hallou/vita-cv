@@ -7,6 +7,7 @@ from pathlib import Path
 from vita.helpers.context_builder import format_job_descriptions, parse_job_descriptions
 from vita.helpers.llm import generate
 from vita.helpers.pipeline_config import PipelineSettings, load_pipeline_settings
+from vita.helpers.requirements import active_requirements, canonical_text
 from vita.helpers.skills import skill_context
 from vita.helpers.structured import JOB_SCHEMA, json_text, parse_json, validate, write_artifact
 from vita.helpers.structured_output import run_structured
@@ -94,10 +95,15 @@ class JobContext:
     context_sha256: str
     ids: tuple[str, ...]
     structured: bool
+    requirements: dict | None = None
 
 
 def prepare_job(settings: PipelineSettings, *, auto: bool) -> JobContext:
     raw = read_job()
+    requirements = active_requirements(raw)
+    if requirements is not None:
+        text = "APPROVED CANONICAL JOB REQUIREMENTS:\n" + canonical_text(requirements)
+        return JobContext(text, fingerprint(raw), fingerprint(text), job_ids(raw), True, requirements)
     data = cached_job(raw)
     if data is None and settings.extraction_enabled and auto:
         if not extract(auto=True):

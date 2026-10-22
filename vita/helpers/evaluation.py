@@ -4,8 +4,10 @@ import copy
 from pathlib import Path
 
 from vita.helpers.assessment_narrative import qualitative_text
-from vita.helpers.job_extraction import JobContext, fingerprint
+from vita.helpers.job_extraction import JobContext, fingerprint, read_job
+from vita.helpers.requirements import IMPORTANCE, WEIGHTS, assert_current
 from vita.helpers.structured import (
+    CANONICAL_CRITERION_FIELDS,
     CATEGORIES,
     EVALUATION_OUTPUT_SCHEMA,
     EVALUATION_SCHEMA,
@@ -22,16 +24,21 @@ STATUS_VALUE = {"matched": 1, "partial": 0.5, "missing": 0}
 
 def taxonomy(report: dict) -> list[dict]:
     return sorted(
-        ({key: item[key] for key in TAXONOMY_FIELDS} for item in report["metrics"]["criteria"]),
+        ({key: item[key] for key in (*TAXONOMY_FIELDS, *CANONICAL_CRITERION_FIELDS) if key in item}
+         for item in report["metrics"]["criteria"]),
         key=lambda item: item["id"],
     )
+
+
+def criterion_weight(item: dict) -> int:
+    return item.get("weight", 2 if item["importance"] == "must_have" else 1)
 
 
 def scores(criteria: list[dict]) -> tuple[float, dict]:
     def percentage(items):
         total = earned = 0
         for item in items:
-            weight = 2 if item["importance"] == "must_have" else 1
+            weight = criterion_weight(item)
             total += weight
             earned += weight * STATUS_VALUE[item["status"]]
         return round(100 * earned / total, 2) if total else 0
@@ -50,6 +57,11 @@ def validate_evaluation(report: dict) -> None:
     for item in criteria:
         if item["status"] != "missing" and not item["evidence"].strip():
             raise ValueError("Matched and partial criteria require CV evidence")
+        if any(key in item for key in CANONICAL_CRITERION_FIELDS):
+            if not all(key in item for key in CANONICAL_CRITERION_FIELDS):
+                raise ValueError("Canonical criteria require classification, weight, ambiguity, and source references")
+            if item["weight"] != WEIGHTS[item["classification"]] or item["importance"] != IMPORTANCE[item["classification"]]:
+                raise ValueError("Canonical criterion classification/weight mismatch")
 
 
 def load_baseline(job: JobContext) -> dict | None:
@@ -57,13 +69,27 @@ def load_baseline(job: JobContext) -> dict | None:
     if not path.exists():
         return None
     try:
+        if job.requirements is not None:
+            if fingerprint(read_job()) != job.source_sha256:
+                return None
+            assert_current(job.requirements, read_job())
         data = parse_json(path.read_text(encoding="utf-8"))
         validate_evaluation(data)
         metadata = data.get("metadata", {})
+        revision = job.requirements["revision"] if job.requirements is not None else None
+        if metadata.get("requirements_revision") != revision:
+            return None
         if metadata.get("job_sha256") != job.source_sha256 or metadata.get("context_sha256") != job.context_sha256:
             return None
         if metadata.get("criteria_sha256") != fingerprint(json_text(taxonomy(data))):
             return None
+        if job.requirements is not None:
+            expected = sorted([
+                {key: unit[key] for key in (*TAXONOMY_FIELDS, *CANONICAL_CRITERION_FIELDS)}
+                for unit in job.requirements["requirements"]
+            ], key=lambda unit: unit["id"])
+            if taxonomy(data) != expected:
+                return None
         return canonical_report(data)
     except (ValueError, OSError, UnicodeError):
         return None
@@ -99,12 +125,26 @@ def evaluation_instruction(step: str, job: JobContext, baseline: dict | None = N
         f"When finalizing the output, pass step='{step}' to vita.helpers.evaluation.finalize. "
         f"The outputs are .vita/results/{name}.json and .vita/results/{name}.md."
     )
+    if job.requirements is not None:
+        instruction += (
+            "\n\nLOCKED CANONICAL JD CRITERIA (approved independently of this CV):\n"
+            "Use exactly these criterion IDs, texts, categories and importance values for Analyze AND Review. "
+            "Do not derive, split, duplicate, remove, or reweight criteria based on the candidate. "
+            "Required=2, preferred=1, unclear=0. Unclear items remain for clarification, not capability penalties. "
+            "Employment conditions are separate and unscored; unknown home-office logistics are not skill gaps. "
+            "Only judge status, evidence, and feedback. The host supplies canonical source references, "
+            "classifications, weights, employment conditions, denominators, and the approved revision. "
+            "Do not return those host-only fields in the provider JSON.\n"
+            + json_text({"revision": job.requirements["revision"], "criteria": [
+                {key: item[key] for key in TAXONOMY_FIELDS} for item in job.requirements["requirements"]
+            ]})
+        )
     if baseline is not None:
         instruction += (
             "\n\nLOCKED JD CRITERIA:\nRe-evaluate exactly these criteria against the updated CV. "
             "Preserve every id, job_id, category, criterion, and importance value. "
             "Change only status, evidence, and feedback. Do not add or remove criteria.\n"
-            + json_text({"criteria": taxonomy(baseline)})
+            + json_text({"criteria": [{key: item[key] for key in TAXONOMY_FIELDS} for item in taxonomy(baseline)]})
         )
     return instruction
 
@@ -113,6 +153,23 @@ def finalize(response: str, job: JobContext, baseline: dict | None = None, *, st
     report = parse_json(response)
     validate_evaluation(report)
     criteria = report["metrics"]["criteria"]
+    # Provider judgments never choose weights or provenance, even for legacy inputs.
+    for item in criteria:
+        for key in CANONICAL_CRITERION_FIELDS:
+            item.pop(key, None)
+    if job.requirements is not None:
+        if fingerprint(read_job()) != job.source_sha256:
+            raise ValueError("job.md changed during assessment; rerun against its new revision")
+        assert_current(job.requirements, read_job())
+        approved = {item["id"]: item for item in job.requirements["requirements"]}
+        expected = sorted([{key: item[key] for key in TAXONOMY_FIELDS} for item in approved.values()], key=lambda x: x["id"])
+        supplied = sorted([{key: item[key] for key in TAXONOMY_FIELDS} for item in criteria], key=lambda x: x["id"])
+        if supplied != expected:
+            raise ValueError("Assessment changed the approved canonical criteria or importance")
+        for item in criteria:
+            item.update({key: approved[item["id"]][key] for key in CANONICAL_CRITERION_FIELDS})
+    elif any(item["importance"] == "unclear" for item in criteria):
+        raise ValueError("Unclear importance requires an approved canonical requirement set")
     if any(item["job_id"] not in job.ids for item in criteria):
         raise ValueError("Evaluation references an unknown job ID")
     if set(item["job_id"] for item in criteria) != set(job.ids):
@@ -128,6 +185,14 @@ def finalize(response: str, job: JobContext, baseline: dict | None = None, *, st
         "criteria_sha256": fingerprint(json_text(taxonomy(report))),
         "rubric_version": "weighted-criteria-v1",
     }
+    if job.requirements is not None:
+        report["metadata"]["requirements_revision"] = job.requirements["revision"]
+        report["metrics"]["employment_conditions"] = [
+            {key: item[key] for key in ("id", "job_id", "criterion", "classification", "ambiguity", "source_refs")}
+            for item in job.requirements["employment_conditions"]
+        ]
+    else:
+        report["metrics"].pop("employment_conditions", None)
     stage = step or ("review" if baseline is not None else "analyze")
     if baseline is not None:
         delta = compute_delta(baseline, report)["overall_score"]
@@ -154,6 +219,9 @@ def score_text(score: float) -> str:
 def executive_summary(report: dict) -> str:
     """Only the host writes the public score and comparison narrative."""
     score = score_text(report["overall_score"])
+    if report.get("metadata", {}).get("requirements_revision") and report["metrics"].get("weighted_available") == 0:
+        return ("No confirmed capability requirements carry weight; documented coverage is not scored. "
+                "Ambiguous requirements are retained for clarification.")
     text = f"Overall documented coverage: {score}/100 ({score}%)."
     comparison = report["comparison"]
     if comparison["status"] == "available":
@@ -180,6 +248,13 @@ def canonical_report(report: dict) -> dict:
             item["status"] == status for item in report["metrics"]["criteria"]
         )
     report["metrics"]["total_count"] = len(report["metrics"]["criteria"])
+    criteria = report["metrics"]["criteria"]
+    report["metrics"]["weighted_available"] = sum(criterion_weight(item) for item in criteria)
+    report["metrics"]["weighted_earned"] = sum(criterion_weight(item) * STATUS_VALUE[item["status"]] for item in criteria)
+    report["metrics"]["category_denominators"] = {
+        category: sum(criterion_weight(item) for item in criteria if item["category"] == category)
+        for category in CATEGORIES
+    }
     report["comparison"] = report.get("comparison", {
         "status": "not_recorded", "baseline_overall_score": None, "overall_delta": None,
     })
@@ -218,7 +293,7 @@ def render_report(report: dict, title: str) -> str:
     criteria = report["metrics"]["criteria"]
     for category, score in report["category_scores"].items():
         count = sum(item["category"] == category for item in criteria)
-        label = score_text(score) if count else "N/A"
+        label = score_text(score) if report["metrics"]["category_denominators"][category] else "N/A"
         rows.append(f"| {category.replace('_', ' ').title()} | {label} | {count} |")
     for heading, key in (("Strengths", "strengths"), ("Gaps", "gaps"), ("Actionable feedback", "recommendations")):
         rows += ["", f"## {heading}", ""]
@@ -228,6 +303,17 @@ def render_report(report: dict, title: str) -> str:
     for item in criteria:
         cells = [f"{item['job_id']} / {item['criterion']}", item["status"], item["evidence"], item["feedback"]]
         rows.append("| " + " | ".join(map(markdown_text, cells)) + " |")
+    if report.get("metadata", {}).get("requirements_revision"):
+        rows += ["", "## Approved requirement revision", "", report["metadata"]["requirements_revision"],
+                 "", f"Weighted denominator: {report['metrics']['weighted_available']}. "
+                 "Required=2; preferred=1; unclear=0. Employment conditions are not scored.", "",
+                 "| Criterion | Classification | Weight | Source | Ambiguity |", "|---|---|---:|---|---|"]
+        for item in criteria:
+            references = "; ".join(f"{ref['job_id']} lines {ref['line_start']}-{ref['line_end']}" for ref in item["source_refs"])
+            cells = [item["criterion"], item["classification"], str(item["weight"]), references, item["ambiguity"]]
+            rows.append("| " + " | ".join(map(markdown_text, cells)) + " |")
+        rows += ["", "## Employment conditions (not scored)", ""]
+        rows += ["- " + markdown_text(item["criterion"]) for item in report["metrics"].get("employment_conditions", [])] or ["None recorded."]
     return "\n".join(rows) + "\n"
 
 
