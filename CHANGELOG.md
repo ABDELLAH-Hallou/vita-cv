@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.2](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.5.1...v2.5.2) (2026-10-22)
+
+
+### Bug Fixes
+
+* validate and retry structured AI output safely ([#47](https://github.com/ABDELLAH-Hallou/vita-cv/issues/47)) ([6c1f63a](https://github.com/ABDELLAH-Hallou/vita-cv/commit/6c1f63a036025b87da157b9e1d07361e8a22837c))
+
 ## [2.5.1](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.5.0...v2.5.1) (2026-10-17)
 
 
