@@ -212,7 +212,7 @@ def test_pipeline_toggle_dual_outputs_and_comparable_delta(workspace, monkeypatc
     validate(after, EVALUATION_SCHEMA)
     delta = parse_json(Path(".vita/results/delta.json").read_text(encoding="utf-8"))
     assert delta["overall_score"] == {"before": 50, "after": 100, "delta": 50}
-    assert "| Hard Skills | 100 |" in Path(".vita/results/review.md").read_text(encoding="utf-8")
+    assert "| Hard Skills | 100.00 |" in Path(".vita/results/review.md").read_text(encoding="utf-8")
     assert Path(".vita/results/analysis.md").read_text(encoding="utf-8") == Path(".vita/results/analyze.md").read_text(encoding="utf-8")
 
 

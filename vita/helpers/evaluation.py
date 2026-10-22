@@ -3,6 +3,7 @@
 import copy
 from pathlib import Path
 
+from vita.helpers.assessment_narrative import qualitative_text
 from vita.helpers.job_extraction import JobContext, fingerprint
 from vita.helpers.structured import (
     CATEGORIES,
@@ -63,7 +64,7 @@ def load_baseline(job: JobContext) -> dict | None:
             return None
         if metadata.get("criteria_sha256") != fingerprint(json_text(taxonomy(data))):
             return None
-        return data
+        return canonical_report(data)
     except (ValueError, OSError, UnicodeError):
         return None
 
@@ -86,10 +87,16 @@ def evaluation_instruction(step: str, job: JobContext, baseline: dict | None = N
         "Scores are 100 * weighted earned / weighted available: must_have weight=2, "
         "nice_to_have weight=1; matched=1, partial=0.5, missing=0. "
         "Round scores to 2 decimals; use 0 for categories with no applicable criteria. "
-        "VITA recomputes scores and counts from statuses. Scores measure documented fit, "
+        "VITA recomputes scores and counts from statuses. Scores measure documented coverage, "
         "not hiring probability; keyword repetition earns no extra credit. "
-        "Include an executive_summary, strengths, gaps, and actionable recommendations. "
-        "Put title/headline and summary suggestions in recommendations. Omit metadata; VITA sets it. "
+        "Include a qualitative executive_summary, strengths, gaps, and actionable recommendations. "
+        "Describe CV evidence and remaining gaps. Do not put assessment scores, overall percentages, "
+        "score changes, or baseline availability/comparison claims in any narrative field. "
+        "VITA alone renders those statements from calculated scores and the verified baseline. "
+        "Preserve candidate achievement metrics, such as a 40% cost reduction. "
+        "Put title/headline and summary suggestions in recommendations. "
+        "Omit metadata, qualitative_summary, and comparison; VITA sets these host-owned fields. "
+        f"When finalizing the output, pass step='{step}' to vita.helpers.evaluation.finalize. "
         f"The outputs are .vita/results/{name}.json and .vita/results/{name}.md."
     )
     if baseline is not None:
@@ -102,7 +109,7 @@ def evaluation_instruction(step: str, job: JobContext, baseline: dict | None = N
     return instruction
 
 
-def finalize(response: str, job: JobContext, baseline: dict | None = None) -> dict:
+def finalize(response: str, job: JobContext, baseline: dict | None = None, *, step: str | None = None) -> dict:
     report = parse_json(response)
     validate_evaluation(report)
     criteria = report["metrics"]["criteria"]
@@ -121,7 +128,75 @@ def finalize(response: str, job: JobContext, baseline: dict | None = None) -> di
         "criteria_sha256": fingerprint(json_text(taxonomy(report))),
         "rubric_version": "weighted-criteria-v1",
     }
+    stage = step or ("review" if baseline is not None else "analyze")
+    if baseline is not None:
+        delta = compute_delta(baseline, report)["overall_score"]
+        report["comparison"] = {"status": "available", "baseline_overall_score": delta["before"],
+                                "overall_delta": delta["delta"]}
+    else:
+        report["comparison"] = {"status": "unavailable" if stage == "review" else "not_applicable",
+                                "baseline_overall_score": None, "overall_delta": None}
+    # A model cannot inject host-owned commentary/comparison fields.
+    report["qualitative_summary"] = qualitative_text(report["executive_summary"])
+    report = canonical_report(report)
     validate_evaluation(report)
+    return report
+
+
+def rounded_delta(before: float, after: float) -> float:
+    return round(after - before, 2) or 0.0
+
+
+def score_text(score: float) -> str:
+    return f"{score:.2f}"
+
+
+def executive_summary(report: dict) -> str:
+    """Only the host writes the public score and comparison narrative."""
+    score = score_text(report["overall_score"])
+    text = f"Overall documented coverage: {score}/100 ({score}%)."
+    comparison = report["comparison"]
+    if comparison["status"] == "available":
+        before = score_text(comparison["baseline_overall_score"])
+        change = comparison["overall_delta"]
+        text += (f" A matching initial assessment is available: {before}/100 → {score}/100 "
+                 f"({change:+.2f} percentage points).")
+    elif comparison["status"] == "unavailable":
+        text += " No matching initial assessment is available; improvement cannot be calculated."
+    elif comparison["status"] == "not_applicable":
+        text += " This is the initial assessment; no baseline comparison applies."
+    else:
+        text += " Baseline availability was not recorded in this legacy report; no comparison is asserted."
+    return text
+
+
+def canonical_report(report: dict) -> dict:
+    """Normalize new and legacy reports without mutating the supplied artifact."""
+    validate_evaluation(report)
+    report = copy.deepcopy(report)
+    report["overall_score"], report["category_scores"] = scores(report["metrics"]["criteria"])
+    for status in STATUS_VALUE:
+        report["metrics"][f"{status}_count"] = sum(
+            item["status"] == status for item in report["metrics"]["criteria"]
+        )
+    report["metrics"]["total_count"] = len(report["metrics"]["criteria"])
+    report["comparison"] = report.get("comparison", {
+        "status": "not_recorded", "baseline_overall_score": None, "overall_delta": None,
+    })
+    comparison = report["comparison"]
+    if comparison["status"] == "available":
+        if comparison["baseline_overall_score"] is None:
+            raise ValueError("An available comparison requires a baseline score")
+        comparison["baseline_overall_score"] = round(comparison["baseline_overall_score"], 2)
+        comparison["overall_delta"] = rounded_delta(comparison["baseline_overall_score"], report["overall_score"])
+    else:
+        comparison.update(baseline_overall_score=None, overall_delta=None)
+    report["qualitative_summary"] = qualitative_text(report.get("qualitative_summary", report["executive_summary"]))
+    for key in ("strengths", "gaps", "recommendations"):
+        report[key] = [cleaned for text in report[key] if (cleaned := qualitative_text(text))]
+    for item in report["metrics"]["criteria"]:
+        item["feedback"] = qualitative_text(item["feedback"])
+    report["executive_summary"] = executive_summary(report)
     return report
 
 
@@ -134,14 +209,16 @@ def markdown_text(value: str) -> str:
 
 
 def render_report(report: dict, title: str) -> str:
+    report = canonical_report(report)
     rows = [f"# {title}", "", "## Executive summary", "", markdown_text(report["executive_summary"]),
-            "", f"**Overall documented fit: {report['overall_score']:g}/100**", "",
-            "Scores describe CV evidence, not a hiring probability.", "",
-            "## Scoring", "", "| Category | Score | Criteria |", "|---|---:|---:|"]
+            "", "Scores describe documented CV coverage, not a hiring probability.", ""]
+    if report["qualitative_summary"]:
+        rows += ["## Qualitative commentary", "", markdown_text(report["qualitative_summary"]), ""]
+    rows += ["## Scoring", "", "| Category | Score | Criteria |", "|---|---:|---:|"]
     criteria = report["metrics"]["criteria"]
     for category, score in report["category_scores"].items():
         count = sum(item["category"] == category for item in criteria)
-        label = f"{score:g}" if count else "N/A"
+        label = score_text(score) if count else "N/A"
         rows.append(f"| {category.replace('_', ' ').title()} | {label} | {count} |")
     for heading, key in (("Strengths", "strengths"), ("Gaps", "gaps"), ("Actionable feedback", "recommendations")):
         rows += ["", f"## {heading}", ""]
@@ -155,6 +232,7 @@ def render_report(report: dict, title: str) -> str:
 
 
 def save_evaluation(step: str, report: dict) -> None:
+    report = canonical_report(report)
     name = "analysis" if step == "analyze" else "review"
     text = render_report(report, "Initial analysis" if step == "analyze" else "Post-adaptation review")
     write_artifact(RESULTS / f"{name}.md", text)
@@ -188,10 +266,10 @@ def compute_delta(before: dict, after: dict) -> dict:
     return {
         "schema_version": 1,
         "overall_score": {"before": before["overall_score"], "after": after["overall_score"],
-                          "delta": round(after["overall_score"] - before["overall_score"], 2)},
+                          "delta": rounded_delta(before["overall_score"], after["overall_score"])},
         "category_scores": {
             key: {"before": before["category_scores"][key], "after": after["category_scores"][key],
-                  "delta": round(after["category_scores"][key] - before["category_scores"][key], 2)}
+                  "delta": rounded_delta(before["category_scores"][key], after["category_scores"][key])}
             for key in CATEGORIES
         },
         "criterion_changes": changes,
@@ -203,7 +281,7 @@ def save_delta(delta: dict) -> None:
     rows = ["# Evaluation changes", "", "Positive deltas indicate improved documented fit.", "",
             "| Score | Before | After | Delta |", "|---|---:|---:|---:|"]
     for label, values in {"overall": delta["overall_score"], **delta["category_scores"]}.items():
-        rows.append(f"| {label} | {values['before']:g} | {values['after']:g} | {values['delta']:+g} |")
+        rows.append(f"| {label} | {score_text(values['before'])} | {score_text(values['after'])} | {values['delta']:+.2f} |")
     rows += ["", "## Changed criteria", ""]
     rows += [f"- {markdown_text(item['criterion'])}: {item['before']} → {item['after']}"
              for item in delta["criterion_changes"]] or ["No status changes."]

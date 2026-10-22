@@ -125,7 +125,7 @@ def test_exhaustion_is_bounded_and_preserves_artifacts(project, monkeypatch, eva
     assert not Path(".vita/results/adapt.md").exists()
 
 
-@pytest.mark.parametrize("fault", ["score", "job", "metadata", "taxonomy", "evidence"])
+@pytest.mark.parametrize("fault", ["score", "job", "metadata", "comparison", "qualitative_summary", "taxonomy", "evidence"])
 def test_host_checks_remain_authoritative(project, monkeypatch, evaluation_report, fault):
     cached_job()
     job = prepare_job(load_pipeline_settings(), auto=False)
@@ -138,6 +138,10 @@ def test_host_checks_remain_authoritative(project, monkeypatch, evaluation_repor
         invalid["metrics"]["criteria"][0]["job_id"] = "unrelated-job"
     elif fault == "metadata":
         invalid["metadata"] = baseline["metadata"]
+    elif fault == "comparison":
+        invalid["comparison"] = {"status": "available", "baseline_overall_score": 3, "overall_delta": 97}
+    elif fault == "qualitative_summary":
+        invalid["qualitative_summary"] = "Forged summary"
     elif fault == "taxonomy":
         invalid["metrics"]["criteria"][0]["criterion"] = "Easier criterion"
     else:
@@ -196,7 +200,7 @@ def test_native_schema_payload_and_host_validation(project, monkeypatch, evaluat
         assert body["response_format"]["json_schema"]["strict"] is True
         if provider == "openrouter":
             assert body["provider"]["require_parameters"] is True
-    assert "metadata" not in expected["properties"]
+    assert not {"metadata", "qualitative_summary", "comparison"} & expected["properties"].keys()
     assert outcome()["attempts"][0]["mode"] == "native_schema"
 
 

@@ -196,7 +196,7 @@ def run(
             run_structured(
                 step=step, generate=llm_generate, system=system_context, prompt=prompt_text,
                 route=settings.route(step, provider).kwargs(), schema=EVALUATION_OUTPUT_SCHEMA,
-                finalize=lambda data: finalize(json_text(data), job, baseline), save=save,
+                finalize=lambda data: finalize(json_text(data), job, baseline, step=step), save=save,
             )
             print(f"Validated {step} saved as JSON and Markdown in {results_dir}")
             return True
