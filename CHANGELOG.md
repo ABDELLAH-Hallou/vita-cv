@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.6.3...v2.7.0) (2026-10-23)
+
+
+### Features
+
+* add privacy-preserving execution diagnostics ([#65](https://github.com/ABDELLAH-Hallou/vita-cv/issues/65)) ([5a578d7](https://github.com/ABDELLAH-Hallou/vita-cv/commit/5a578d7a96483d50276da4e930daf0f2e004769d))
+
 ## [2.6.3](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.6.2...v2.6.3) (2026-10-23)
 
 
