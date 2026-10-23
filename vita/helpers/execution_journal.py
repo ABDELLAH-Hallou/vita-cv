@@ -147,22 +147,19 @@ def component(function=None):
             "line": function.__code__.co_firstlineno,
         }
     frame = inspect.currentframe()
-    try:
+    frame = frame.f_back if frame else None
+    while frame and frame.f_globals.get("__name__") in (__name__, "vita.helpers.diagnostics"):
         frame = frame.f_back
-        while frame and frame.f_globals.get("__name__") in (__name__, "vita.helpers.diagnostics"):
-            frame = frame.f_back
-        return (
-            {
-                "module": frame.f_globals.get("__name__"),
-                "function": frame.f_code.co_name,
-                "file": frame.f_code.co_filename,
-                "line": frame.f_lineno,
-            }
-            if frame
-            else {}
-        )
-    finally:
-        del frame
+    return (
+        {
+            "module": frame.f_globals.get("__name__"),
+            "function": frame.f_code.co_name,
+            "file": frame.f_code.co_filename,
+            "line": frame.f_lineno,
+        }
+        if frame
+        else {}
+    )
 
 
 class Journal:
