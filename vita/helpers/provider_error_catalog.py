@@ -1,0 +1,24 @@
+"""Content-free action catalog; no configuration, logging or adapter imports."""
+
+ACTIONS = {
+    "overloaded": "The provider is temporarily overloaded. Retry this step later.",
+    "rate_limit": "The provider rate limit was reached. Wait before retrying this step.",
+    "server_error": "The provider temporarily failed. Retry this step later.",
+    "timeout": "The provider request timed out. Retry this step later; usage may already have been incurred.",
+    "connection": "The provider could not be reached. Check network access and retry this step.",
+    "tls": "TLS certificate verification failed. Check the trusted certificate chain and network proxy configuration.",
+    "response_shape": "The provider returned an unexpected success-response structure. Check adapter and endpoint compatibility.",
+    "response_decode": "The provider success response could not be decoded. Inspect response diagnostics and endpoint compatibility.",
+    "authentication": "Provider authentication failed. Check the configured credential for this provider.",
+    "permission": "The provider denied access. Check account permissions and model access.",
+    "invalid_model": "The requested model is invalid or unavailable to this account. Check its exact ID and access; no fallback was used.",
+    "quota_exceeded": "The provider quota is exhausted. Check account limits or billing before retrying.",
+    "invalid_request": "The provider rejected the request. Check model capabilities and request configuration.",
+    "not_found": "The provider endpoint or resource was not found. Check endpoint and model configuration.",
+    "configuration": "Check the configured provider, model, credential and CLI installation before retrying.",
+    "unsupported_schema": "This endpoint does not support schema-constrained output.",
+    "refusal": "The provider declined to generate this response. Review the task before retrying.",
+    "incomplete_response": "The provider did not complete its response. Check output limits before retrying.",
+    "empty_response": "The provider returned no text. Check model and endpoint compatibility.",
+    "provider_error": "The provider call failed. Check provider configuration and endpoint support before retrying.",
+}

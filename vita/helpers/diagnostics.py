@@ -429,7 +429,7 @@ class Trace:
         self.close("incomplete")
 
     def explain(self):
-        from vita.helpers.provider_errors import ACTIONS
+        from vita.helpers.provider_error_catalog import ACTIONS
         failure = self.failure or {"phase": "step", "details": {"category": "unclassified"}}
         route = self.route
         details = failure["details"]
@@ -451,8 +451,8 @@ def storage_lock(base):
         raise OSError("unsafe lock path")
     fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        if os.fstat(fd).st_size == 0:
-            os.write(fd, b"0")
+        # Windows permits locking beyond EOF. Do not initialize a byte before
+        # acquiring its lock: another process may already own that byte.
         for _ in range(200):
             try:
                 if os.name == "nt":
@@ -708,6 +708,9 @@ def inspect_trace(trace_id, root=None):
                 if item.get("schema_version") != VERSION or item.get("trace_id") != trace_id:
                     raise ValueError("Unsupported event contract")
                 result["events"].append({"event": item["event"], "phase": item["phase"],
+                    "sequence": item.get("sequence") if type(item.get("sequence")) is int and 0 <= item["sequence"] <= 10 ** 12 else None,
+                    "timestamp": item.get("timestamp") if isinstance(item.get("timestamp"), str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?\+00:00", item["timestamp"]) else None,
+                    "step": item.get("step") if item.get("step") in ("operation", "extract", "requirements", "analyze", "adapt", "review", "cover", "analyze-qualitative", "review-qualitative", "provider-check", "provider-discovery") else None,
                     "status": item.get("status") if item.get("status") in ("ok", "error", "running", "interrupted") else "error",
                     "details": privacy.details(item.get("details", {})),
                     **{key: item.get(key) if isinstance(item.get(key), str) and re.fullmatch(r"[0-9a-f]{16}|[0-9a-f]{32}", item[key]) else None

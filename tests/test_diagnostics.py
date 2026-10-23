@@ -36,7 +36,8 @@ REAL_SUBPROCESS_RUN = subprocess.run
 def project(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     Path(".vita").mkdir()
-    Path(".vita/.env").write_text(f"GEMINI_API_KEY={SECRET}\n", encoding="utf-8")
+    fixture = Path(__file__).parent / "fixtures/diagnostics/environment.example.env"
+    Path(".vita/.env").write_text(fixture.read_text(encoding="utf-8"), encoding="utf-8")
     for key in ("VITA_PROJECT_ROOT", "VITA_DIAGNOSTICS_DIR", "VITA_TRACEPARENT", "VITA_DIAGNOSTIC_CONTENT"):
         monkeypatch.delenv(key, raising=False)
     env = {"GEMINI_API_KEY": SECRET}
@@ -332,7 +333,9 @@ def test_cli_inspect_outputs_safe_json_and_nonzero_for_unknown_trace(project, mo
     capsys.readouterr()
     monkeypatch.setattr(sys, "argv", ["vita", "diagnostics", "inspect", path.name, "--json"])
     main()
-    assert json.loads(capsys.readouterr().out)["trace_id"] == path.name
+    inspected = json.loads(capsys.readouterr().out)
+    assert inspected["trace_id"] == path.name
+    assert any(e["step"] == "cover" and e["sequence"] and e["timestamp"] for e in inspected["events"])
     monkeypatch.setattr(sys, "argv", ["vita", "diagnostics", "inspect", "invalid"])
     with pytest.raises(SystemExit) as stopped:
         main()
@@ -350,6 +353,7 @@ def test_real_subprocesses_share_parent_trace_without_overwriting_each_other(pro
     for child in children:
         _, error = child.communicate(timeout=30)
         assert child.returncode == 0, error.decode()
+        assert b"diagnostics could not be fully saved" not in error, error.decode()
     result = d.inspect_trace(trace_id)
     assert len(result["processes"]) == 2 and all(p["status"] == "success" for p in result["processes"])
 
@@ -400,7 +404,8 @@ def test_trace_store_adds_narrow_git_exclusions_without_removing_existing_rules(
 
 
 def test_project_capture_settings_inline_credentials_and_override_destination(project, monkeypatch):
-    (project / ".vita/.env").write_text(f"GEMINI_API_KEY={SECRET} # inline comment\nVITA_DIAGNOSTIC_CONTENT=sanitized\n", encoding="utf-8")
+    fixture = Path(__file__).parent / "fixtures/diagnostics/environment.example.env"
+    (project / ".vita/.env").write_text(fixture.read_text(encoding="utf-8") + "\nVITA_DIAGNOSTIC_CONTENT=sanitized\n", encoding="utf-8")
     store = project / "persistent-diagnostics"
     monkeypatch.setenv("VITA_DIAGNOSTICS_DIR", str(store))
     run_text(step="cover", generate=Mock(return_value=json.dumps({"message": SECRET + PERSON})),
@@ -429,3 +434,9 @@ def test_diagnostic_only_categories_preserve_the_existing_provider_outcome_enum(
     validate(contract, PROVIDER_ERROR_SCHEMA)
     assert contract["category"] == "provider_error" and error.diagnostic_category == category
     assert not error.retryable
+
+
+def test_os_lock_never_initializes_an_unlocked_shared_byte(project):
+    store = project / "lock-fixture"
+    with d.storage_lock(store):
+        assert (store / ".storage.lock").stat().st_size == 0
