@@ -1,0 +1,65 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "capture_status": {
+      "type": "string",
+      "enum": [
+        "captured",
+        "redacted",
+        "disabled",
+        "suppressed",
+        "truncated",
+        "unavailable"
+      ]
+    },
+    "step_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "attempt_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    },
+    "content_exists": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "capture_status",
+    "step_id",
+    "attempt_id",
+    "reason",
+    "content_exists",
+    "path",
+    "bytes"
+  ],
+  "additionalProperties": false
+}

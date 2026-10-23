@@ -3,6 +3,7 @@ import re
 from datetime import date
 from pathlib import Path
 
+from vita.helpers.diagnostics import phase
 from vita.helpers.skills import skill_context
 
 JOB_HEADER_RE = re.compile(r"(?im)^#\s*Job\s+\d+\b.*$")
@@ -123,6 +124,7 @@ def cv_source_context(entry: str) -> str:
                      for path, content in cv_source_files(entry).items())
 
 
+@phase("context")
 def build_system_context(
     prompt_text: str, step: str | None = None, resume_entry: str = "main.tex",
     include_job: bool = True,

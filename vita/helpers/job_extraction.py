@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from vita.helpers.context_builder import format_job_descriptions, parse_job_descriptions
+from vita.helpers.diagnostics import diagnosed, phase
 from vita.helpers.llm import generate
 from vita.helpers.pipeline_config import PipelineSettings, load_pipeline_settings
 from vita.helpers.requirements import active_requirements, canonical_text
@@ -20,6 +21,7 @@ def fingerprint(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+@phase("context")
 def read_job() -> str:
     path = Path("job.md")
     if not path.is_file() or not path.read_text(encoding="utf-8").strip():
@@ -49,6 +51,7 @@ def cached_job(raw: str) -> dict | None:
         return None
 
 
+@diagnosed(name="extract")
 def extract(*, auto: bool = False, provider: str | None = None) -> bool:
     try:
         raw = read_job()
@@ -83,8 +86,8 @@ def extract(*, auto: bool = False, provider: str | None = None) -> bool:
                        finalize=finalize, save=save)
         print("Job metadata saved to .vita/results/job.json and job.toon")
         return True
-    except (ValueError, OSError, RuntimeError, KeyError, UnicodeError) as exc:
-        print(f"Extraction failed: {exc}")
+    except (ValueError, OSError, RuntimeError, KeyError, UnicodeError):
+        print("Extraction failed. See execution diagnostics for the failed phase and provider category.")
         return False
 
 
@@ -98,6 +101,7 @@ class JobContext:
     requirements: dict | None = None
 
 
+@phase("context")
 def prepare_job(settings: PipelineSettings, *, auto: bool) -> JobContext:
     raw = read_job()
     requirements = active_requirements(raw)

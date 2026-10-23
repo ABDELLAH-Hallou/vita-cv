@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "kind": {
+      "type": "string"
+    },
+    "capture_status": {
+      "type": "string",
+      "enum": [
+        "captured",
+        "redacted",
+        "disabled",
+        "suppressed",
+        "truncated",
+        "unavailable"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "capture_status",
+    "data"
+  ],
+  "additionalProperties": false
+}

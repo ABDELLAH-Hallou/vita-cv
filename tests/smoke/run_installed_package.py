@@ -148,6 +148,10 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
         run([str(python), str(Path(__file__).with_name("candidate_evidence.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("assessment_consistency.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("provider_failures.py").resolve())], cwd=project)
+        run([str(python), str(Path(__file__).with_name("execution_diagnostics.py").resolve())], cwd=project)
+        diagnostics_help = run([str(python), "-m", "vita", "diagnostics", "--help"], cwd=project).stdout
+        if not all(command in diagnostics_help for command in ("list", "inspect", "export")):
+            raise AssertionError("Installed diagnostics inspection commands are missing")
         build_help = run([str(python), "-m", "vita", "build", "--help"], cwd=project).stdout
         for option in ("both", "--resume", "--cover"):
             if option not in build_help:

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from vita.helpers.diagnostics import phase
 from vita.helpers.env import load_env
 
 STAGE_PREFIXES = {
@@ -36,6 +37,7 @@ class PipelineSettings:
         return route
 
 
+@phase("configuration")
 def load_pipeline_settings() -> PipelineSettings:
     env = load_env()
     toggle = env.get("ENABLE_JD_EXTRACTION", "false").strip().lower()

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "product_version": "2.6.3",
+  "trace_id": "11111111111111111111111111111111",
+  "process_id": "22222222222222222222222222222222",
+  "status": "failed",
+  "updated_at": "2026-10-23T00:00:00+00:00",
+  "active_spans": [],
+  "failure": {
+    "phase": "provider_request",
+    "details": {
+      "duration_ms": 12,
+      "attempt": 1,
+      "effective_provider": "gemini",
+      "effective_model": "fixture-model",
+      "category": "overloaded",
+      "http_status": 503,
+      "retryable": true,
+      "provider_code": "UNAVAILABLE"
+    },
+    "frames": []
+  },
+  "capture_enabled": false,
+  "logging_complete": true,
+  "diagnostic_artifacts": [
+    {
+      "id": "88888888888888888888888888888888",
+      "kind": "response",
+      "capture_status": "unavailable",
+      "step_id": "44444444444444444444444444444444",
+      "attempt_id": "55555555555555555555555555555555",
+      "reason": "no_model_response_produced",
+      "content_exists": false,
+      "path": null,
+      "bytes": 0
+    }
+  ]
+}

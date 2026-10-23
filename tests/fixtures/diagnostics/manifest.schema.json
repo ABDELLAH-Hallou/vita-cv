@@ -1,0 +1,58 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "trace_id": {
+      "type": "string"
+    },
+    "product": {
+      "type": "string",
+      "const": "vita-cv"
+    },
+    "product_version": {
+      "type": "string"
+    },
+    "ownership": {
+      "type": "string",
+      "const": "project"
+    },
+    "process_manifests": {
+      "type": "string"
+    },
+    "events": {
+      "type": "string"
+    },
+    "artifact_limit_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "content_policy": {
+      "type": "string",
+      "const": "source-aware-structure-only"
+    },
+    "trace_context_status": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "generated",
+        "rejected"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "trace_id",
+    "product",
+    "product_version",
+    "ownership",
+    "process_manifests",
+    "events",
+    "artifact_limit_bytes",
+    "content_policy",
+    "trace_context_status"
+  ],
+  "additionalProperties": false
+}

@@ -14,6 +14,9 @@ ACTIONS = {
     "server_error": "The provider temporarily failed. Retry this step later.",
     "timeout": "The provider request timed out. Retry this step later; usage may already have been incurred.",
     "connection": "The provider could not be reached. Check network access and retry this step.",
+    "tls": "TLS certificate verification failed. Check the trusted certificate chain and network proxy configuration.",
+    "response_shape": "The provider returned an unexpected success-response structure. Check adapter and endpoint compatibility.",
+    "response_decode": "The provider success response could not be decoded. Inspect response diagnostics and endpoint compatibility.",
     "authentication": "Provider authentication failed. Check the configured credential for this provider.",
     "permission": "The provider denied access. Check account permissions and model access.",
     "invalid_model": "The requested model is invalid or unavailable to this account. Check its exact ID and access; no fallback was used.",
@@ -28,6 +31,7 @@ ACTIONS = {
     "provider_error": "The provider call failed. Check provider configuration and endpoint support before retrying.",
 }
 TRANSIENT = {"overloaded", "rate_limit", "server_error", "timeout", "connection"}
+DIAGNOSTIC_CATEGORIES = {"tls", "response_shape", "response_decode"}
 
 # Public contract for consumers such as Vita Tree. Additive optional fields are
 # allowed within v1; changing meanings/required fields requires a new version.
@@ -36,7 +40,7 @@ PROVIDER_ERROR_SCHEMA = {
     "properties": {
         "schema_version": {"type": "integer", "const": 1},
         "code": {"type": "string", "const": "provider_error"},
-        "category": {"type": "string", "enum": list(ACTIONS)},
+        "category": {"type": "string", "enum": [key for key in ACTIONS if key not in DIAGNOSTIC_CATEGORIES]},
         **{key: {"type": ["string", "null"]} for key in ("provider", "model", "step")},
         "status": {"type": ["integer", "null"], "minimum": 100, "maximum": 599},
         "retryable": {"type": "boolean"}, "exhausted": {"type": "boolean"},
@@ -122,10 +126,15 @@ class ProviderError(RuntimeError):
         self.code = http_category(status) if code == "provider_error" and status is not None else code
         if self.code not in ACTIONS:
             self.code = "provider_error"
+        self.diagnostic_category = self.code
+        # Keep the existing outcome v1 category vocabulary. More precise causes
+        # belong to the separate diagnostic contract, not a silent enum change.
+        if self.code in DIAGNOSTIC_CATEGORIES:
+            self.code = "provider_error"
         self.status = status if type(status) is int and 100 <= status <= 599 else None
         self.retryable = self.code in TRANSIENT
         self.retry_after = retry_after if isinstance(retry_after, (int, float)) and math.isfinite(retry_after) and retry_after >= 0 else None
-        super().__init__(ACTIONS[self.code])
+        super().__init__(ACTIONS[self.diagnostic_category])
 
     def contract(self, *, step: str, route: dict, attempts: int, max_attempts: int,
                  exhausted: bool = False) -> dict:
@@ -141,7 +150,7 @@ def normalize_error(exc: Exception) -> ProviderError:
         return exc
     if isinstance(exc, TimeoutError):
         return ProviderError(code="timeout")
-    return ProviderError(code="configuration" if isinstance(exc, (ValueError, FileNotFoundError)) else "provider_error")
+    return ProviderError()
 
 
 class UnsupportedSchema(ProviderError):

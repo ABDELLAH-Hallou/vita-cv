@@ -18,6 +18,7 @@ from vita.helpers.context_builder import (
     current_date_instruction,
     multi_job_instruction,
 )
+from vita.helpers.diagnostics import emit, phase
 from vita.helpers.evaluation import (
     compute_delta,
     evaluation_instruction,
@@ -77,6 +78,7 @@ def rekey(provenance: dict) -> dict:
     return result
 
 
+@phase("prompt")
 def prepare_assessment(job, *, route: dict | None = None, baseline: dict | None = None,
                        sources: dict | None = None, external: bool = False) -> AssessmentRequest:
     """Freeze a shared payload. External-assistant identity is explicitly unreported.
@@ -255,6 +257,7 @@ def run_assessment(step: str, job, *, settings, resume_entry: str, generate, aut
 
         cached = None if reassess else cached_assessment(request, job, baseline)
         if cached is not None:
+            emit("cache", "validation", reused=True, attempts=0)
             prior = cached["metadata"]["assessment_execution"]
             origin = prior.get("origin_id") or prior["id"]
             report = finalize(json_text(cached), job, baseline if step == "review" else None, step=step,
@@ -306,5 +309,5 @@ def run_assessment(step: str, job, *, settings, resume_entry: str, generate, aut
     except (StructuredOutputError, ValueError, OSError, KeyError, TypeError, RuntimeError) as exc:
         if isinstance(exc, ProviderError):
             record_provider_failure(step, exc, settings.route(step, provider).kwargs())
-        print(f"Could not prepare, validate or save {step} assessment: {exc}")
+        print(f"Could not prepare, validate or save {step} assessment. See execution diagnostics.")
         return False
