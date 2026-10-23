@@ -18,7 +18,7 @@ from vita.helpers.context_builder import (
     current_date_instruction,
     multi_job_instruction,
 )
-from vita.helpers.diagnostics import emit, phase
+from vita.helpers.diagnostics import emit, failure, journal, local_artifact, phase
 from vita.helpers.evaluation import (
     compute_delta,
     evaluation_instruction,
@@ -242,6 +242,7 @@ def run_assessment(step: str, job, *, settings, resume_entry: str, generate, aut
                 text += (f"\nFor external execution save only .vita/results/{step}-qualitative.md and its separate "
                          "JSON provenance linked to the assessment key/execution. Never overwrite scoring reports with commentary.")
             write_artifact(Path(f".vita/prompts/{step}.md"), text)
+            local_artifact("generated-prompt", text)
             write_artifact(Path(".vita/current_prompt.md"), text)
             print(text)
             return True
@@ -256,6 +257,8 @@ def run_assessment(step: str, job, *, settings, resume_entry: str, generate, aut
                     (RESULTS / f"delta.{extension}").unlink(missing_ok=True)
 
         cached = None if reassess else cached_assessment(request, job, baseline)
+        journal("cache.decision", reused=cached is not None, forced_reassessment=reassess,
+                cacheable=request.cacheable, assessment_key=request.provenance.get("key"))
         if cached is not None:
             emit("cache", "validation", reused=True, attempts=0)
             prior = cached["metadata"]["assessment_execution"]
@@ -307,6 +310,7 @@ def run_assessment(step: str, job, *, settings, resume_entry: str, generate, aut
                            "This separate writing review does not set assessment scores or comparisons.\n\n" + commentary)
         return True
     except (StructuredOutputError, ValueError, OSError, KeyError, TypeError, RuntimeError) as exc:
+        failure("validation", exc, category="validation_error")
         if isinstance(exc, ProviderError):
             record_provider_failure(step, exc, settings.route(step, provider).kwargs())
         print(f"Could not prepare, validate or save {step} assessment. See execution diagnostics.")

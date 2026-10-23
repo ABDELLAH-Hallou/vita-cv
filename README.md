@@ -636,6 +636,12 @@ VITA includes a library of AI agent skills for specialized tasks. Reference them
 
 ## Design Philosophy
 
+To debug execution, use `vita extract --auto --debug` (or another AI/build
+command with `--debug`), then `vita diagnostics inspect`. The project-local
+journal contains actual prompts, requests, outputs, configuration precedence,
+and full errors with credentials redacted. See [execution journals](DIAGNOSTICS.md)
+for capture modes, file locations, and sanitized support exports.
+
 Adapt/Cover proposals now require explicit confirmation for unverified factual or
 wording changes. See [source-linked factual changes](FACTUAL_CHANGES.md) for
 `vita facts`, structured outputs, and the conservative unattended behavior.

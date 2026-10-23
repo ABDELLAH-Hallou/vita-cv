@@ -75,7 +75,8 @@ def generate(
                               response_schema=response_schema, session=session)
     except ProviderError:
         raise
-    except (TimeoutError, subprocess.TimeoutExpired):
+    except (TimeoutError, subprocess.TimeoutExpired) as exc:
+        diagnostic.failure("provider_request", exc, category="timeout")
         raise ProviderError(code="timeout") from None
     except (KeyError, IndexError, TypeError, ValueError) as exc:
         diagnostic.failure("provider_request", exc, category="unclassified")
@@ -92,10 +93,13 @@ def _generate_once(system_prompt, user_prompt, provider=None, model=None, *, res
     requested_model = model
     if session is not None and "resolved" in session:
         resolved = session["resolved"]
+        diagnostic.journal("configuration.frozen_route", provider=resolved[0], model=resolved[1],
+                           explanation="Reuse the frozen route for this operation; no provider/model fallback.")
     else:
         try:
             resolved = _resolve(provider, model)
-        except (ValueError, TypeError, OSError):
+        except (ValueError, TypeError, OSError) as exc:
+            diagnostic.failure("configuration", exc, category="configuration")
             raise ProviderError(code="configuration") from None
         if session is not None:
             session["resolved"] = resolved
@@ -108,6 +112,8 @@ def _generate_once(system_prompt, user_prompt, provider=None, model=None, *, res
         session["route"] = {"provider": provider_name, "model": model or None,
                             "reasoning_effort": config.get("reasoning_effort") if provider_name in ("codex", "openai", "openrouter") else None}
     options = {"response_schema": generation_schema(response_schema)} if native else {}
+    diagnostic.journal("adapter.selected", provider=provider_name, model=model, native_schema=native,
+                       structured_output=config.get("structured_output", "auto"), reasoning_effort=config.get("reasoning_effort"))
     reasoning = config.get("reasoning_effort")
     if reasoning is not None and provider_name in {"codex", "openai", "openrouter"}:
         options["reasoning_effort"] = reasoning
@@ -148,7 +154,8 @@ def prepare_session(provider: str | None = None, model: str | None = None) -> di
     """
     try:
         return {"resolved": _resolve(provider, model, allow_prompt=False)}
-    except (ValueError, OSError):
+    except (ValueError, OSError) as exc:
+        diagnostic.failure("configuration", exc, category="configuration")
         raise ProviderError(code="configuration") from None
 
 
@@ -228,7 +235,13 @@ def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "", *,
         if reasoning_effort is not None:
             cmd.extend(["--config", "model_reasoning_effort=" + json.dumps(reasoning_effort)])
         cmd.append("-")
+        diagnostic.local_artifact("cli-request", {"argv": cmd, "stdin": prompt, "encoding": "utf-8",
+                                                  "schema": response_schema, "output_file": str(output_path)})
+        diagnostic.journal("cli.start", argv=cmd, working_directory=str(Path.cwd()), encoding="utf-8")
         result = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8")
+        diagnostic.local_artifact("cli-result", {"argv": cmd, "returncode": result.returncode,
+                                                 "stdout": result.stdout, "stderr": result.stderr})
+        diagnostic.journal("cli.completed", returncode=result.returncode, output_file_exists=output_path.is_file())
         if result.returncode != 0:
             error = result.stderr.strip() or result.stdout.strip()
             if response_schema is not None and re.search(r"unexpected argument ['\"]--output-schema['\"]", error):
@@ -433,12 +446,17 @@ def _call_gemini(
 
 def _post(url: str, headers: dict, data: dict | None, *, method: str = "POST") -> dict:
     """Make a JSON POST request and return the parsed response."""
+    diagnostic.local_artifact("http-request", {"url": url, "method": method, "headers": headers,
+                                              "body": data, "timeout_seconds": 120})
+    diagnostic.journal("http.request", url=url, method=method, timeout_seconds=120)
     req = urllib.request.Request(
         url,
         data=json.dumps(data).encode("utf-8") if data is not None else None,
         headers=headers,
         method=method,
     )
+    if req.data is not None:
+        diagnostic.local_artifact("http-wire-body", req.data.decode("utf-8"))
     try:
         with diagnostic.span("provider_request"):
             with urllib.request.urlopen(req, timeout=120) as response:
@@ -454,8 +472,19 @@ def _post(url: str, headers: dict, data: dict | None, *, method: str = "POST") -
                 diagnostic.failure("decoding", exc, category="response_decode", line=getattr(exc, "lineno", None), column=getattr(exc, "colno", None))
                 raise ProviderError(code="response_decode") from None
     except urllib.error.HTTPError as e:
-        error_msg = e.read(8192).decode("utf-8", errors="replace")
-        diagnostic.http_metadata(e.code, e.headers, error_msg, rejected=True)
+        raw_error = e.read(8192)
+        error_msg = raw_error.decode("utf-8", errors="replace")
+        if diagnostic.current() and diagnostic.current().local_journal is not None and len(raw_error) == 8192:
+            try:
+                raw_error += e.read(2 * 1024 * 1024 + 1 - len(raw_error))
+            except Exception as capture_error:
+                # Failure to read extra diagnostic bytes must not replace the
+                # HTTP error/category already established by the original read.
+                diagnostic.journal("http.error_body_capture_failed", level="WARNING",
+                                   exception_type=type(capture_error).__name__, message=str(capture_error))
+        diagnostic.http_metadata(e.code, e.headers, raw_error.decode("utf-8", errors="replace"), rejected=True)
+        diagnostic.journal("http.error_body", classification_bytes=min(len(raw_error), 8192),
+                           body_read_limit_bytes=2 * 1024 * 1024, body_truncated=len(raw_error) > 2 * 1024 * 1024)
         # Only explicit lack of format support permits a prompt-only fallback.
         # Invalid schemas, auth, quota, and transport failures never trigger it.
         constrained = data is not None and ("response_format" in data or "responseJsonSchema" in data.get("generationConfig", {}))
@@ -470,7 +499,8 @@ def _post(url: str, headers: dict, data: dict | None, *, method: str = "POST") -
             "timeout" if isinstance(e.reason, TimeoutError) else "connection")
         diagnostic.failure("provider_request", e.reason if isinstance(e.reason, Exception) else e, category=code)
         raise ProviderError(code=code) from None
-    except TimeoutError:
+    except TimeoutError as exc:
+        diagnostic.failure("provider_request", exc, category="timeout")
         raise ProviderError(code="timeout") from None
 
 

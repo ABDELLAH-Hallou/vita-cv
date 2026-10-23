@@ -10,6 +10,7 @@ editing the package source.
 import json
 
 from vita.helpers.config import VITA_DIR
+from vita.helpers.diagnostics import journal
 
 EXTENSIONS_FILE = VITA_DIR / "extensions.json"
 
@@ -17,11 +18,17 @@ EXTENSIONS_FILE = VITA_DIR / "extensions.json"
 def _load_raw() -> dict:
     """Load extensions.json as a raw dict. Returns empty dict if absent."""
     if not EXTENSIONS_FILE.exists():
+        journal("configuration.extensions", file=str(EXTENSIONS_FILE.resolve()), status="missing")
         return {}
     try:
         with open(EXTENSIONS_FILE, encoding="utf-8") as f:
-            return json.load(f)
+            values = json.load(f)
+        journal("configuration.extensions", file=str(EXTENSIONS_FILE.resolve()), status="loaded", values=values)
+        return values
     except json.JSONDecodeError as e:
+        journal("configuration.extensions", level="WARNING", file=str(EXTENSIONS_FILE.resolve()),
+                status="ignored_invalid_json", exception_type=type(e).__name__, message=str(e),
+                line=e.lineno, column=e.colno)
         print(f"⚠️  Malformed .vita/extensions.json — ignoring user extensions. ({e})")
         return {}
 

@@ -40,6 +40,7 @@ def project(tmp_path, monkeypatch):
     Path(".vita/.env").write_text(fixture.read_text(encoding="utf-8"), encoding="utf-8")
     for key in ("VITA_PROJECT_ROOT", "VITA_DIAGNOSTICS_DIR", "VITA_TRACEPARENT", "VITA_DIAGNOSTIC_CONTENT"):
         monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("VITA_DIAGNOSTIC_CONTENT", "off")
     env = {"GEMINI_API_KEY": SECRET}
     monkeypatch.setattr(llm, "load_env", lambda: env)
     monkeypatch.setattr(provider_errors, "load_env", lambda: env)
@@ -404,6 +405,7 @@ def test_trace_store_adds_narrow_git_exclusions_without_removing_existing_rules(
 
 
 def test_project_capture_settings_inline_credentials_and_override_destination(project, monkeypatch):
+    monkeypatch.delenv("VITA_DIAGNOSTIC_CONTENT", raising=False)
     fixture = Path(__file__).parent / "fixtures/diagnostics/environment.example.env"
     (project / ".vita/.env").write_text(fixture.read_text(encoding="utf-8") + "\nVITA_DIAGNOSTIC_CONTENT=sanitized\n", encoding="utf-8")
     store = project / "persistent-diagnostics"

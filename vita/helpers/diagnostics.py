@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from vita import __version__
+from vita.helpers.execution_journal import Journal, component, redact_text
 
 VERSION = 1
 CAPTURE_STATUSES = ("captured", "redacted", "disabled", "suppressed", "truncated", "unavailable")
@@ -44,8 +45,8 @@ _LOCK_PAUSE = time.sleep  # Independent of provider backoff hooks used in fixtur
 ARTIFACT_LIMIT = 16384
 EVENT_LIMIT = 262144
 EVENT_FILES = 4
-PROCESS_LIMIT = 2 * 1024 * 1024
-TOTAL_LIMIT = 50 * 1024 * 1024
+PROCESS_LIMIT = 32 * 1024 * 1024
+TOTAL_LIMIT = 256 * 1024 * 1024
 TRACE_LIMIT = 100
 RETENTION_SECONDS = 7 * 86400
 
@@ -111,7 +112,7 @@ def _json(value):
     return json.dumps(value, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
 
 
-def _atomic(path: Path, data: bytes):
+def _atomic(path: Path, data: bytes, *, durable=True):
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     temporary = None
     try:
@@ -120,7 +121,8 @@ def _atomic(path: Path, data: bytes):
         with os.fdopen(fd, "wb") as stream:
             stream.write(data)
             stream.flush()
-            os.fsync(stream.fileno())
+            if durable:
+                os.fsync(stream.fileno())
         temporary.replace(path)
         if os.name != "nt":
             path.chmod(0o600)
@@ -226,6 +228,8 @@ class Trace:
         self.trace_id, self.parent_id, self.flags = trace_context(os.environ.get("VITA_TRACEPARENT"))
         self.process_id = uuid.uuid4().hex
         self.path = None
+        self.local_journal = None
+        self.content_mode = "off"
         self.capture = os.environ.get("VITA_DIAGNOSTIC_CONTENT", "off") == "sanitized"
         self.failed_logging = False
         self.warned = False
@@ -243,7 +247,10 @@ class Trace:
         self.privacy = PrivacyBoundary(Path.cwd())
         try:
             self.root = project_root()
-            self.capture = os.environ.get("VITA_DIAGNOSTIC_CONTENT", project_settings(self.root).get("VITA_DIAGNOSTIC_CONTENT", "off")) == "sanitized"
+            self.content_mode = os.environ.get("VITA_DIAGNOSTIC_CONTENT", project_settings(self.root).get("VITA_DIAGNOSTIC_CONTENT", "local"))
+            if self.content_mode not in ("off", "sanitized", "local"):
+                raise ValueError("invalid diagnostics content mode")
+            self.capture = self.content_mode in ("sanitized", "local")
             self.privacy = PrivacyBoundary(self.root)
             self.base = destination(self.root)
             self.path = self.base / self.trace_id
@@ -256,7 +263,7 @@ class Trace:
                 if ignore.is_symlink():
                     raise OSError("unsafe diagnostics ignore path")
                 prior = ignore.read_text(encoding="utf-8") if ignore.exists() else ""
-                rules = "/" + "[0-9a-f]" * 32 + "/\n/.reserve-*.json\n/.storage.lock\n"
+                rules = "/" + "[0-9a-f]" * 32 + "/\n/.reserve-*.json\n/.storage.lock\n/latest.json\n"
                 if rules not in prior:
                     _atomic(ignore, (prior.rstrip() + "\n" + rules).encode())
                 enforce_storage(self.base, self.trace_id, PROCESS_LIMIT)
@@ -268,15 +275,84 @@ class Trace:
                         "process_manifests": "process-*.json", "events": "events-*.jsonl",
                         "artifact_limit_bytes": ARTIFACT_LIMIT, "content_policy": "source-aware-structure-only"})
             self.state("running")
+            if self.content_mode == "local":
+                self.local_journal = Journal(self, __version__)
+            with _IO_LOCK, storage_lock(self.base):
+                _atomic(self.base / "latest.json", (_json({"trace_id": self.trace_id, "process_id": self.process_id}) + "\n").encode())
             atexit.register(self.abandon)
-        except (OSError, ValueError, RuntimeError):
-            self.warning()
+        except Exception as exc:
+            self.warning(exc)
 
-    def warning(self):
+    def warning(self, exc=None):
         self.failed_logging = True
         if not self.warned:
             print("VITA diagnostics could not be fully saved (access, quota or configuration). The operation/retry policy is unchanged.", file=sys.stderr)
+            if exc is not None:
+                info = self.privacy.details({"exception_type": type(exc).__name__})
+                print(f"Logging failure type: {info.get('exception_type', 'unclassified_exception')}; OS error: {getattr(exc, 'errno', None)}.", file=sys.stderr)
+            if exc is not None and self.content_mode == "local":
+                try:
+                    detail = f"{type(exc).__name__}: {exc}"
+                    frames = traceback.extract_tb(exc.__traceback__)
+                    if frames:
+                        frame = frames[-1]
+                        detail += f" at {frame.filename}:{frame.lineno} ({frame.name})"
+                    print("Local journal storage error: " + redact_text(detail, self.privacy.secrets), file=sys.stderr)
+                except Exception:
+                    print("Local journal exception detail could not be formatted.", file=sys.stderr)
             self.warned = True
+
+    def local_context(self):
+        step, step_id = _STEP.get() or (None, None)
+        return {"trace_id": self.trace_id, "process_id": self.process_id, "workflow_id": self.workflow_id,
+                "step": step, "step_id": step_id, "attempt_id": self.attempt_id, "span_id": _SPAN.get()}
+
+    def local_write(self, name, data, *, append=False):
+        if self.failed_logging or self.path is None:
+            return False
+        try:
+            target = self.path / name
+            if Path(name).is_absolute() or ".." in Path(name).parts:
+                raise OSError("unsafe journal path")
+            with _IO_LOCK, storage_lock(self.base):
+                if not target.resolve().is_relative_to(self.path.resolve()) or any(
+                    p.is_symlink() for p in (target, *target.parents) if p.is_relative_to(self.path)
+                ):
+                    raise OSError("unsafe journal symlink")
+                prior = self.sizes.get(name, 0)
+                size = prior + len(data) if append else len(data)
+                if sum(self.sizes.values()) - prior + size > PROCESS_LIMIT:
+                    raise OSError("process journal quota reached")
+                if append:
+                    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+                    with os.fdopen(fd, "ab") as stream:
+                        stream.write(data)
+                        stream.flush()
+                else:
+                    # Journals are best-effort diagnostics, not business commits.
+                    # Atomic rename + close prevents torn reads without an fsync
+                    # for every prompt/index/config update.
+                    _atomic(target, data, durable=False)
+                self.sizes[name] = size
+            return True
+        except Exception as exc:
+            self.warning(exc)
+            return False
+
+    def journal(self, event, **fields):
+        if self.local_journal is not None and not self.failed_logging:
+            try:
+                self.local_journal.record(event, component=fields.pop("component", None) or component(), **fields)
+            except Exception as exc:
+                self.warning(exc)
+
+    def local_artifact(self, kind, content=None, *, exists=None):
+        if self.local_journal is not None and not self.failed_logging:
+            try:
+                self.local_journal.capture(kind, content, exists)
+            except Exception as exc:
+                self.warning(exc)
 
     def _write(self, name, value):
         # All callers supply records constructed by this module's boundary.
@@ -308,6 +384,7 @@ class Trace:
         if event_type not in EVENTS or phase not in PHASES or self.failed_logging:
             return
         self.sequence += 1
+        self.journal(event_type, level="ERROR" if event_type == "error" or status in ("error", "interrupted") else "DEBUG", phase=phase, status=status, **details)
         event = {"schema_version": VERSION, "trace_id": self.trace_id, "process_id": self.process_id,
                  "workflow_id": self.workflow_id, "step": (_STEP.get() or (None, None))[0],
                  "step_id": (_STEP.get() or (None, None))[1],
@@ -387,6 +464,11 @@ class Trace:
         return reference
 
     def error(self, phase, exc=None, **details):
+        if exc is not None and self.local_journal is not None and not self.failed_logging:
+            try:
+                self.local_journal.exception(phase, exc, details=details)
+            except Exception:
+                self.warning()
         category = details.get("category") or getattr(exc, "diagnostic_category", getattr(exc, "code", "unclassified"))
         if category == "provider_error":
             category = "unclassified"
@@ -416,11 +498,13 @@ class Trace:
 
     def close(self, status):
         if not self.closed:
+            self.journal("journal.completed", status=status)
             self.state(status)
             self.closed = True
             if self.reservation:
                 try:
-                    self.reservation.unlink(missing_ok=True)
+                    with _IO_LOCK, storage_lock(self.base):
+                        self.reservation.unlink(missing_ok=True)
                 except OSError:
                     self.warning()
             atexit.unregister(self.abandon)
@@ -438,8 +522,13 @@ class Trace:
               f"category: {details.get('category', 'unclassified')}; HTTP: {details.get('http_status', 'unavailable')}.\n"
               f"Trace: {self.trace_id}\nDiagnostics: {self.path or 'unavailable'}\n"
               f"Model response: { {True: 'observed', False: 'not produced', None: 'unknown'}.get(self.response_exists)}; "
-              f"sanitized content capture: {'enabled' if self.capture else 'disabled'}. "
+              f"content capture mode: {self.content_mode}. "
               f"{action}\nInspect with vita diagnostics inspect {self.trace_id}.", file=sys.stderr)
+        if self.local_journal is not None:
+            print(f"Developer journal: {self.path / self.local_journal.prefix / 'execution.log'}\n"
+                  "Exact prompts, responses and exception traces are in that journal's indexed files (credentials redacted).", file=sys.stderr)
+        else:
+            print("Detailed local capture is disabled or unavailable. Use --debug on a future AI command to retain prompts, outputs and full errors.", file=sys.stderr)
 
 
 @contextmanager
@@ -541,6 +630,7 @@ def phase(name):
     def decorate(function):
         @functools.wraps(function)
         def wrapped(*args, **kwargs):
+            journal("function.enter", component=component(function), parameters=_parameters(function, args, kwargs))
             with span(name):
                 return function(*args, **kwargs)
         return wrapped
@@ -555,7 +645,7 @@ def diagnosed(kind="step", name=None):
             trace = current() or Trace()
             context = _CURRENT.set(trace)
             selected = name or kwargs.get("step") or (args[0] if args and isinstance(args[0], str) else None)
-            selected = selected if selected in ("extract", "requirements", "analyze", "adapt", "review", "cover", "analyze-qualitative", "review-qualitative", "provider-check", "provider-discovery") else "operation"
+            selected = selected if selected in ("extract", "requirements", "analyze", "adapt", "review", "cover", "build", "analyze-qualitative", "review-qualitative", "provider-check", "provider-discovery") else "operation"
             prior_step = _STEP.get()
             if kind == "step" and (prior_step is None or prior_step[0] != selected):
                 trace.failure = None
@@ -563,6 +653,7 @@ def diagnosed(kind="step", name=None):
                 trace.response_exists = None
                 trace.attempt_id = None
             step_context = _STEP.set((selected, uuid.uuid4().hex)) if kind == "step" else None
+            trace.journal("command.enter", component=component(function), parameters=_parameters(function, args, kwargs))
             status = "failed"
             try:
                 with span(kind) as outcome:
@@ -602,8 +693,31 @@ def failure(phase, exc=None, **details):
 
 def capture(kind, content=None, *, exists=None):
     if current() and not current().failed_logging:
+        current().local_artifact(kind, content, exists=exists)
         return current().artifact(kind, content, exists=exists)
     return None
+
+
+def journal(event, **fields):
+    if current():
+        current().journal(event, **fields)
+
+
+def local_artifact(kind, content):
+    if current():
+        current().local_artifact(kind, content, exists=True)
+
+
+def _parameters(function, args, kwargs):
+    # Bind without evaluating reprs or changing the call. The local journal's
+    # redactor handles content; the sanitized public event lane never gets this.
+    import inspect
+    if current() is None or current().local_journal is None:
+        return {}
+    try:
+        return dict(inspect.signature(function).bind_partial(*args, **kwargs).arguments)
+    except (ValueError, TypeError):
+        return {"args": args, "kwargs": kwargs}
 
 
 def validation_detail(exc):
@@ -623,6 +737,11 @@ def routing(requested_provider, requested_model, resolved, origins=None):
         return
     provider, model, config, env = resolved
     trace.privacy.add_secrets(env)
+    journal("configuration.provider_route", requested_provider=requested_provider, requested_model=requested_model,
+            extensions_file=str((Path.cwd() / ".vita/extensions.json").resolve()),
+            extensions_model=config.get("model"), effective_provider=provider, effective_model=model,
+            provider_options=config, origins=origins or {},
+            explanation="Explicit stage/caller model takes precedence over extensions.json; otherwise use provider configuration then built-in provider default.")
     route = trace.privacy.details({"requested_provider": requested_provider, "requested_model": requested_model,
                                   "effective_provider": provider, "effective_model": model,
                                   "reasoning": config.get("reasoning_effort"), **(origins or {})})
@@ -641,6 +760,8 @@ def http_metadata(status, headers, body=None, *, rejected=False):
     trace = current()
     if trace is None:
         return
+    local_artifact("http-response", {"status": status, "headers": dict(headers or {}), "rejected": rejected})
+    journal("http.response", status=status, headers=dict(headers or {}), rejected=rejected)
     details = {"http_status": status, "http_response_exists": True}
     for name in ("x-request-id", "request-id", "x-goog-request-id", "x-amzn-requestid"):
         value = headers.get(name) if headers else None
@@ -664,9 +785,11 @@ def http_metadata(status, headers, body=None, *, rejected=False):
 
 def inspect_trace(trace_id, root=None):
     """Read only this contract's technical vocabulary, including incomplete runs."""
+    root = root or project_root()
+    if trace_id == "latest":
+        trace_id = json.loads((destination(root) / "latest.json").read_text())["trace_id"]
     if not re.fullmatch(r"[0-9a-f]{32}", trace_id):
         raise ValueError("Expected a 32-character lowercase hexadecimal trace ID")
-    root = root or project_root()
     path = destination(root) / trace_id
     if path.is_symlink() or not path.is_dir():
         raise ValueError("Trace not found at the configured diagnostics destination")
@@ -675,6 +798,7 @@ def inspect_trace(trace_id, root=None):
         raise ValueError("Unsupported or inconsistent diagnostics contract")
     privacy = PrivacyBoundary(root)
     result = {"schema_version": VERSION, "trace_id": trace_id, "processes": [], "events": [], "artifacts": []}
+    result["local_journals"] = []
     for file in sorted(path.iterdir()):
         if file.is_symlink() or not file.is_file() or file.stat().st_size > EVENT_LIMIT * 2:
             continue
@@ -689,6 +813,9 @@ def inspect_trace(trace_id, root=None):
                 "failed_phase": failure.get("phase") if failure.get("phase") in PHASES else None,
                 "failure": privacy.details(failure.get("details", {})),
                 "capture_enabled": data.get("capture_enabled") is True})
+            relative = f"journal/{file.stem.removeprefix('process-')}/execution.log"
+            if (path / relative).is_file():
+                result["local_journals"].append({"process_id": file.stem.removeprefix("process-"), "path": relative})
             for ref in data.get("diagnostic_artifacts", [])[:100]:
                 if not isinstance(ref, dict):
                     continue
@@ -710,7 +837,7 @@ def inspect_trace(trace_id, root=None):
                 result["events"].append({"event": item["event"], "phase": item["phase"],
                     "sequence": item.get("sequence") if type(item.get("sequence")) is int and 0 <= item["sequence"] <= 10 ** 12 else None,
                     "timestamp": item.get("timestamp") if isinstance(item.get("timestamp"), str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?\+00:00", item["timestamp"]) else None,
-                    "step": item.get("step") if item.get("step") in ("operation", "extract", "requirements", "analyze", "adapt", "review", "cover", "analyze-qualitative", "review-qualitative", "provider-check", "provider-discovery") else None,
+                    "step": item.get("step") if item.get("step") in ("operation", "extract", "requirements", "analyze", "adapt", "review", "cover", "build", "analyze-qualitative", "review-qualitative", "provider-check", "provider-discovery") else None,
                     "status": item.get("status") if item.get("status") in ("ok", "error", "running", "interrupted") else "error",
                     "details": privacy.details(item.get("details", {})),
                     **{key: item.get(key) if isinstance(item.get(key), str) and re.fullmatch(r"[0-9a-f]{16}|[0-9a-f]{32}", item[key]) else None

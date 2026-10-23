@@ -8,7 +8,7 @@ Usage:
 from pathlib import Path
 
 from vita.commands.ai_step import run as ai_step_run
-from vita.helpers.diagnostics import diagnosed
+from vita.helpers.diagnostics import diagnosed, failure
 from vita.helpers.job_extraction import read_job
 from vita.helpers.pipeline_config import load_pipeline_settings
 from vita.helpers.requirements import active_requirements
@@ -22,7 +22,8 @@ def run(auto: bool = False, language: str = "en", provider: str | None = None) -
     try:
         settings = load_pipeline_settings()
         approved = active_requirements(read_job()) if settings.extraction_enabled and Path("job.md").is_file() else None
-    except (ValueError, OSError):
+    except (ValueError, OSError) as exc:
+        failure("configuration", exc, category="configuration")
         print("Invalid pipeline configuration. See execution diagnostics.")
         return False
     steps = (["extract"] if settings.extraction_enabled and approved is None else []) + STEPS

@@ -132,6 +132,11 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                 trace.failure = None
                 trace.response_exists = None
                 trace.attempt_id = uuid.uuid4().hex
+            diagnostic.capture("request", [("system", system), ("user", original_prompt + repair)], exists=True)
+            diagnostic.journal("generation.attempt", number=number, max_attempts=policy.max_attempts,
+                               mode=session["mode"], route=route,
+                               retry_policy={"base_seconds": policy.base_seconds, "max_seconds": policy.max_seconds},
+                               generate_component={"module": getattr(generate, "__module__", None), "function": getattr(generate, "__qualname__", None)})
             diagnostic.emit("attempt", "provider_request", attempt=number, max_attempts=policy.max_attempts)
             session["request"] = {"attempt": number, "prompt_sha256": digest(original_prompt + repair)}
             with diagnostic.span("provider_request", attempt=number):
@@ -144,6 +149,8 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                                              max_attempts=policy.max_attempts, exhausted=number == policy.max_attempts)
             if not native or number == policy.max_attempts:
                 fail("provider_error", str(exc), attempt["error"])
+            diagnostic.journal("retry.schema_mode_changed", reason="unsupported_schema", previous_mode=session["mode"],
+                               next_mode="validated_prompt", next_attempt=number + 1)
             native = False
             repair = "\n\nNative schema output is unavailable. Return the same required JSON object as text."
             persist()
@@ -165,6 +172,9 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                 if delay is not None:
                     attempt["retry_delay_seconds"] = delay
                     persist()
+                    diagnostic.journal("retry.scheduled", reason=error.code, attempt=number,
+                                       next_attempt=number + 1, planned_delay_seconds=delay,
+                                       retry_after_seconds=error.retry_after)
                     started_delay = time.monotonic()
                     time.sleep(delay)
                     diagnostic.emit("retry", "provider_request", attempt=number, category=error.code,

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from vita.helpers.context_builder import format_job_descriptions, parse_job_descriptions
-from vita.helpers.diagnostics import diagnosed, phase
+from vita.helpers.diagnostics import diagnosed, failure, local_artifact, phase
 from vita.helpers.llm import generate
 from vita.helpers.pipeline_config import PipelineSettings, load_pipeline_settings
 from vita.helpers.requirements import active_requirements, canonical_text
@@ -69,6 +69,7 @@ def extract(*, auto: bool = False, provider: str | None = None) -> bool:
                 "from that JSON using vita.helpers.toon.encode_job; do not invent a TOON dialect."
             )
             write_artifact(Path(".vita/prompts/extract.md"), prompt)
+            local_artifact("generated-prompt", prompt)
             write_artifact(Path(".vita/current_prompt.md"), prompt)
             print("Extraction prompt saved to .vita/prompts/extract.md")
             return True
@@ -86,7 +87,8 @@ def extract(*, auto: bool = False, provider: str | None = None) -> bool:
                        finalize=finalize, save=save)
         print("Job metadata saved to .vita/results/job.json and job.toon")
         return True
-    except (ValueError, OSError, RuntimeError, KeyError, UnicodeError):
+    except (ValueError, OSError, RuntimeError, KeyError, UnicodeError) as exc:
+        failure("validation", exc, category="validation_error")
         print("Extraction failed. See execution diagnostics for the failed phase and provider category.")
         return False
 

@@ -2,10 +2,12 @@ import subprocess
 from pathlib import Path
 
 from vita.helpers.config import load_config
+from vita.helpers.diagnostics import diagnosed, failure, journal, local_artifact
 from vita.helpers.factual_changes import guard
 from vita.helpers.logging import log
 
 
+@diagnosed(name="build")
 def run(target: str = "resume") -> bool:
     if not guard(("adapt", "cover") if target in ("cover", "both") else ("adapt",)):
         return False
@@ -78,8 +80,12 @@ def _step(cmd: list[str]) -> bool:
     label = " ".join(cmd)
     print(f"   $ {label}")
     try:
+        local_artifact("build-request", {"argv": cmd, "working_directory": str(Path.cwd())})
         result = subprocess.run(cmd, capture_output=True, text=True)
+        local_artifact("build-result", {"returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr})
+        journal("build.compiler_completed", returncode=result.returncode, argv=cmd)
     except OSError as exc:
+        failure("persistence", exc, category="artifact_error")
         print(f"Could not run latexmk: {exc}")
         return False
     if result.returncode != 0:

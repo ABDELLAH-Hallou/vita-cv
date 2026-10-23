@@ -5,6 +5,7 @@ Entry point for the VITA CLI.
 """
 
 import argparse
+import os
 import sys
 
 from vita import __version__
@@ -28,6 +29,18 @@ from vita.commands import (
 
 
 def main() -> None:
+    previous = os.environ.get("VITA_DIAGNOSTIC_CONTENT")
+    try:
+        _main()
+    finally:
+        # Embedders can call main repeatedly; --debug affects only this call.
+        if previous is None:
+            os.environ.pop("VITA_DIAGNOSTIC_CONTENT", None)
+        else:
+            os.environ["VITA_DIAGNOSTIC_CONTENT"] = previous
+
+
+def _main() -> None:
     if sys.stdout.encoding.lower() != 'utf-8':
         sys.stdout.reconfigure(encoding='utf-8')
 
@@ -52,6 +65,7 @@ commands:
         """,
     )
     parser.add_argument("-V", "--version", action="version", version=f"vita-cv {__version__}")
+    parser.add_argument("--debug", action="store_true", help="Retain a detailed local execution journal (credentials redacted)")
 
     subparsers = parser.add_subparsers(dest="command", metavar="<command>")
 
@@ -72,7 +86,7 @@ commands:
     diagnostics_list = diagnostics_sub.add_parser("list", help="List trace IDs in this project's diagnostics store")
     diagnostics_list.add_argument("--json", action="store_true")
     diagnostics_inspect = diagnostics_sub.add_parser("inspect", help="Inspect a trace's phases and capture statuses")
-    diagnostics_inspect.add_argument("trace_id")
+    diagnostics_inspect.add_argument("trace_id", nargs="?", default="latest")
     diagnostics_inspect.add_argument("--json", action="store_true")
     diagnostics_export = diagnostics_sub.add_parser("export", help="Create a sanitized technical ZIP; excludes artifact bodies")
     diagnostics_export.add_argument("trace_id")
@@ -194,7 +208,12 @@ commands:
         help="After saving, checkout master, sync, and save master",
     )
     # ── Route ─────────────────────────────────────────────────────────────────
+    for debug_parser in (run_p, extract_p, analyze_p, adapt_p, review_p, cover_p, build_p):
+        debug_parser.add_argument("--debug", action="store_true", default=argparse.SUPPRESS,
+                                  help="Retain exact local prompts/responses and full errors; credentials are redacted")
     args = parser.parse_args()
+    if args.debug:
+        os.environ["VITA_DIAGNOSTIC_CONTENT"] = "local"
 
     if args.command == "facts":
         if facts.run(args.facts_action, args.step, revision=getattr(args, "revision", None),

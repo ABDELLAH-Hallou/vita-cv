@@ -15,7 +15,7 @@ def main():
     canary = "PRIVATE_EXECUTION_DIAGNOSTICS_CANARY"
     provider = Mock(side_effect=ProviderError(status=503))
     before = set(Path(".vita/logs/traces").glob("*"))
-    with patch("vita.helpers.structured_output.time.sleep"):
+    with patch.dict("os.environ", {"VITA_DIAGNOSTIC_CONTENT": "off"}), patch("vita.helpers.structured_output.time.sleep"):
         try:
             run_text(step="cover", generate=provider, system=canary, prompt=canary,
                      route={"provider": "gemini", "model": "synthetic-model"})
