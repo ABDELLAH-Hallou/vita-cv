@@ -75,7 +75,7 @@ def generate(
     if session is not None:
         session["mode"] = "native_schema" if native else "validated_prompt"
         session["route"] = {"provider": provider_name, "model": model or None,
-                            "reasoning_effort": config.get("reasoning_effort")}
+                            "reasoning_effort": config.get("reasoning_effort") if provider_name in ("codex", "openai", "openrouter") else None}
     options = {"response_schema": generation_schema(response_schema)} if native else {}
     reasoning = config.get("reasoning_effort")
     if reasoning is not None and provider_name in {"codex", "openai", "openrouter"}:
@@ -107,7 +107,16 @@ def generate(
     raise ValueError(f"Unknown provider '{provider_name}'")
 
 
-def _resolve(provider: str | None, model: str | None) -> tuple:
+def prepare_session(provider: str | None = None, model: str | None = None) -> dict:
+    """Freeze routing before cache lookup. This private object contains credentials.
+
+    Explicit Codex assessment routing can use its CLI without modifying the
+    provider registry or asking an interactive question during preparation.
+    """
+    return {"resolved": _resolve(provider, model, allow_prompt=False)}
+
+
+def _resolve(provider: str | None, model: str | None, *, allow_prompt: bool = True) -> tuple:
     """Resolve configuration once, without changing the requested model."""
     env = load_env()
     providers = get_llm_providers()
@@ -123,7 +132,7 @@ def _resolve(provider: str | None, model: str | None) -> tuple:
                 add_llm_provider("codex", {"model": ""})
                 providers["codex"] = {"model": ""}
                 print("Added Codex to .vita/extensions.json automatically.")
-            else:
+            elif allow_prompt:
                 answer = input(
                     "Codex is not configured in .vita/extensions.json. Add it? (y/n): "
                 ).strip().lower()
@@ -146,7 +155,7 @@ def _resolve(provider: str | None, model: str | None) -> tuple:
                 f"Configured providers: {configured}"
             )
 
-    config = dict(providers[provider_name])
+    config = dict(providers.get(provider_name, {}))
     model = model or config.get("model") or _DEFAULT_MODELS.get(provider_name, "gpt-4o")
     if config.get("structured_output", "auto") not in {"auto", "off"}:
         raise ValueError("structured_output must be auto or off")

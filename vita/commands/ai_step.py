@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from vita.helpers.candidate_evidence import capture_candidate_sources
+from vita.helpers.assessment import run_assessment
 from vita.helpers.config import load_config
 from vita.helpers.context_builder import (
     build_system_context,
@@ -9,21 +9,11 @@ from vita.helpers.context_builder import (
     cv_knowledge_instruction,
     multi_job_instruction,
 )
-from vita.helpers.evaluation import (
-    compute_delta,
-    evaluation_instruction,
-    finalize,
-    load_baseline,
-    save_delta,
-    save_evaluation,
-)
 from vita.helpers.extensions import merged_language_map
 from vita.helpers.job_extraction import extract, prepare_job
 from vita.helpers.llm import generate as llm_generate
 from vita.helpers.pipeline_config import load_pipeline_settings
 from vita.helpers.skills import skill_context
-from vita.helpers.structured import EVALUATION_OUTPUT_SCHEMA, json_text
-from vita.helpers.structured_output import StructuredOutputError, run_structured
 
 # ── Built-in language codes ───────────────────────────────────────────────────
 # Users can extend this via .vita/extensions.json ("language_map" key).
@@ -44,6 +34,8 @@ def run(
     language: str = None,
     auto: bool = False,
     provider: str | None = None,
+    reassess: bool = False,
+    qualitative: bool = False,
 ) -> bool:
     if step == "extract":
         return extract(auto=auto, provider=provider)
@@ -56,6 +48,10 @@ def run(
     config = load_config()
     resume_entry = config.get("tex_entry", "main.tex")
     cover_entry = config.get("cover_tex_entry", "cover-letter.tex")
+    if step in ("analyze", "review"):
+        return run_assessment(step, job, settings=settings, resume_entry=resume_entry,
+                              generate=llm_generate, auto=auto, provider=provider,
+                              reassess=reassess, qualitative=qualitative)
     if step == "cover":
         if not Path(resume_entry).is_file():
             print(f"CV source not found: '{resume_entry}'. Create or adapt the CV first.")
@@ -90,16 +86,6 @@ def run(
     if len(job.ids) > 1:
         document = "cover letter" if step == "cover" else "CV"
         prompt_text += multi_job_instruction(len(job.ids), document)
-
-    baseline = load_baseline(job) if step == "review" else None
-    sources = None
-    if step in ("analyze", "review"):
-        try:
-            sources = capture_candidate_sources(resume_entry)
-        except (ValueError, OSError, UnicodeError) as exc:
-            print(f"Cannot capture candidate sources: {exc}")
-            return False
-        prompt_text += evaluation_instruction(step, job, baseline if auto else None, sources=sources)
 
     if step == "adapt" and language:
         language_map = merged_language_map(_BUILTIN_LANGUAGE_MAP)
@@ -139,18 +125,6 @@ def run(
     prompt_text = prompt_text.replace("`cover-letter.tex`", f"`{cover_entry}`")
 
     if not auto:
-        if step in ("analyze", "review"):
-            prompt_text += (
-                "\nAt execution time prepare the current job context with "
-                "vita.helpers.job_extraction.prepare_job. For review, load the matching "
-                "analysis.json with load_baseline and preserve its locked criteria. "
-                "Use vita.helpers.evaluation.finalize and save_evaluation to validate and save "
-                "both JSON and Markdown. For a matching review, use compute_delta and save_delta. "
-                "Do not hand-edit provenance hashes or numeric scores."
-                " Capture current candidate sources with vita.helpers.candidate_evidence.capture_candidate_sources "
-                "using the configured CV entry, use their source IDs and quotes, and pass that snapshot as "
-                "sources= to finalize. If sources changed since this prompt, regenerate citations first."
-            )
         prompt_text = skill_context(step) + "\n\n==== TASK ====\n" + prompt_text
         print(f"\n{'='*60}")
         print(f"AI Prompt for '{step}'")
@@ -185,34 +159,9 @@ def run(
         target = cover_entry if step == "cover" else resume_entry
         prompt_text += f"\nYou MUST output the complete {target} file in exactly one ```latex code block."
         prompt_text += "\nBefore the code block, write a short summary of the changes you made."
-    elif step in ("analyze", "review"):
-        prompt_text += "\nReturn only the evaluation JSON. VITA writes both JSON and Markdown."
 
     results_dir = Path(".vita") / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
-
-    if step in ("analyze", "review"):
-        def save(report):
-            delta = compute_delta(baseline, report) if baseline else None
-            save_evaluation(step, report)
-            if delta is not None:
-                save_delta(delta)
-            else:
-                # A new baseline or an unrelated review invalidates the old comparison.
-                for extension in ("json", "md"):
-                    (results_dir / f"delta.{extension}").unlink(missing_ok=True)
-
-        try:
-            run_structured(
-                step=step, generate=llm_generate, system=system_context, prompt=prompt_text,
-                route=settings.route(step, provider).kwargs(), schema=EVALUATION_OUTPUT_SCHEMA,
-                finalize=lambda data: finalize(json_text(data), job, baseline, step=step, sources=sources), save=save,
-            )
-            print(f"Validated {step} saved as JSON and Markdown in {results_dir}")
-            return True
-        except (StructuredOutputError, ValueError, OSError, KeyError, TypeError) as exc:
-            print(f"Could not validate or save {step} evaluation: {exc}")
-            return False
 
     try:
         response = llm_generate(system_context, prompt_text, **settings.route(step, provider).kwargs())

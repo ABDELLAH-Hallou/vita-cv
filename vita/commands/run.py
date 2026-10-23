@@ -42,7 +42,7 @@ def run(auto: bool = False, language: str = "en", provider: str | None = None) -
     if auto:
         print("✅ Pipeline complete!")
         print("   → .vita/results/analysis.json + analysis.md — initial evaluation")
-        print("   → main.tex                 — adapted CV")
+        print("   → main.tex                 — current CV after the adapt step")
         print("   → .vita/results/review.json + review.md — final evaluation")
         print("   → .vita/results/delta.json + delta.md — comparable score changes")
         print("   → .vita/results/cover.md   — cover letter report")

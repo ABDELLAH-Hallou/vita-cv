@@ -115,7 +115,7 @@ def test_two_cvs_and_both_stages_use_identical_taxonomy_and_denominators(project
         for stage in ("analyze", "review"):
             assert ai_step.run(stage, auto=True)
             assert "LOCKED CANONICAL JD CRITERIA" in provider.call_args.args[1]
-            assert cv in provider.call_args.args[0]
+            assert cv in "\n".join(provider.call_args.args)
             record = parse_json(Path(f".vita/results/{'analysis' if stage == 'analyze' else stage}.json").read_text(encoding="utf-8"))
             records.append(record)
             assert record["metadata"]["requirements_revision"] == data["revision"]

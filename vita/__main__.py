@@ -141,6 +141,9 @@ commands:
     review_p = subparsers.add_parser("review", help="Generate prompt to review the CV")
     review_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
     review_p.add_argument("-p", "--provider", help="LLM provider to use for --auto")
+    for assessment_parser in (analyze_p, review_p):
+        assessment_parser.add_argument("--reassess", action="store_true", help="Request a fresh scoring judgment")
+        assessment_parser.add_argument("--qualitative", action="store_true", help="Also write separate task-specific qualitative commentary")
 
     cover_p = subparsers.add_parser("cover", help="Create a cover letter from the CV and job.md")
     cover_p.add_argument("-l", "--language", default="en", help="Target language for the cover letter")
@@ -209,7 +212,8 @@ commands:
         lang = getattr(args, "language", None)
         auto = getattr(args, "auto", False)
         provider = getattr(args, "provider", None)
-        if ai_step.run(args.command, language=lang, auto=auto, provider=provider) is False:
+        options = {key: True for key in ("reassess", "qualitative") if getattr(args, key, False)}
+        if ai_step.run(args.command, language=lang, auto=auto, provider=provider, **options) is False:
             sys.exit(1)
 
     elif args.command == "save":

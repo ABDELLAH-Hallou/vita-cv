@@ -42,6 +42,8 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
     with zipfile.ZipFile(wheels[0]) as archive:
         names = set(archive.namelist())
         required_assets = {
+            "vita/assets/prompts/assess.md",
+            "vita/assets/skills/assessment-judge.md",
             "vita/assets/prompts/requirements.md",
             "vita/assets/prompts/extract.md",
             "vita/assets/prompts/analyze.md",
@@ -90,9 +92,13 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
         if not isinstance(json.loads(config_file.read_text(encoding="utf-8")), dict):
             raise AssertionError("vita init created invalid config.json")
 
-        for task in ("extract", "analyze", "adapt", "review", "cover"):
+        for task in ("assess", "extract", "analyze", "adapt", "review", "cover"):
             if not (project / ".vita/skills" / task).is_dir():
                 raise AssertionError(f"Missing custom skill directory for {task}")
+        for task in ("analyze", "review"):
+            assessment_help = run([str(python), "-m", "vita", task, "--help"], cwd=project).stdout
+            if "--reassess" not in assessment_help or "--qualitative" not in assessment_help:
+                raise AssertionError(f"Missing assessment controls in {task} help")
         (project / "main.tex").write_text(
             r"\documentclass{article}\begin{document}Python engineer\end{document}",
             encoding="utf-8",
@@ -140,6 +146,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
         run([str(python), str(Path(__file__).with_name("structured_recovery.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("canonical_requirements.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("candidate_evidence.py").resolve())], cwd=project)
+        run([str(python), str(Path(__file__).with_name("assessment_consistency.py").resolve())], cwd=project)
         build_help = run([str(python), "-m", "vita", "build", "--help"], cwd=project).stdout
         for option in ("both", "--resume", "--cover"):
             if option not in build_help:

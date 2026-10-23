@@ -3,6 +3,7 @@
 from pathlib import Path
 
 TASK_SKILLS = {
+    "assess": ("assessment-judge.md",),
     "extract": (),
     "analyze": ("job-description-analyzer.md",),
     "adapt": (

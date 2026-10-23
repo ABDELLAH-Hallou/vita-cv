@@ -190,7 +190,7 @@ def test_pipeline_toggle_dual_outputs_and_comparable_delta(workspace, monkeypatc
         if "STRUCTURED EVALUATION CONTRACT" in prompt:
             if len(calls) == 1:
                 return json.dumps(evaluation_report("partial"))
-            assert "Adapted CV" in system
+            assert "Adapted CV" in system + prompt
             assert "LOCKED JD CRITERIA" in prompt
             return json.dumps(evaluation_report("matched"))
         return "```latex\n\\documentclass{article}\n\\begin{document}\nAdapted CV\n\\end{document}\n```"

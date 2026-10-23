@@ -7,6 +7,7 @@ from vita.helpers.assessment_narrative import qualitative_text
 from vita.helpers.candidate_evidence import (
     candidate_instruction,
     capture_candidate_sources,
+    validate_snapshot,
     verification_notice,
     verify_criteria,
 )
@@ -82,6 +83,10 @@ def load_baseline(job: JobContext) -> dict | None:
         data = parse_json(path.read_text(encoding="utf-8"))
         validate_evaluation(data)
         metadata = data.get("metadata", {})
+        if metadata.get("candidate_capture_status") == "stale":
+            return None
+        if metadata.get("candidate_snapshot") is not None:
+            validate_snapshot(metadata["candidate_snapshot"])
         revision = job.requirements["revision"] if job.requirements is not None else None
         if metadata.get("requirements_revision") != revision:
             return None
@@ -102,7 +107,6 @@ def load_baseline(job: JobContext) -> dict | None:
 
 
 def evaluation_instruction(step: str, job: JobContext, baseline: dict | None = None, *, sources: dict | None = None) -> str:
-    name = "analysis" if step == "analyze" else "review"
     instruction = (
         "\n\nSTRUCTURED EVALUATION CONTRACT (overrides skill output-format advice):\n"
         "Return only one JSON object matching this schema; VITA renders the Markdown report.\n"
@@ -127,9 +131,8 @@ def evaluation_instruction(step: str, job: JobContext, baseline: dict | None = N
         "VITA alone renders those statements from calculated scores and the verified baseline. "
         "Preserve candidate achievement metrics, such as a 40% cost reduction. "
         "Put title/headline and summary suggestions in recommendations. "
-        "Omit metadata, qualitative_summary, and comparison; VITA sets these host-owned fields. "
-        f"When finalizing the output, pass step='{step}' to vita.helpers.evaluation.finalize. "
-        f"The outputs are .vita/results/{name}.json and .vita/results/{name}.md."
+        "Omit metadata, qualitative_summary, comparison, and assessment_comparison; VITA sets these host-owned fields. "
+        "Use the identical judge instructions for Analyze and Review. Stage-specific writing audits are separate."
     )
     if job.requirements is not None:
         instruction += (
@@ -145,9 +148,9 @@ def evaluation_instruction(step: str, job: JobContext, baseline: dict | None = N
                 {key: item[key] for key in TAXONOMY_FIELDS} for item in job.requirements["requirements"]
             ]})
         )
-    if baseline is not None:
+    if baseline is not None and job.requirements is None:
         instruction += (
-            "\n\nLOCKED JD CRITERIA:\nRe-evaluate exactly these criteria against the updated CV. "
+            "\n\nLOCKED JD CRITERIA:\nEvaluate exactly these criteria against the current CV. "
             "Preserve every id, job_id, category, criterion, and importance value. "
             "Change only status, evidence, evidence_kind, evidence_refs, and feedback. Do not add or remove criteria. "
             "Cite the CURRENT candidate snapshot; never reuse baseline source IDs for changed CV content.\n"
@@ -157,7 +160,7 @@ def evaluation_instruction(step: str, job: JobContext, baseline: dict | None = N
 
 
 def finalize(response: str, job: JobContext, baseline: dict | None = None, *, step: str | None = None,
-             sources: dict | None = None) -> dict:
+             sources: dict | None = None, assessment: dict | None = None, execution: dict | None = None) -> dict:
     report = parse_json(response)
     validate_evaluation(report)
     criteria = report["metrics"]["criteria"]
@@ -199,6 +202,15 @@ def finalize(response: str, job: JobContext, baseline: dict | None = None, *, st
     report["metadata"]["candidate_snapshot"] = sources if sources is not None else current
     report["metadata"]["candidate_capture_status"] = (
         "stale" if sources is not None and current != sources else "captured")
+    if assessment is not None:
+        if (assessment["source_sha256"] != report["metadata"]["candidate_snapshot"]["sha256"]
+                or assessment["job_sha256"] != job.source_sha256
+                or assessment["context_sha256"] != job.context_sha256
+                or assessment["criteria_sha256"] not in ("unlocked", report["metadata"]["criteria_sha256"])):
+            raise ValueError("Assessment provenance does not match captured sources, job or locked criteria")
+        report["metadata"]["assessment"] = assessment
+    if execution is not None:
+        report["metadata"]["assessment_execution"] = execution
     verify_criteria(criteria, report["metadata"]["candidate_snapshot"],
                     stale=report["metadata"]["candidate_capture_status"] == "stale")
     report["overall_score"], report["category_scores"] = scores(criteria)
@@ -218,11 +230,75 @@ def finalize(response: str, job: JobContext, baseline: dict | None = None, *, st
     else:
         report["comparison"] = {"status": "unavailable" if stage == "review" else "not_applicable",
                                 "baseline_overall_score": None, "overall_delta": None}
+    report["assessment_comparison"] = assessment_comparison(baseline, report)
     # A model cannot inject host-owned commentary/comparison fields.
     report["qualitative_summary"] = qualitative_text(report["executive_summary"])
     report = canonical_report(report)
     validate_evaluation(report)
     return report
+
+
+def assessment_comparison(before: dict | None, after: dict) -> dict:
+    """Describe source/config changes without asserting a causal tailoring benefit."""
+    result = {"kind": "not_recorded", "cv_sources": "not_recorded", "candidate_evidence": "not_recorded",
+              "configuration_changes": [], "source_changes": [],
+              "description": "Source/configuration provenance is incomplete; no tailoring attribution is justified."}
+    if before is None:
+        result.update(kind="not_applicable", description="No baseline source comparison applies.")
+        return result
+    old_meta, new_meta = before.get("metadata", {}), after.get("metadata", {})
+    old, new = old_meta.get("candidate_snapshot"), new_meta.get("candidate_snapshot")
+    if old is None or new is None:
+        return result
+    try:
+        validate_snapshot(old)
+        validate_snapshot(new)
+    except ValueError:
+        return result
+    if (old_meta.get("candidate_capture_status") == "stale" or new_meta.get("candidate_capture_status") == "stale"
+            or not all(any(s["kind"] == "cv" for s in snap["sources"]) for snap in (old, new))):
+        return result
+    maps = [{(s["kind"], s["path"]): s for s in snap["sources"]} for snap in (old, new)]
+    for key in sorted(maps[0].keys() | maps[1].keys()):
+        a, b = maps[0].get(key), maps[1].get(key)
+        if (a or {}).get("id") != (b or {}).get("id"):
+            result["source_changes"].append({"kind": key[0], "path": key[1],
+                                             "before_sha256": a["sha256"] if a else None,
+                                             "after_sha256": b["sha256"] if b else None})
+    cv_changed = any(s["kind"] in ("cv", "include") for s in result["source_changes"])
+    result["cv_sources"] = "changed" if cv_changed else "unchanged"
+    result["candidate_evidence"] = "changed" if result["source_changes"] else "unchanged"
+    a, b = old_meta.get("assessment"), new_meta.get("assessment")
+    if a is not None and b is not None:
+        keys = ("provider", "model", "reasoning_effort", "reasoning_source", "route_source", "config_sha256",
+                "system_sha256", "prompt_sha256", "schema_sha256", "generation_schema_sha256", "host_sha256",
+                "judge_sha256", "as_of_date")
+        # Source text changes the full prompt. Judge/configuration changes are
+        # distinguished by their source-independent hashes, not the source text.
+        if result["source_changes"]:
+            keys = tuple(key for key in keys if key not in ("prompt_sha256", "system_sha256"))
+        result["configuration_changes"] = [key for key in keys if a[key] != b[key]]
+        if a["route_source"] != "resolved" or b["route_source"] != "resolved":
+            result["configuration_changes"].append("runtime_identity_unreported")
+    else:
+        result["configuration_changes"] = ["provenance_not_recorded"]
+    config_changed = any(key not in ("provenance_not_recorded", "runtime_identity_unreported")
+                         for key in result["configuration_changes"])
+    if cv_changed:
+        result["kind"] = "sources_and_configuration_changed" if config_changed else "cv_changed"
+        description = "CV source content changed. The score difference compares documented-coverage judgments."
+    elif result["source_changes"]:
+        result["kind"] = "evidence_changed"
+        description = "CV source content is unchanged; candidate knowledge/evidence or its approval changed."
+    else:
+        reused = new_meta.get("assessment_execution", {}).get("mode") == "reused"
+        result["kind"] = "unchanged_reused" if reused else "unchanged_reassessment"
+        description = ("CV source content is unchanged. The identical-input assessment was reused." if reused else
+                       "CV source content is unchanged. Any score difference is a reassessment difference.")
+    if result["configuration_changes"]:
+        description += " Assessment configuration/provenance also differs or was not fully recorded."
+    result["description"] = description + " This is not evidence that tailoring caused an improvement."
+    return result
 
 
 def rounded_delta(before: float, after: float) -> float:
@@ -253,7 +329,7 @@ def executive_summary(report: dict) -> str:
         text += " This is the initial assessment; no baseline comparison applies."
     else:
         text += " Baseline availability was not recorded in this legacy report; no comparison is asserted."
-    return text + " " + verification_notice(report["metrics"]["criteria"])
+    return text + " " + report["assessment_comparison"]["description"] + " " + verification_notice(report["metrics"]["criteria"])
 
 
 def canonical_report(report: dict) -> dict:
@@ -279,6 +355,8 @@ def canonical_report(report: dict) -> dict:
     report["comparison"] = report.get("comparison", {
         "status": "not_recorded", "baseline_overall_score": None, "overall_delta": None,
     })
+    report.setdefault("assessment_comparison", assessment_comparison(
+        None if report["comparison"]["status"] == "not_applicable" else {}, report))
     comparison = report["comparison"]
     if comparison["status"] == "available":
         if comparison["baseline_overall_score"] is None:
@@ -315,6 +393,14 @@ def render_report(report: dict, title: str) -> str:
     )
     rows += ["## Evidence verification", "", verification_notice(report["metrics"]["criteria"]),
              "", verification_explanation, ""]
+    provenance = report.get("metadata", {}).get("assessment")
+    if provenance:
+        rows += ["## Assessment provenance", "", "| Field | Value |", "|---|---|"]
+        rows += [f"| {key} | {markdown_text(str(value))} |" for key, value in provenance.items()]
+        execution = report["metadata"].get("assessment_execution", {})
+        rows += ["", markdown_text(f"Execution: {execution.get('mode', 'not recorded')}; ID: {execution.get('id', 'not recorded')}"), ""]
+    else:
+        rows += ["## Assessment provenance", "", "Provider/model, reasoning and prompt/schema provenance were not recorded in this legacy report.", ""]
     if report["qualitative_summary"]:
         rows += ["## Qualitative commentary", "", markdown_text(report["qualitative_summary"]), ""]
     rows += ["## Scoring", "", "| Category | Score | Criteria |", "|---|---:|---:|"]
@@ -360,7 +446,7 @@ def render_report(report: dict, title: str) -> str:
 def save_evaluation(step: str, report: dict) -> None:
     report = canonical_report(report)
     name = "analysis" if step == "analyze" else "review"
-    text = render_report(report, "Initial analysis" if step == "analyze" else "Post-adaptation review")
+    text = render_report(report, "Initial analysis" if step == "analyze" else "Review assessment")
     write_artifact(RESULTS / f"{name}.md", text)
     write_artifact(RESULTS / f"{name}.json", json_text(report))
     if step == "analyze":
@@ -379,8 +465,8 @@ def compute_delta(before: dict, after: dict) -> dict:
     # Analyze and Review necessarily capture different CV versions. Job/taxonomy
     # provenance must match; candidate source identities are assessment-specific.
     def comparison_metadata(report):
-        return {key: value for key, value in report["metadata"].items()
-                if key not in ("candidate_snapshot", "candidate_capture_status")}
+        return {key: report["metadata"].get(key) for key in
+                ("job_sha256", "context_sha256", "criteria_sha256", "rubric_version", "requirements_revision")}
 
     if comparison_metadata(before) != comparison_metadata(after) or taxonomy(before) != taxonomy(after):
         raise ValueError("Cannot compare evaluations for different jobs or criteria")
@@ -405,17 +491,29 @@ def compute_delta(before: dict, after: dict) -> dict:
             for key in CATEGORIES
         },
         "criterion_changes": changes,
+        "assessment_comparison": assessment_comparison(before, after),
+        "evidence_changes": [{"id": item["id"], "criterion": item["criterion"],
+                              "before": previous[item["id"]]["evidence"], "after": item["evidence"],
+                              "before_refs": previous[item["id"]].get("evidence_refs", []),
+                              "after_refs": item.get("evidence_refs", [])}
+                             for item in after["metrics"]["criteria"]
+                             if any(item.get(key) != previous[item["id"]].get(key)
+                                    for key in ("evidence", "evidence_refs", "evidence_kind", "status"))],
         "metadata": before["metadata"],
     }
 
 
 def save_delta(delta: dict) -> None:
-    rows = ["# Evaluation changes", "", "Positive deltas indicate improved documented fit.", "",
+    interpretation = delta.get("assessment_comparison", {}).get("description", "Source changes were not recorded; no tailoring attribution is justified.")
+    rows = ["# Evaluation changes", "", interpretation, "",
             "| Score | Before | After | Delta |", "|---|---:|---:|---:|"]
     for label, values in {"overall": delta["overall_score"], **delta["category_scores"]}.items():
         rows.append(f"| {label} | {score_text(values['before'])} | {score_text(values['after'])} | {values['delta']:+.2f} |")
     rows += ["", "## Changed criteria", ""]
     rows += [f"- {markdown_text(item['criterion'])}: {item['before']} → {item['after']}"
              for item in delta["criterion_changes"]] or ["No status changes."]
+    rows += ["", "## Evidence or citation changes", ""]
+    rows += ["- " + markdown_text(f"{item['criterion']}: {item['before']} → {item['after']}")
+             for item in delta.get("evidence_changes", [])] or ["No evidence or citation changes."]
     write_artifact(RESULTS / "delta.md", "\n".join(rows) + "\n")
     write_artifact(RESULTS / "delta.json", json_text(delta))
