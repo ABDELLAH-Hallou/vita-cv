@@ -170,7 +170,7 @@ def test_enabled_extraction_failure_stops_pipeline_and_preserves_cache(workspace
 
 
 @pytest.mark.parametrize("enabled", [True, False])
-def test_pipeline_toggle_dual_outputs_and_comparable_delta(workspace, monkeypatch, job_data, evaluation_report, enabled):
+def test_pipeline_toggle_dual_outputs_and_comparable_delta(workspace, monkeypatch, job_data, evaluation_report, enabled, human_confirmed_edits):
     monkeypatch.setenv("ENABLE_JD_EXTRACTION", str(enabled).lower())
     monkeypatch.setenv("EXTRACTION_PROVIDER", "openrouter")
     monkeypatch.setenv("EXTRACTION_MODEL", "vendor/fast")

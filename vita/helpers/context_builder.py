@@ -55,8 +55,8 @@ def current_date_instruction() -> str:
         "\n\nCURRENT DATE INSTRUCTION:\n"
         f"Today's date is {today}.\n"
         "When reviewing or adapting CV dates, treat this as the current date. "
-        "Do not rewrite, shorten, or correct CV dates just because they appear "
-        "to be in the future unless they are after today's date or clearly inconsistent."
+        "Do not rewrite, shorten, or correct CV dates, including future or apparently inconsistent dates. "
+        "Preserve ambiguous tokens and overlapping Present roles; flag interpretations for confirmation."
     )
 
 
@@ -77,10 +77,10 @@ def cv_knowledge_instruction() -> str:
     return (
         "\n\nMASTER CV KNOWLEDGE BASE INSTRUCTION:\n"
         "The user has provided `.vita/cv.yaml` as a structured master CV knowledge base. "
-        "Use it as additional source material while editing the CV: prefer relevant facts, "
-        "role targets, skills, bullets, metrics, projects, certifications, and other truthful "
-        "details from this file when they strengthen the tailored `main.tex`.\n"
-        "Only the CV and `.vita/cv.yaml` establish candidate facts. Job descriptions "
+        "Treat unverified knowledge as context only, never as proof of candidate facts. "
+        "Only knowledge spans explicitly approved in `.vita/cv-verified.json` and included in the "
+        "host-captured snapshot may support candidate facts. Do not treat source presence as semantic verification.\n"
+        "Only captured CV sources and verified knowledge spans support candidate facts. Job descriptions "
         "and generated analyses describe requirements, not evidence of qualifications. "
         "Do not invent facts. Keep the final document concise and credible.\n\n"
         "==== FILE: .vita/cv.yaml ====\n"

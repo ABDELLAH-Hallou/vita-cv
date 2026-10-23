@@ -11,11 +11,12 @@ from vita.helpers.context_builder import (
 )
 from vita.helpers.diagnostics import diagnosed
 from vita.helpers.extensions import merged_language_map
+from vita.helpers.factual_changes import capture, guard, instruction, stage
 from vita.helpers.job_extraction import extract, prepare_job
 from vita.helpers.llm import generate as llm_generate
 from vita.helpers.pipeline_config import load_pipeline_settings
 from vita.helpers.skills import skill_context
-from vita.helpers.structured import write_artifact
+from vita.helpers.structured import json_text, write_artifact
 from vita.helpers.structured_output import run_text
 
 # ── Built-in language codes ───────────────────────────────────────────────────
@@ -52,6 +53,8 @@ def run(
     config = load_config()
     resume_entry = config.get("tex_entry", "main.tex")
     cover_entry = config.get("cover_tex_entry", "cover-letter.tex")
+    if step in ("review", "cover") and not guard(("adapt",)):
+        return False
     if step in ("analyze", "review"):
         return run_assessment(step, job, settings=settings, resume_entry=resume_entry,
                               generate=llm_generate, auto=auto, provider=provider,
@@ -125,6 +128,8 @@ def run(
         prompt_text += cv_knowledge_instruction()
 
     prompt_text += current_date_instruction()
+    if step in ("adapt", "cover"):
+        prompt_text += instruction(step)
     prompt_text = prompt_text.replace("`main.tex`", f"`{resume_entry}`")
     prompt_text = prompt_text.replace("`cover-letter.tex`", f"`{cover_entry}`")
 
@@ -149,6 +154,13 @@ def run(
 
     # ── Auto Execution ────────────────────────────────────────────────────────
     print(f"🚀 Running '{step}' autonomously...")
+    try:
+        factual_context = capture(step) if step in ("adapt", "cover") else None
+    except (ValueError, OSError):
+        print("Cannot capture factual sources. Check the CV, included files, and document configuration.")
+        return False
+    if factual_context:
+        prompt_text += "\n\nCAPTURED FACTUAL SOURCES (identity and text, not proof of equivalence):\n" + json_text(factual_context["candidate_sources"])
     system_context = build_system_context(
         prompt_text, step=step, resume_entry=resume_entry, include_job=False,
     )
@@ -188,9 +200,13 @@ def run(
             write_artifact(results_dir / f"{step}.md", response)
             print(f"⚠️ The AI did not return one valid LaTeX document. '{target}' was not updated.")
             return False
-        target_path = Path(target)
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        write_artifact(target_path, new_tex)
+        try:
+            if not stage(factual_context, new_tex):
+                write_artifact(results_dir / f"{step}.md", "Document not applied: confirmation required. See " + f"{step}.facts.md and {step}.facts.json.\n")
+                return False
+        except (ValueError, OSError):
+            print("Factual-change validation or persistence failed; inspect sources and the proposal before retrying.")
+            return False
         print(f"✅ Successfully updated {target}!")
         summary = re.sub(pattern, "", response, flags=re.DOTALL).strip()
 

@@ -61,7 +61,7 @@ def cached_job():
     return data
 
 
-def test_issue37_codex_replay_recovers_and_completes_pipeline(project, monkeypatch, evaluation_report):
+def test_issue37_codex_replay_recovers_and_completes_pipeline(project, monkeypatch, evaluation_report, human_confirmed_edits):
     cached_job()
     original_cache = Path(".vita/results/job.json").read_bytes()
     monkeypatch.setattr(llm, "_find_codex_cli", lambda: "mock-codex")
