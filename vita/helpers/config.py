@@ -9,7 +9,7 @@ Responsible for:
 import json
 from pathlib import Path
 
-from vita.helpers.diagnostics import phase
+from vita.helpers.diagnostics import journal, phase
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -39,10 +39,13 @@ DEFAULT_CONFIG: dict = {
 def load_config() -> dict:
     """Load config.json, falling back to DEFAULT_CONFIG if not found."""
     if not CONFIG_FILE.exists():
+        journal("configuration.project", file=str(CONFIG_FILE.resolve()), source="built_in_defaults", values=DEFAULT_CONFIG)
         print("⚠️  No .vita/config.json found. Run `vita init` first.")
         return dict(DEFAULT_CONFIG)
     with open(CONFIG_FILE) as f:
-        return json.load(f)
+        values = json.load(f)
+    journal("configuration.project", file=str(CONFIG_FILE.resolve()), source="project_config", values=values)
+    return values
 
 
 def save_config(data: dict) -> None:

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from vita.helpers.diagnostics import phase
+from vita.helpers.diagnostics import journal, phase
 
 TASK_SKILLS = {
     "assess": ("assessment-judge.md",),
@@ -34,6 +34,7 @@ def skill_context(step: str) -> str:
     for name in TASK_SKILLS[step]:
         selected.append(local.pop(name, BUNDLED_SKILLS_DIR / name))
     selected.extend(local.values())
+    journal("context.skills", task=step, sources=[{"path": str(path.resolve()), "source": "project_override_or_addition" if path.parent == local_dir else "bundled"} for path in selected])
     blocks = [
         "TASK SKILLS:\nApply these embedded definitions to the skill references in the "
         "current task; no separate skill-file lookup is needed. "

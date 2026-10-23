@@ -43,6 +43,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
         names = set(archive.namelist())
         required_assets = {
             "vita/helpers/factual_changes.py",
+            "vita/helpers/execution_journal.py",
             "vita/commands/facts.py",
             "vita/assets/prompts/assess.md",
             "vita/assets/skills/assessment-judge.md",
@@ -152,6 +153,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
         run([str(python), str(Path(__file__).with_name("provider_failures.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("execution_diagnostics.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("factual_changes.py").resolve())], cwd=project)
+        run([str(python), str(Path(__file__).with_name("developer_journal.py").resolve())], cwd=project)
         diagnostics_help = run([str(python), "-m", "vita", "diagnostics", "--help"], cwd=project).stdout
         if not all(command in diagnostics_help for command in ("list", "inspect", "export")):
             raise AssertionError("Installed diagnostics inspection commands are missing")

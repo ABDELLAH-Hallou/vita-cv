@@ -9,7 +9,7 @@ from vita.helpers.context_builder import (
     cv_knowledge_instruction,
     multi_job_instruction,
 )
-from vita.helpers.diagnostics import diagnosed
+from vita.helpers.diagnostics import diagnosed, failure, journal, local_artifact
 from vita.helpers.extensions import merged_language_map
 from vita.helpers.factual_changes import capture, guard, instruction, stage
 from vita.helpers.job_extraction import extract, prepare_job
@@ -47,7 +47,8 @@ def run(
     try:
         settings = load_pipeline_settings()
         job = prepare_job(settings, auto=auto)
-    except (ValueError, OSError, RuntimeError):
+    except (ValueError, OSError, RuntimeError) as exc:
+        failure("context", exc, category="validation_error")
         print("Cannot prepare job criteria. See execution diagnostics for the failed phase.")
         return False
     config = load_config()
@@ -135,6 +136,7 @@ def run(
 
     if not auto:
         prompt_text = skill_context(step) + "\n\n==== TASK ====\n" + prompt_text
+        local_artifact("generated-prompt", prompt_text)
         print(f"\n{'='*60}")
         print(f"AI Prompt for '{step}'")
         print(f"{'='*60}\n")
@@ -156,7 +158,8 @@ def run(
     print(f"🚀 Running '{step}' autonomously...")
     try:
         factual_context = capture(step) if step in ("adapt", "cover") else None
-    except (ValueError, OSError):
+    except (ValueError, OSError) as exc:
+        failure("context", exc, category="validation_error")
         print("Cannot capture factual sources. Check the CV, included files, and document configuration.")
         return False
     if factual_context:
@@ -181,7 +184,8 @@ def run(
     try:
         response = run_text(step=step, generate=llm_generate, system=system_context,
                             prompt=prompt_text, route=settings.route(step, provider).kwargs())
-    except Exception:
+    except Exception as exc:
+        failure("provider_request", exc)
         print("Failed to run AI. See execution diagnostics for the failed phase and provider category.")
         return False
     
@@ -197,6 +201,9 @@ def run(
                 for marker in (r"\documentclass", r"\begin{document}", r"\end{document}")
             )
         if not valid:
+            journal("validation.document_rejected", level="ERROR", target=target,
+                    latex_block_count=len(matches), reason="Expected one nonempty LaTeX block; cover requires a standalone document.")
+            failure("validation", category="validation_error")
             write_artifact(results_dir / f"{step}.md", response)
             print(f"⚠️ The AI did not return one valid LaTeX document. '{target}' was not updated.")
             return False
@@ -204,7 +211,8 @@ def run(
             if not stage(factual_context, new_tex):
                 write_artifact(results_dir / f"{step}.md", "Document not applied: confirmation required. See " + f"{step}.facts.md and {step}.facts.json.\n")
                 return False
-        except (ValueError, OSError):
+        except (ValueError, OSError) as exc:
+            failure("persistence" if isinstance(exc, OSError) else "validation", exc, category="artifact_error" if isinstance(exc, OSError) else "validation_error")
             print("Factual-change validation or persistence failed; inspect sources and the proposal before retrying.")
             return False
         print(f"✅ Successfully updated {target}!")

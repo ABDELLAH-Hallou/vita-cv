@@ -27,7 +27,9 @@ def run(action, trace_id=None, output=None, as_json=False):
             if as_json:
                 print(json_text(result))
             else:
-                print(f"Trace {trace_id}: {destination(project_root()) / trace_id}")
+                print(f"Trace {result['trace_id']}: {destination(project_root()) / result['trace_id']}")
+                for journal in result.get("local_journals", []):
+                    print(f"Developer execution journal: {destination(project_root()) / result['trace_id'] / journal['path']}")
                 for process in result["processes"]:
                     print(f"{process['status']}: phase={process['failed_phase'] or 'none'}; category={process['failure'].get('category', 'none')}")
                 for artifact in result["artifacts"]:

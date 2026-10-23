@@ -7,6 +7,7 @@ import os
 import re
 
 from vita.helpers.config import VITA_DIR
+from vita.helpers.diagnostics import journal
 
 ENV_FILE = VITA_DIR / ".env"
 ENV_EXAMPLE_FILE = VITA_DIR / ".env.example"
@@ -44,7 +45,14 @@ def read_env_file() -> dict[str, str]:
 
 def load_env() -> dict[str, str]:
     """Return project settings with process environment taking precedence."""
-    return {**read_env_file(), **os.environ}
+    project = read_env_file()
+    result = {**project, **os.environ}
+    names = {"ENABLE_JD_EXTRACTION", "VITA_PROVIDER_MAX_ATTEMPTS", "VITA_PROVIDER_RETRY_BASE_SECONDS", "VITA_PROVIDER_RETRY_MAX_SECONDS"}
+    names.update(f"{prefix}_{suffix}" for prefix in ("EXTRACTION", "ANALYSIS", "ADAPT", "REVIEW", "COVER") for suffix in ("MODEL", "PROVIDER"))
+    journal("configuration.environment", project_env_file=str(ENV_FILE.resolve()),
+            settings={name: {"value": result.get(name), "source": "process_environment" if name in os.environ else "project_env" if name in project else "unset"} for name in sorted(names)},
+            credential_status=[{"variable": name, "present": bool(value), "source": "process_environment" if name in os.environ else "project_env"} for name, value in result.items() if name.endswith("_API_KEY")])
+    return result
 
 
 def env_example_text() -> str:
@@ -68,8 +76,9 @@ VITA_PROVIDER_MAX_ATTEMPTS=3
 # Capped exponential backoff; Retry-After longer than the cap stops the run.
 VITA_PROVIDER_RETRY_BASE_SECONDS=1
 VITA_PROVIDER_RETRY_MAX_SECONDS=30
-# Diagnostics default to technical metadata; sanitized mode captures structure only.
-VITA_DIAGNOSTIC_CONTENT=off
+# Local journals retain prompts/responses; credentials are redacted.
+# off = technical metadata only; sanitized = source structure only.
+VITA_DIAGNOSTIC_CONTENT=local
 # Absolute application project root (set explicitly for staging subprocesses).
 # VITA_PROJECT_ROOT=/absolute/application/project
 # Optional absolute persistent traces store (outside temporary staging).

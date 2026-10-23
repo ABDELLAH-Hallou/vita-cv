@@ -4,6 +4,7 @@ include pyproject.toml
 include EXTENSIONS.md
 include PIPELINE.md
 include FACTUAL_CHANGES.md
+include DIAGNOSTICS.md
 include tests/conftest.py
 
 recursive-include vita/assets *.md
