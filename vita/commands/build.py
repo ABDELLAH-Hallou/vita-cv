@@ -2,10 +2,13 @@ import subprocess
 from pathlib import Path
 
 from vita.helpers.config import load_config
+from vita.helpers.factual_changes import guard
 from vita.helpers.logging import log
 
 
 def run(target: str = "resume") -> bool:
+    if not guard(("adapt", "cover") if target in ("cover", "both") else ("adapt",)):
+        return False
     config   = load_config()
     output_dir      = config.get("output_dir", "out")
     author          = config.get("author", "cv")

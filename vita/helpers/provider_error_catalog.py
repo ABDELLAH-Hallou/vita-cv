@@ -1,6 +1,7 @@
 """Content-free action catalog; no configuration, logging or adapter imports."""
 
 ACTIONS = {
+    "confirmation_required": "A document proposal needs factual review. Inspect vita facts show adapt or vita facts show cover; preserve the original until explicitly confirmed. This is not a provider failure.",
     "overloaded": "The provider is temporarily overloaded. Retry this step later.",
     "rate_limit": "The provider rate limit was reached. Wait before retrying this step.",
     "server_error": "The provider temporarily failed. Retry this step later.",

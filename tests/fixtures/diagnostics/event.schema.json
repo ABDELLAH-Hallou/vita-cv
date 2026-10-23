@@ -261,6 +261,7 @@
             "schema_error",
             "validation_error",
             "artifact_error",
+            "confirmation_required",
             "unclassified",
             "interrupted"
           ]

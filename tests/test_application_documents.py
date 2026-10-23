@@ -53,7 +53,7 @@ def test_empty_custom_skill_keeps_bundled_default(project):
 
 
 @pytest.mark.parametrize("task", ["analyze", "adapt", "review", "cover"])
-def test_manual_and_auto_use_same_task_skills(project, monkeypatch, task, evaluation_report):
+def test_manual_and_auto_use_same_task_skills(project, monkeypatch, task, evaluation_report, human_confirmed_edits):
     custom_skill(project, task, "my-style.md", f"UNIQUE {task} STYLE")
     scoring_task = "assess" if task in ("analyze", "review") else task
     if scoring_task == "assess":
@@ -81,7 +81,7 @@ def test_manual_and_auto_use_same_task_skills(project, monkeypatch, task, evalua
         assert "**French**" in prompt
 
 
-def test_full_pipeline_uses_adapted_cv_for_cover_and_same_provider(project, monkeypatch, evaluation_report):
+def test_full_pipeline_uses_adapted_cv_for_cover_and_same_provider(project, monkeypatch, evaluation_report, human_confirmed_edits):
     calls = []
 
     def generate(system, prompt, provider=None):
@@ -136,7 +136,7 @@ def test_invalid_letter_preserves_existing_files(project, monkeypatch, response)
     assert "Original CV" in (project / "main.tex").read_text(encoding="utf-8")
 
 
-def test_cover_accepts_crlf_fence_and_custom_paths(project, monkeypatch):
+def test_cover_accepts_crlf_fence_and_custom_paths(project, monkeypatch, human_confirmed_edits):
     (project / "main.tex").rename(project / "resume.tex")
     config = {**DEFAULT_CONFIG, "tex_entry": "resume.tex", "cover_tex_entry": "letters/acme.tex"}
     (project / ".vita/config.json").write_text(json.dumps(config), encoding="utf-8")
@@ -164,7 +164,7 @@ def test_cover_requires_sources_and_does_not_overwrite_cv(project, monkeypatch, 
     provider.assert_not_called()
 
 
-def test_cover_multiple_jobs_and_knowledge_are_grounded(project, monkeypatch):
+def test_cover_multiple_jobs_and_knowledge_are_grounded(project, monkeypatch, human_confirmed_edits):
     (project / "job.md").write_text("# Job 1\nPython\n# Job 2\nData", encoding="utf-8")
     (project / ".vita/cv.yaml").write_text("achievement: Known achievement", encoding="utf-8")
     provider = Mock(return_value="```latex\n" + LATEX % "Letter" + "\n```")
@@ -281,7 +281,7 @@ def test_cli_build_failure_returns_nonzero(project, monkeypatch):
         main()
 
 
-def test_pipeline_reuses_configured_model_for_cover(project, monkeypatch, evaluation_report):
+def test_pipeline_reuses_configured_model_for_cover(project, monkeypatch, evaluation_report, human_confirmed_edits):
     from vita.helpers import llm
 
     monkeypatch.setattr(llm, "load_env", lambda: {})

@@ -6,6 +6,30 @@ from vita.helpers.structured import CATEGORIES
 
 
 @pytest.fixture
+def human_confirmed_edits(monkeypatch):
+    """Explicit human-review simulation for pre-existing synthetic workflow tests.
+
+    Production unattended execution never does this. Q07 tests exercise the
+    default stop, reject, stale-source, and manual decision boundaries directly.
+    These older tests focus on providers, skills, extraction and score deltas.
+    """
+    from vita.commands import ai_step
+    from vita.helpers import factual_changes
+
+    stage = factual_changes.stage
+
+    def reviewed(context, document):
+        if stage(context, document):
+            return True
+        report = factual_changes.load(context["step"])
+        assert report["status"] == "confirmation_required"
+        decision = factual_changes.decide(context["step"], report["revision"], True)
+        return decision["application_status"] == "applied"
+
+    monkeypatch.setattr(ai_step, "stage", reviewed)
+
+
+@pytest.fixture
 def evaluation_report():
     def make(status="matched", job_ids=("job-1",)):
         criteria = [{

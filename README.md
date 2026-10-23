@@ -636,6 +636,10 @@ VITA includes a library of AI agent skills for specialized tasks. Reference them
 
 ## Design Philosophy
 
+Adapt/Cover proposals now require explicit confirmation for unverified factual or
+wording changes. See [source-linked factual changes](FACTUAL_CHANGES.md) for
+`vita facts`, structured outputs, and the conservative unattended behavior.
+
 - **Warn, don't block** — duplicate CVs trigger a warning, not a hard stop (`--force` overrides, `locked: true` blocks permanently)
 - **CLI enforces naming** — roles are normalized automatically (`data engineer` → `de`, `machine learning engineer` → `ml`)
 - **Registry is the truth** — `.vita/companies.json` is the authoritative record; use `vita sync` if it drifts from git

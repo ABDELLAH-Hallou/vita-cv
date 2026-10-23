@@ -13,6 +13,7 @@ from vita.commands import (
     build,
     diagnostics,
     diff,
+    facts,
     init,
     keys,
     lock,
@@ -53,6 +54,18 @@ commands:
     parser.add_argument("-V", "--version", action="version", version=f"vita-cv {__version__}")
 
     subparsers = parser.add_subparsers(dest="command", metavar="<command>")
+
+    facts_p = subparsers.add_parser("facts", help="Inspect and explicitly decide source-linked Adapt/Cover proposals")
+    facts_sub = facts_p.add_subparsers(dest="facts_action", required=True)
+    for action in ("capture", "check", "show", "approve", "reject"):
+        action_p = facts_sub.add_parser(action)
+        action_p.add_argument("step", choices=("adapt", "cover"))
+        if action == "check":
+            action_p.add_argument("--proposal", required=True, help="Separate project-local proposed .tex file")
+        if action in ("approve", "reject"):
+            action_p.add_argument("revision", help="Exact revision after reviewing all confirmation items")
+        if action == "show":
+            action_p.add_argument("--json", action="store_true")
 
     diagnostics_p = subparsers.add_parser("diagnostics", help="Inspect local execution traces or export a sanitized technical bundle")
     diagnostics_sub = diagnostics_p.add_subparsers(dest="diagnostics_action", required=True)
@@ -183,7 +196,12 @@ commands:
     # ── Route ─────────────────────────────────────────────────────────────────
     args = parser.parse_args()
 
-    if args.command == "diagnostics":
+    if args.command == "facts":
+        if facts.run(args.facts_action, args.step, revision=getattr(args, "revision", None),
+                     proposal=getattr(args, "proposal", None), as_json=getattr(args, "json", False)) is False:
+            sys.exit(1)
+
+    elif args.command == "diagnostics":
         if diagnostics.run(args.diagnostics_action, trace_id=getattr(args, "trace_id", None),
                            output=getattr(args, "output", None), as_json=getattr(args, "json", False)) is False:
             sys.exit(1)

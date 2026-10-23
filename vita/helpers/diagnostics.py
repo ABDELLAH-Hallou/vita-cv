@@ -33,7 +33,7 @@ CATEGORIES = ("configuration", "authentication", "permission", "overloaded", "ra
               "timeout", "connection", "tls", "invalid_model", "quota_exceeded", "invalid_request", "not_found",
               "unsupported_schema", "refusal", "incomplete_response", "empty_response", "provider_error",
               "response_shape", "response_decode", "invalid_json", "schema_error", "validation_error",
-              "artifact_error", "unclassified", "interrupted")
+              "artifact_error", "confirmation_required", "unclassified", "interrupted")
 PROVIDERS = ("openai", "openrouter", "gemini", "google", "codex", "anthropic", "groq", "mistral", "deepseek", "xai", "together", "perplexity", "cohere")
 _CURRENT = contextvars.ContextVar("vita_diagnostic_trace", default=None)
 _SPAN = contextvars.ContextVar("vita_diagnostic_span", default=None)
