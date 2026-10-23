@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.7.0...v2.8.0) (2026-10-23)
+
+
+### Features
+
+* **facts:** preserve source-linked CV facts in Adapt and Cover ([#68](https://github.com/ABDELLAH-Hallou/vita-cv/issues/68)) ([fabee75](https://github.com/ABDELLAH-Hallou/vita-cv/commit/fabee75d8f953c4d385d8bfc0f8bd38cd6d314e9))
+
 ## [2.7.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.6.3...v2.7.0) (2026-10-23)
 
 
