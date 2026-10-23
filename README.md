@@ -447,6 +447,11 @@ Discovery does not prove generation access. `--generate` sends a synthetic probe
 and may consume usage. Automatic tasks expose typed provider errors and retry
 recognized transient failures under a shared, capped budget with format recovery.
 See [provider errors and retry configuration](PIPELINE.md#provider-failures-and-bounded-backoff).
+Failures also point to project-owned execution traces. See the
+[diagnostics contract, privacy policy and Vita Tree integration](DIAGNOSTICS.md)
+for `vita diagnostics inspect/export`, incoming trace context and opt-in
+sanitized structural capture. These diagnostics remain separate from outcomes
+and validated reports.
 
 ```sh
 vita keys list

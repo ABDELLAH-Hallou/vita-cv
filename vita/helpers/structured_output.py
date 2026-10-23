@@ -7,6 +7,7 @@ import time
 import uuid
 from pathlib import Path
 
+from vita.helpers import diagnostics as diagnostic
 from vita.helpers.provider_errors import (
     ProviderError,
     RetryPolicy,
@@ -64,6 +65,7 @@ def record_provider_failure(step: str, exc: ProviderError, route: dict) -> dict:
     return record
 
 
+@diagnostic.diagnosed()
 def run_structured(*, step: str, generate, system: str, prompt: str, route: dict,
                    schema: dict | None, finalize, save, session: dict | None = None):
     """Save only validated values. All retries keep the original evidence/context.
@@ -74,6 +76,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
     step = safe_step(step)
     run_id = uuid.uuid4().hex
     route = dict(route)
+    diagnostic.emit("route", "step", outcome_run_id=run_id)
     path = Path(".vita/results/attempts") / f"{step}-{run_id}.json"
     latest = Path(".vita/results") / f"{step}.outcome.json"
     record = {"schema_version": 1, "run_id": run_id, "step": step, "status": "running",
@@ -85,6 +88,12 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
     original_prompt = (prompt + "\n\nRequired JSON output schema:\n" + json_text(schema)
                        if schema is not None else prompt)
     repair = ""
+    diagnostic.capture("request", [("system", system), ("user", prompt)], exists=True)
+    diagnostic.capture("instructions", exists=True)
+    if schema is not None:
+        diagnostic.capture("schema", schema, exists=True)
+    diagnostic.emit("route", "prompt", requested_provider=route.get("provider"), requested_model=route.get("model"),
+                    prompt_sha256=digest(system + "\n" + prompt), schema_sha256=digest(json_text(schema)) if schema else None)
 
     def persist():
         record["attempt_count"] = len(record["attempts"])
@@ -92,6 +101,8 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
         write_artifact(latest, json_text(record))
 
     def fail(code, action, error=None):
+        diagnostic.failure("persistence" if code == "artifact_error" else "validation" if code == "structured_output_invalid" else "provider_request",
+                           category=(error or {}).get("category", code))
         record.update(status="failed", error=error or {"code": code, "action": action})
         persist()
         raise StructuredOutputError(code, action, path, record["error"])
@@ -116,9 +127,17 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
         record["attempts"].append(attempt)
         persist()
         try:
+            trace = diagnostic.current()
+            if trace:
+                trace.failure = None
+                trace.response_exists = None
+                trace.attempt_id = uuid.uuid4().hex
+            diagnostic.emit("attempt", "provider_request", attempt=number, max_attempts=policy.max_attempts)
             session["request"] = {"attempt": number, "prompt_sha256": digest(original_prompt + repair)}
-            response = generate(system, original_prompt + repair, **kwargs)
+            with diagnostic.span("provider_request", attempt=number):
+                response = generate(system, original_prompt + repair, **kwargs)
         except UnsupportedSchema as exc:
+            diagnostic.failure("provider_request", exc, http_status=exc.status, retryable=False)
             attempt.update(category="unsupported_schema", mode=session["mode"])
             attempt["route"] = safe_route(route, session)
             attempt["error"] = exc.contract(step=step, route=attempt["route"], attempts=number,
@@ -131,6 +150,11 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
             continue
         except Exception as exc:
             error = normalize_error(exc)
+            diagnostic.failure("provider_request", exc, category=error.code, http_status=error.status,
+                               retryable=error.retryable, retry_after_seconds=error.retry_after)
+            if diagnostic.current() and diagnostic.current().response_exists is None:
+                diagnostic.current().response_exists = False if error.status is not None else None
+                diagnostic.capture("response", exists=diagnostic.current().response_exists)
             attempt.update(category=error.code, mode=session["mode"], route=safe_route(route, session))
             attempt["error"] = error.contract(step=step, route=attempt["route"], attempts=number,
                                                max_attempts=policy.max_attempts, exhausted=number == policy.max_attempts)
@@ -141,13 +165,19 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                 if delay is not None:
                     attempt["retry_delay_seconds"] = delay
                     persist()
+                    started_delay = time.monotonic()
                     time.sleep(delay)
+                    diagnostic.emit("retry", "provider_request", attempt=number, category=error.code,
+                                    delay_seconds=max(0, time.monotonic() - started_delay), retry_after_seconds=error.retry_after)
                     # Keep any previous format-repair instruction unchanged.
                     continue
                 attempt["error"]["retry_stopped"] = "retry_after_exceeds_delay_cap"
                 attempt["error"]["action"] += " Retry-After exceeds the configured wait cap; rerun after that interval."
             fail("provider_error", attempt["error"]["action"], attempt["error"])
         attempt.update(mode=session["mode"], route=safe_route(route, session))
+        if diagnostic.current():
+            diagnostic.current().response_exists = True
+        diagnostic.capture("response", response, exists=True)
         if isinstance(response, str):
             attempt.update(response_sha256=digest(response), response_chars=len(response))
         if schema is None and (not isinstance(response, str) or not response.strip()):
@@ -159,36 +189,45 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
         try:
             if not isinstance(response, str) or not response.strip():
                 raise ValueError("Empty response")
-            data = parse_json(response) if schema is not None else response
+            with diagnostic.span("decoding"):
+                data = parse_json(response) if schema is not None else response
         except (ValueError, RecursionError) as exc:
             attempt["category"] = "invalid_json"
             if isinstance(exc, json.JSONDecodeError):
                 attempt["location"] = {"line": exc.lineno, "column": exc.colno, "offset": exc.pos}
+            diagnostic.failure("decoding", exc, category="invalid_json", line=getattr(exc, "lineno", None), column=getattr(exc, "colno", None), offset=getattr(exc, "pos", None))
         else:
             try:
                 if schema is not None:
-                    validate(data, schema)
+                    with diagnostic.span("validation"):
+                        validate(data, schema)
             except (ValueError, TypeError, RecursionError) as exc:
                 attempt["category"] = "schema_error"
+                diagnostic.failure("validation", exc, category="schema_error")
                 # These host validator messages contain schema paths, never values.
                 if type(exc) is ValueError:
-                    attempt["detail"] = str(exc)
+                    attempt["detail"] = diagnostic.validation_detail(exc)
             else:
                 try:
-                    value = finalize(data)
+                    with diagnostic.span("validation"):
+                        value = finalize(data)
                 except (ValueError, TypeError, KeyError, RecursionError) as exc:
                     attempt["category"] = "validation_error"
+                    diagnostic.failure("validation", exc, category="validation_error")
                     if type(exc) is ValueError:
-                        attempt["detail"] = str(exc)
+                        attempt["detail"] = diagnostic.validation_detail(exc)
                 else:
                     attempt["category"] = "valid"
                     persist()
                     try:
-                        save(value)
+                        with diagnostic.span("persistence"):
+                            save(value)
                     except (OSError, ValueError, TypeError):
                         fail("artifact_error", "Validated output could not be saved. Check output-directory access "
                              "and rerun this step; no additional model call was made.")
                     record.update(status="success", recovered=number > 1)
+                    if diagnostic.current():
+                        diagnostic.current().failure = None
                     persist()
                     return value
         persist()

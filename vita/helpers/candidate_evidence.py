@@ -10,6 +10,7 @@ from pathlib import Path
 
 from vita.helpers.config import load_config
 from vita.helpers.context_builder import cv_source_files
+from vita.helpers.diagnostics import phase
 from vita.helpers.structured import CANDIDATE_SNAPSHOT_SCHEMA, json_text, parse_json, validate
 
 KNOWLEDGE = Path(".vita/cv.yaml")
@@ -42,6 +43,7 @@ def valid_spans(spans: list, content: str) -> bool:
     )
 
 
+@phase("context")
 def capture_candidate_sources(entry: str | None = None) -> dict:
     """Read exactly the supported local CV graph and explicitly verified KB spans.
 

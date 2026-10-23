@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from vita.helpers.diagnostics import phase
+
 TASK_SKILLS = {
     "assess": ("assessment-judge.md",),
     "extract": (),
@@ -19,6 +21,7 @@ SKILLS_DIR = Path(".vita") / "skills"
 BUNDLED_SKILLS_DIR = Path(__file__).parent.parent / "assets" / "skills"
 
 
+@phase("prompt")
 def skill_context(step: str) -> str:
     """Replace same-named bundled skills, then append other local Markdown files."""
     local_dir = SKILLS_DIR / step

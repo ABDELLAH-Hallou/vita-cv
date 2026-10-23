@@ -9,6 +9,8 @@ Responsible for:
 import json
 from pathlib import Path
 
+from vita.helpers.diagnostics import phase
+
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
 VITA_DIR    = Path(".vita")
@@ -33,6 +35,7 @@ DEFAULT_CONFIG: dict = {
 
 # ── I/O ───────────────────────────────────────────────────────────────────────
 
+@phase("configuration")
 def load_config() -> dict:
     """Load config.json, falling back to DEFAULT_CONFIG if not found."""
     if not CONFIG_FILE.exists():

@@ -17,6 +17,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from vita.helpers import diagnostics as diagnostic
 from vita.helpers.config import load_config
 from vita.helpers.env import load_env
 from vita.helpers.extensions import add_llm_provider, get_llm_providers
@@ -76,7 +77,11 @@ def generate(
         raise
     except (TimeoutError, subprocess.TimeoutExpired):
         raise ProviderError(code="timeout") from None
-    except (KeyError, IndexError, TypeError, ValueError, OSError):
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        diagnostic.failure("provider_request", exc, category="unclassified")
+        raise ProviderError() from None
+    except OSError as exc:
+        diagnostic.failure("provider_request", exc, category="unclassified")
         raise ProviderError(code="provider_error") from None
 
 
@@ -84,16 +89,18 @@ def _generate_once(system_prompt, user_prompt, provider=None, model=None, *, res
     """Resolve exactly one route and call it without a fallback or hidden retry."""
     # A structured operation reuses this private snapshot across attempts. It
     # contains credentials and must never be serialized into outcome records.
+    requested_model = model
     if session is not None and "resolved" in session:
         resolved = session["resolved"]
     else:
         try:
             resolved = _resolve(provider, model)
-        except (ValueError, OSError):
+        except (ValueError, TypeError, OSError):
             raise ProviderError(code="configuration") from None
         if session is not None:
             session["resolved"] = resolved
     provider_name, model, config, env = resolved
+    diagnostic.routing(provider, requested_model, resolved)
     native = response_schema is not None and provider_name in {"codex", "openai", "openrouter", "gemini", "google"}
     native = native and config.get("structured_output", "auto") != "off"
     if session is not None:
@@ -113,6 +120,10 @@ def _generate_once(system_prompt, user_prompt, provider=None, model=None, *, res
     if provider_name == "google":
         api_key = api_key or env.get("GEMINI_API_KEY")
     if not api_key:
+        diagnostic.failure("configuration", category="configuration")
+        if diagnostic.current():
+            diagnostic.current().response_exists = False
+        diagnostic.capture("response", exists=False)
         raise ProviderError(code="configuration")
     public = safe_route({"provider": provider_name, "model": model}, {"resolved": resolved})
     print(f"🧠 Calling {public['provider']} ({public['model']})...")
@@ -141,8 +152,10 @@ def prepare_session(provider: str | None = None, model: str | None = None) -> di
         raise ProviderError(code="configuration") from None
 
 
+@diagnostic.phase("configuration")
 def _resolve(provider: str | None, model: str | None, *, allow_prompt: bool = True) -> tuple:
     """Resolve configuration once, without changing the requested model."""
+    requested_model = model
     env = load_env()
     providers = get_llm_providers()
 
@@ -181,10 +194,15 @@ def _resolve(provider: str | None, model: str | None, *, allow_prompt: bool = Tr
             )
 
     config = dict(providers.get(provider_name, {}))
+    origins = {"provider_origin": "explicit" if provider else "extensions",
+               "model_origin": "explicit" if model else "extensions" if config.get("model") else "default",
+               "reasoning_origin": "extensions" if config.get("reasoning_effort") else "cli_inherited" if provider_name == "codex" else "default"}
     model = model or config.get("model") or _DEFAULT_MODELS.get(provider_name, "gpt-4o")
     if config.get("structured_output", "auto") not in {"auto", "off"}:
         raise ValueError("structured_output must be auto or off")
-    return provider_name, model, config, dict(env)
+    resolved = provider_name, model, config, dict(env)
+    diagnostic.routing(provider, requested_model, resolved, origins)
+    return resolved
 
 
 def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "", *,
@@ -282,6 +300,7 @@ def _call_openai(system_prompt: str, user_prompt: str, api_key: str, model: str,
 def _call_openrouter(system_prompt: str, user_prompt: str, api_key: str, model: str, **options) -> str:
     return _call_openai_compatible(system_prompt, user_prompt, api_key, model, _OPENAI_COMPATIBLE["openrouter"], **options)
 
+@diagnostic.phase("decoding")
 def _call_openai_compatible(
     system_prompt: str, user_prompt: str, api_key: str, model: str, url: str, *,
     response_schema: dict | None = None, reasoning_effort: str | None = None,
@@ -311,6 +330,9 @@ def _call_openai_compatible(
         else:
             data["reasoning_effort"] = reasoning_effort
     result = _post(url, headers, data)
+    if (not isinstance(result, dict) or not isinstance(result.get("choices"), list) or not result["choices"]
+            or not isinstance(result["choices"][0], dict) or not isinstance(result["choices"][0].get("message"), dict)):
+        raise ProviderError(code="response_shape")
     choice = result["choices"][0]
     if choice["message"].get("refusal") or choice.get("finish_reason") == "content_filter":
         raise ProviderError("Provider refused the response", "refusal")
@@ -318,10 +340,14 @@ def _call_openai_compatible(
         raise ProviderError("Provider did not complete its response", "incomplete_response")
     content = choice["message"].get("content")
     if not isinstance(content, str) or not content.strip():
+        if diagnostic.current():
+            diagnostic.current().response_exists = True
+        diagnostic.capture("response", "", exists=True)
         raise ProviderError("Provider returned no text", "empty_response")
     return content
 
 
+@diagnostic.phase("decoding")
 def _call_anthropic(
     system_prompt: str, user_prompt: str, api_key: str, model: str
 ) -> str:
@@ -340,13 +366,24 @@ def _call_anthropic(
         "temperature": 0.2,
     }
     result = _post(url, headers, data)
+    if not isinstance(result, dict):
+        raise ProviderError(code="response_shape")
     if result.get("stop_reason") == "refusal":
         raise ProviderError("Provider refused the response", "refusal")
     if result.get("stop_reason") not in (None, "end_turn", "stop_sequence"):
         raise ProviderError("Provider did not complete its response", "incomplete_response")
-    return "".join(part.get("text", "") for part in result.get("content", []) if part.get("type", "text") == "text")
+    if not isinstance(result.get("content"), list) or any(not isinstance(p, dict) or not isinstance(p.get("text", ""), str) for p in result["content"]):
+        raise ProviderError(code="response_shape")
+    content = "".join(part.get("text", "") for part in result["content"] if part.get("type", "text") == "text")
+    if not content.strip():
+        if diagnostic.current():
+            diagnostic.current().response_exists = True
+        diagnostic.capture("response", "", exists=True)
+        raise ProviderError(code="empty_response")
+    return content
 
 
+@diagnostic.phase("decoding")
 def _call_gemini(
     system_prompt: str, user_prompt: str, api_key: str, model: str, *, response_schema: dict | None = None,
 ) -> str:
@@ -364,16 +401,32 @@ def _call_gemini(
     if response_schema is not None:
         data["generationConfig"].update(responseMimeType="application/json", responseJsonSchema=response_schema)
     result = _post(url, headers, data)
+    if not isinstance(result, dict):
+        raise ProviderError(code="response_shape")
     if result.get("promptFeedback", {}).get("blockReason"):
         raise ProviderError("Provider blocked the response", "refusal")
-    candidate = result.get("candidates", [{}])[0]
+    if "candidates" not in result or not isinstance(result["candidates"], list):
+        raise ProviderError(code="response_shape")
+    if not result["candidates"]:
+        raise ProviderError(code="empty_response")
+    candidate = result["candidates"][0]
+    if not isinstance(candidate, dict) or not isinstance(candidate.get("content", {}), dict):
+        raise ProviderError(code="response_shape")
     reason = candidate.get("finishReason")
     if reason in {"SAFETY", "RECITATION", "PROHIBITED_CONTENT", "BLOCKLIST"}:
         raise ProviderError("Provider blocked the response", "refusal")
     if reason not in (None, "STOP"):
         raise ProviderError("Provider did not complete its response", "incomplete_response")
-    return "".join(part.get("text", "") for part in candidate.get("content", {}).get("parts", [])
-                   if not part.get("thought"))
+    parts = candidate.get("content", {}).get("parts")
+    if not isinstance(parts, list) or any(not isinstance(p, dict) or not isinstance(p.get("text", ""), str) for p in parts):
+        raise ProviderError(code="response_shape")
+    content = "".join(part.get("text", "") for part in parts if not part.get("thought"))
+    if not content.strip():
+        if diagnostic.current():
+            diagnostic.current().response_exists = True
+        diagnostic.capture("response", "", exists=True)
+        raise ProviderError(code="empty_response")
+    return content
 
 
 # ── HTTP Helper ───────────────────────────────────────────────────────────────
@@ -387,26 +440,38 @@ def _post(url: str, headers: dict, data: dict | None, *, method: str = "POST") -
         method=method,
     )
     try:
-        with urllib.request.urlopen(req, timeout=120) as response:
-            return json.loads(response.read().decode("utf-8"))
+        with diagnostic.span("provider_request"):
+            with urllib.request.urlopen(req, timeout=120) as response:
+                raw = response.read()
+                diagnostic.http_metadata(getattr(response, "status", 200), getattr(response, "headers", {}), raw.decode("utf-8", errors="replace"))
+        with diagnostic.span("decoding"):
+            try:
+                result = json.loads(raw.decode("utf-8"))
+                if not isinstance(result, dict):
+                    raise ProviderError(code="response_shape")
+                return result
+            except (ValueError, UnicodeError) as exc:
+                diagnostic.failure("decoding", exc, category="response_decode", line=getattr(exc, "lineno", None), column=getattr(exc, "colno", None))
+                raise ProviderError(code="response_decode") from None
     except urllib.error.HTTPError as e:
         error_msg = e.read(8192).decode("utf-8", errors="replace")
+        diagnostic.http_metadata(e.code, e.headers, error_msg, rejected=True)
         # Only explicit lack of format support permits a prompt-only fallback.
         # Invalid schemas, auth, quota, and transport failures never trigger it.
         constrained = data is not None and ("response_format" in data or "responseJsonSchema" in data.get("generationConfig", {}))
         category = http_category(e.code, error_msg)
+        diagnostic.failure("provider_request", e, category=category, http_status=e.code)
         if constrained and category != "invalid_model" and e.code in (400, 422) and unsupported_schema_error(error_msg):
             raise UnsupportedSchema(status=e.code) from None
         raise ProviderError(code=category, status=e.code,
                             retry_after=retry_after_seconds(e.headers.get("Retry-After") if e.headers else None)) from None
     except urllib.error.URLError as e:
-        code = "configuration" if isinstance(e.reason, ssl.SSLCertVerificationError) else (
+        code = "tls" if isinstance(e.reason, ssl.SSLCertVerificationError) else (
             "timeout" if isinstance(e.reason, TimeoutError) else "connection")
+        diagnostic.failure("provider_request", e.reason if isinstance(e.reason, Exception) else e, category=code)
         raise ProviderError(code=code) from None
     except TimeoutError:
         raise ProviderError(code="timeout") from None
-    except (ValueError, UnicodeError):
-        raise ProviderError(code="invalid_request") from None
 
 
 def unsupported_schema_error(message: str) -> bool:

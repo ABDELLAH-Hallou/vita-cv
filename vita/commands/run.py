@@ -8,6 +8,7 @@ Usage:
 from pathlib import Path
 
 from vita.commands.ai_step import run as ai_step_run
+from vita.helpers.diagnostics import diagnosed
 from vita.helpers.job_extraction import read_job
 from vita.helpers.pipeline_config import load_pipeline_settings
 from vita.helpers.requirements import active_requirements
@@ -15,13 +16,14 @@ from vita.helpers.requirements import active_requirements
 STEPS = ["analyze", "adapt", "review", "cover"]
 
 
+@diagnosed("workflow")
 def run(auto: bool = False, language: str = "en", provider: str | None = None) -> bool:
     """Execute analyze → adapt → review → cover in sequence."""
     try:
         settings = load_pipeline_settings()
         approved = active_requirements(read_job()) if settings.extraction_enabled and Path("job.md").is_file() else None
-    except (ValueError, OSError) as exc:
-        print(f"Invalid pipeline configuration: {exc}")
+    except (ValueError, OSError):
+        print("Invalid pipeline configuration. See execution diagnostics.")
         return False
     steps = (["extract"] if settings.extraction_enabled and approved is None else []) + STEPS
     print(f"\n{'='*60}")

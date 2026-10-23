@@ -11,6 +11,7 @@ from vita import __version__
 from vita.commands import (
     ai_step,
     build,
+    diagnostics,
     diff,
     init,
     keys,
@@ -52,6 +53,17 @@ commands:
     parser.add_argument("-V", "--version", action="version", version=f"vita-cv {__version__}")
 
     subparsers = parser.add_subparsers(dest="command", metavar="<command>")
+
+    diagnostics_p = subparsers.add_parser("diagnostics", help="Inspect local execution traces or export a sanitized technical bundle")
+    diagnostics_sub = diagnostics_p.add_subparsers(dest="diagnostics_action", required=True)
+    diagnostics_list = diagnostics_sub.add_parser("list", help="List trace IDs in this project's diagnostics store")
+    diagnostics_list.add_argument("--json", action="store_true")
+    diagnostics_inspect = diagnostics_sub.add_parser("inspect", help="Inspect a trace's phases and capture statuses")
+    diagnostics_inspect.add_argument("trace_id")
+    diagnostics_inspect.add_argument("--json", action="store_true")
+    diagnostics_export = diagnostics_sub.add_parser("export", help="Create a sanitized technical ZIP; excludes artifact bodies")
+    diagnostics_export.add_argument("trace_id")
+    diagnostics_export.add_argument("--output", required=True)
 
     # ── init ─────────────────────────────────────────────────────────────────
     init_p = subparsers.add_parser("init", help="Initialize VITA in the current directory")
@@ -171,7 +183,12 @@ commands:
     # ── Route ─────────────────────────────────────────────────────────────────
     args = parser.parse_args()
 
-    if args.command == "init":
+    if args.command == "diagnostics":
+        if diagnostics.run(args.diagnostics_action, trace_id=getattr(args, "trace_id", None),
+                           output=getattr(args, "output", None), as_json=getattr(args, "json", False)) is False:
+            sys.exit(1)
+
+    elif args.command == "init":
         init.run(args.force)
 
     elif args.command == "new":

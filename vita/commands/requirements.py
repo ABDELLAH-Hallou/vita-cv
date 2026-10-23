@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from vita.helpers.diagnostics import diagnosed
 from vita.helpers.job_extraction import read_job
 from vita.helpers.llm import generate
 from vita.helpers.pipeline_config import load_pipeline_settings
@@ -21,6 +22,7 @@ from vita.helpers.structured import json_text, parse_json, write_artifact
 from vita.helpers.structured_output import run_structured
 
 
+@diagnosed(name="requirements")
 def run(action: str, *, auto: bool = False, provider: str | None = None,
         revision: str | None = None, path: str | None = None) -> bool:
     try:
@@ -73,6 +75,6 @@ def run(action: str, *, auto: bool = False, provider: str | None = None,
         else:
             raise ValueError(f"Unknown requirements action: {action}")
         return True
-    except (ValueError, OSError, RuntimeError, KeyError, TypeError) as exc:
-        print(f"Requirements failed: {exc}")
+    except (ValueError, OSError, RuntimeError, KeyError, TypeError):
+        print("Requirements failed. See execution diagnostics for the failed phase.")
         return False

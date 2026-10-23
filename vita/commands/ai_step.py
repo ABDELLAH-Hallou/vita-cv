@@ -9,11 +9,13 @@ from vita.helpers.context_builder import (
     cv_knowledge_instruction,
     multi_job_instruction,
 )
+from vita.helpers.diagnostics import diagnosed
 from vita.helpers.extensions import merged_language_map
 from vita.helpers.job_extraction import extract, prepare_job
 from vita.helpers.llm import generate as llm_generate
 from vita.helpers.pipeline_config import load_pipeline_settings
 from vita.helpers.skills import skill_context
+from vita.helpers.structured import write_artifact
 from vita.helpers.structured_output import run_text
 
 # ── Built-in language codes ───────────────────────────────────────────────────
@@ -30,6 +32,7 @@ _BUILTIN_LANGUAGE_MAP: dict[str, str] = {
     "pt": "Portuguese",
 }
 
+@diagnosed()
 def run(
     step: str,
     language: str = None,
@@ -43,8 +46,8 @@ def run(
     try:
         settings = load_pipeline_settings()
         job = prepare_job(settings, auto=auto)
-    except (ValueError, OSError, RuntimeError) as exc:
-        print(f"Cannot prepare job criteria: {exc}")
+    except (ValueError, OSError, RuntimeError):
+        print("Cannot prepare job criteria. See execution diagnostics for the failed phase.")
         return False
     config = load_config()
     resume_entry = config.get("tex_entry", "main.tex")
@@ -135,11 +138,10 @@ def run(
         
         out_file = Path(".vita") / "current_prompt.md"
         out_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(out_file, "w", encoding="utf-8") as f:
-            f.write(prompt_text)
+        write_artifact(out_file, prompt_text)
         task_prompt = Path(".vita") / "prompts" / f"{step}.md"
         task_prompt.parent.mkdir(parents=True, exist_ok=True)
-        task_prompt.write_text(prompt_text, encoding="utf-8")
+        write_artifact(task_prompt, prompt_text)
             
         print(f"Generated prompt saved to {out_file}.")
         print(f"Tell your AI assistant: \"Execute what is in {out_file}\"\n")
@@ -167,8 +169,8 @@ def run(
     try:
         response = run_text(step=step, generate=llm_generate, system=system_context,
                             prompt=prompt_text, route=settings.route(step, provider).kwargs())
-    except Exception as e:
-        print(f"❌ Failed to run AI: {e}")
+    except Exception:
+        print("Failed to run AI. See execution diagnostics for the failed phase and provider category.")
         return False
     
     if step in ("adapt", "cover"):
@@ -183,24 +185,22 @@ def run(
                 for marker in (r"\documentclass", r"\begin{document}", r"\end{document}")
             )
         if not valid:
-            (results_dir / f"{step}.md").write_text(response, encoding="utf-8")
+            write_artifact(results_dir / f"{step}.md", response)
             print(f"⚠️ The AI did not return one valid LaTeX document. '{target}' was not updated.")
             return False
         target_path = Path(target)
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(new_tex, encoding="utf-8")
+        write_artifact(target_path, new_tex)
         print(f"✅ Successfully updated {target}!")
         summary = re.sub(pattern, "", response, flags=re.DOTALL).strip()
 
         summary_file = results_dir / f"{step}.md"
-        with open(summary_file, "w", encoding="utf-8") as f:
-            f.write(summary)
+        write_artifact(summary_file, summary)
         print(f"📝 Summary saved to {summary_file}")
         
     else:
         out_file = results_dir / f"{step}.md"
-        with open(out_file, "w", encoding="utf-8") as f:
-            f.write(response.strip())
+        write_artifact(out_file, response.strip())
         print(f"✅ AI Report saved to {out_file}")
     return True
 

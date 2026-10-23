@@ -5,11 +5,13 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from vita.helpers import llm
+from vita.helpers.diagnostics import diagnosed
 from vita.helpers.provider_errors import normalize_error, safe_route
 from vita.helpers.structured import json_text, parse_json, write_artifact
 from vita.helpers.structured_output import StructuredOutputError, run_text
 
 
+@diagnosed(name="provider-check")
 def run(*, provider: str, model: str | None = None, generate: bool = False, as_json: bool = False) -> bool:
     step = "provider-check" if generate else "provider-discovery"
     result = {"schema_version": 1, "check": "generation" if generate else "discovery",

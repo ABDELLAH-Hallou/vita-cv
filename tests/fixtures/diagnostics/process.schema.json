@@ -1,0 +1,367 @@
+{
+  "type": "object",
+  "properties": {
+    "product_version": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "trace_id": {
+      "type": "string"
+    },
+    "process_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "running",
+        "success",
+        "failed",
+        "interrupted",
+        "incomplete"
+      ]
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "active_spans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "span_id": {
+            "type": "string"
+          },
+          "parent_span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phase": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "span_id",
+          "parent_span_id",
+          "phase"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "failure": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "phase": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object",
+          "properties": {
+            "attempt": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "http_status": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "line": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "column": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "chars": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "duration_ms": {
+              "type": "number",
+              "minimum": 0
+            },
+            "delay_seconds": {
+              "type": "number",
+              "minimum": 0
+            },
+            "retry_after_seconds": {
+              "type": "number",
+              "minimum": 0
+            },
+            "requested_provider": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "effective_provider": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requested_model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "effective_model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reasoning": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "prompt_sha256": {
+              "type": "string"
+            },
+            "schema_sha256": {
+              "type": "string"
+            },
+            "adapter_sha256": {
+              "type": "string"
+            },
+            "request_id_sha256": {
+              "type": "string"
+            },
+            "credential_variable": {
+              "type": "string"
+            },
+            "credential_origin": {
+              "type": "string"
+            },
+            "provider_origin": {
+              "type": "string"
+            },
+            "model_origin": {
+              "type": "string"
+            },
+            "reasoning_origin": {
+              "type": "string"
+            },
+            "provider_code": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "exception_type": {
+              "type": "string"
+            },
+            "retryable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "credential_present": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "response_exists": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "http_response_exists": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "reused": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "category": {
+              "type": "string",
+              "enum": [
+                "configuration",
+                "authentication",
+                "permission",
+                "overloaded",
+                "rate_limit",
+                "server_error",
+                "timeout",
+                "connection",
+                "tls",
+                "invalid_model",
+                "quota_exceeded",
+                "invalid_request",
+                "not_found",
+                "unsupported_schema",
+                "refusal",
+                "incomplete_response",
+                "empty_response",
+                "provider_error",
+                "response_shape",
+                "response_decode",
+                "invalid_json",
+                "schema_error",
+                "validation_error",
+                "artifact_error",
+                "unclassified",
+                "interrupted"
+              ]
+            },
+            "outcome_run_id": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "frames": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "module": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "module",
+              "line"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "phase",
+        "details",
+        "frames"
+      ],
+      "additionalProperties": false
+    },
+    "capture_enabled": {
+      "type": "boolean"
+    },
+    "logging_complete": {
+      "type": "boolean"
+    },
+    "diagnostic_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "capture_status": {
+            "type": "string",
+            "enum": [
+              "captured",
+              "redacted",
+              "disabled",
+              "suppressed",
+              "truncated",
+              "unavailable"
+            ]
+          },
+          "step_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attempt_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "content_exists": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "capture_status",
+          "step_id",
+          "attempt_id",
+          "reason",
+          "content_exists",
+          "path",
+          "bytes"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "product_version",
+    "schema_version",
+    "trace_id",
+    "process_id",
+    "status",
+    "updated_at",
+    "active_spans",
+    "failure",
+    "capture_enabled",
+    "logging_complete",
+    "diagnostic_artifacts"
+  ],
+  "additionalProperties": false
+}

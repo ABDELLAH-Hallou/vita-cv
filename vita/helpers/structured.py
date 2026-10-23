@@ -232,6 +232,12 @@ def json_text(value: dict) -> str:
 
 def write_artifact(path: Path, text: str) -> None:
     """Replace an artifact only after its complete UTF-8 contents have been written."""
+    from vita.helpers.diagnostics import span
+    with span("persistence"):
+        _write_artifact(path, text)
+
+
+def _write_artifact(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:

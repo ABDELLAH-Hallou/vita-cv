@@ -68,6 +68,14 @@ VITA_PROVIDER_MAX_ATTEMPTS=3
 # Capped exponential backoff; Retry-After longer than the cap stops the run.
 VITA_PROVIDER_RETRY_BASE_SECONDS=1
 VITA_PROVIDER_RETRY_MAX_SECONDS=30
+# Diagnostics default to technical metadata; sanitized mode captures structure only.
+VITA_DIAGNOSTIC_CONTENT=off
+# Absolute application project root (set explicitly for staging subprocesses).
+# VITA_PROJECT_ROOT=/absolute/application/project
+# Optional absolute persistent traces store (outside temporary staging).
+# VITA_DIAGNOSTICS_DIR=/absolute/private/traces
+# W3C v00 context from the parent; never put credentials in these IDs.
+# VITA_TRACEPARENT=00-<32-lowercase-hex-trace-id>-<16-hex-parent-span>-01
 OPENAI_API_KEY=your_openai_key
 OPENROUTER_API_KEY=your_openrouter_key
 GEMINI_API_KEY=your_gemini_key
