@@ -90,7 +90,7 @@ my-cv/
     ├── extensions.json   ← Your custom role aliases, languages, and LLM providers
     ├── .env              ← Local API keys for --auto mode
     ├── .env.example      ← Example API key file
-    ├── skills/           ← Custom skills in analyze/, adapt/, review/, cover/
+    ├── skills/           ← Shared assess/ judge and task writing skills
     ├── prompts/          ← Generated prompts for each task
     └── logs/             ← CLI activity log
 ```
@@ -422,6 +422,14 @@ inference is separate from direct evidence. Legacy reports remain readable with
 explicit verification status. See [candidate evidence provenance](PIPELINE.md#candidate-evidence-provenance)
 for source identities, knowledge approval, and the limits of source verification.
 
+Both stages use one scoring judge, customizable in `.vita/skills/assess/`.
+`vita review --auto` reuses a valid identical-input assessment;
+`--reassess` requests a fresh judgment, and `--qualitative` adds a separate writing
+review using the task's Analyze/Review skills. Reports record input/model/prompt
+provenance and distinguish reassessment from source edits. An unchanged CV's
+score difference is never treated as evidence that tailoring helped. See the
+[shared assessment contract](PIPELINE.md#shared-scoring-assessment-and-unchanged-input-controls).
+
 ---
 
 ### `vita keys`
@@ -576,6 +584,7 @@ Add project-specific Markdown skills under the folder for their task:
 
 ```text
 .vita/skills/
+├── assess/                  # Shared Analyze/Review scoring judge
 ├── extract/                 # Optional JD extraction guidance
 ├── analyze/                 # Job analysis
 ├── adapt/                   # CV adaptation

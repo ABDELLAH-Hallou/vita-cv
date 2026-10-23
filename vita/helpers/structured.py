@@ -52,6 +52,29 @@ CANDIDATE_SNAPSHOT_SCHEMA = object_schema({
     "sources": {"type": "array", "items": CANDIDATE_SOURCE_SCHEMA},
     "sha256": TEXT,
 })
+ASSESSMENT_SCHEMA = object_schema({
+    **{key: TEXT for key in ("contract_version", "key", "source_sha256", "cv_sha256", "job_sha256",
+                            "context_sha256", "criteria_sha256", "config_sha256", "system_sha256",
+                            "prompt_sha256", "schema_sha256", "generation_schema_sha256", "host_sha256",
+                            "judge_sha256", "as_of_date", "reasoning_source")},
+    **{key: {"type": ["string", "null"]} for key in ("requirements_revision", "provider", "model", "reasoning_effort",
+                                                      "requested_provider", "requested_model", "requested_reasoning_effort")},
+    "route_source": {"type": "string", "enum": ["resolved", "inherited_unreported", "external_unreported"]},
+})
+ASSESSMENT_EXECUTION_SCHEMA = object_schema({
+    "id": TEXT, "mode": {"type": "string", "enum": ["generated", "reused", "reassessment"]},
+    "origin_id": {"type": ["string", "null"]}, "created_at": TEXT,
+    "attempts": COUNT, "request_sha256": {"type": ["string", "null"]}, "output_mode": STRING,
+})
+ASSESSMENT_COMPARISON_SCHEMA = object_schema({
+    "kind": TEXT, "cv_sources": {"type": "string", "enum": ["changed", "unchanged", "not_recorded"]},
+    "candidate_evidence": {"type": "string", "enum": ["changed", "unchanged", "not_recorded"]},
+    "configuration_changes": STRINGS, "description": TEXT,
+    "source_changes": {"type": "array", "items": object_schema({
+        "path": TEXT, "kind": TEXT,
+        "before_sha256": {"type": ["string", "null"]}, "after_sha256": {"type": ["string", "null"]},
+    })},
+})
 
 
 JOB_SCHEMA = object_schema({
@@ -86,6 +109,7 @@ EVALUATION_SCHEMA = object_schema({
     "category_scores": object_schema({category: SCORE for category in CATEGORIES}),
     "executive_summary": TEXT,
     "qualitative_summary": STRING,
+    "assessment_comparison": ASSESSMENT_COMPARISON_SCHEMA,
     "comparison": object_schema({
         "status": {"type": "string", "enum": ["available", "unavailable", "not_applicable", "not_recorded"]},
         "baseline_overall_score": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
@@ -109,14 +133,15 @@ EVALUATION_SCHEMA = object_schema({
         "requirements_revision": TEXT,
         "candidate_snapshot": CANDIDATE_SNAPSHOT_SCHEMA,
         "candidate_capture_status": {"type": "string", "enum": ["captured", "stale"]},
-    }, optional=("requirements_revision", "candidate_snapshot", "candidate_capture_status")),
-}, optional=("metadata", "qualitative_summary", "comparison"))
+        "assessment": ASSESSMENT_SCHEMA, "assessment_execution": ASSESSMENT_EXECUTION_SCHEMA,
+    }, optional=("requirements_revision", "candidate_snapshot", "candidate_capture_status", "assessment", "assessment_execution")),
+}, optional=("metadata", "qualitative_summary", "comparison", "assessment_comparison"))
 
 # Provenance and public report summaries/comparisons are supplied by the host.
 # Excluding host-owned fields also avoids optional fields in strict APIs.
 EVALUATION_OUTPUT_SCHEMA = object_schema({
     key: value for key, value in EVALUATION_SCHEMA["properties"].items()
-    if key not in {"metadata", "qualitative_summary", "comparison"}
+    if key not in {"metadata", "qualitative_summary", "comparison", "assessment_comparison"}
 })
 # Provider responses contain judgments only; canonical weights, source references,
 # and denominators are always enriched/validated by the host.

@@ -55,6 +55,9 @@ def test_empty_custom_skill_keeps_bundled_default(project):
 @pytest.mark.parametrize("task", ["analyze", "adapt", "review", "cover"])
 def test_manual_and_auto_use_same_task_skills(project, monkeypatch, task, evaluation_report):
     custom_skill(project, task, "my-style.md", f"UNIQUE {task} STYLE")
+    scoring_task = "assess" if task in ("analyze", "review") else task
+    if scoring_task == "assess":
+        custom_skill(project, "assess", "my-judge.md", "SHARED ASSESSMENT STYLE")
     assert ai_step.run(task, language="fr")
     manual = (project / f".vita/prompts/{task}.md").read_text(encoding="utf-8")
     response = (json.dumps(evaluation_report()) if task in ("analyze", "review")
@@ -63,8 +66,10 @@ def test_manual_and_auto_use_same_task_skills(project, monkeypatch, task, evalua
     monkeypatch.setattr(ai_step, "llm_generate", provider)
     assert ai_step.run(task, auto=True, language="fr", provider="codex")
     system, prompt = provider.call_args.args
-    assert skill_context(task) in manual
-    assert skill_context(task) in system
+    assert skill_context(scoring_task) in manual
+    assert skill_context(scoring_task) in system
+    if scoring_task == "assess":
+        assert f"UNIQUE {task} STYLE" not in manual + system + prompt
     assert provider.call_args.kwargs["provider"] == "codex"
     if task in ("analyze", "review"):
         assert "response_schema" in provider.call_args.kwargs

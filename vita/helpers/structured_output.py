@@ -36,7 +36,7 @@ def accepts_keyword(function, keyword: str) -> bool:
 
 
 def run_structured(*, step: str, generate, system: str, prompt: str, route: dict,
-                   schema: dict, finalize, save) -> dict:
+                   schema: dict, finalize, save, session: dict | None = None) -> dict:
     """Save only validated values. All retries keep the original evidence/context.
 
     Trace files contain hashes and categories, not CVs, model prose, API bodies,
@@ -48,7 +48,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
     record = {"schema_version": 1, "run_id": run_id, "step": step, "status": "running",
               "max_attempts": MAX_ATTEMPTS, "attempts": [], "error": None,
               "input_sha256": digest(system + "\n" + prompt)}
-    session = {}
+    session = session if session is not None else {}
     native = accepts_keyword(generate, "response_schema")
     supports_session = accepts_keyword(generate, "session")
     original_prompt = prompt + "\n\nRequired JSON output schema:\n" + json_text(schema)
@@ -77,6 +77,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
         record["attempts"].append(attempt)
         persist()
         try:
+            session["request"] = {"attempt": number, "prompt_sha256": digest(original_prompt + repair)}
             response = generate(system, original_prompt + repair, **kwargs)
         except UnsupportedSchema:
             attempt.update(category="unsupported_schema", mode=session["mode"])

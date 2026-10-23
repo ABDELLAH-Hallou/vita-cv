@@ -254,6 +254,7 @@ to add these folders to an existing project without replacing your files.
 | `analyze/` | `job-description-analyzer.md` |
 | `adapt/` | `tech-resume-optimizer.md`, `resume-bullet-writer.md`, `resume-ats-optimizer.md`, `resume-tailor.md` |
 | `review/` | `resume-reviewer.md` |
+| `assess/` | `assessment-judge.md` (shared scoring judge for Analyze and Review) |
 | `cover/` | `cover-letter-generator.md` |
 
 A nonempty file with the same filename replaces that bundled skill for that
@@ -272,7 +273,10 @@ Include a metric only when its context is clear from the source CV.
 ```
 
 Add corresponding review guidance in `.vita/skills/review/` if you want the
-review to assess the same preferences. Put cover letter preferences in
+separate `vita review --qualitative` writing audit to assess the same preferences.
+Analyze/Review task skills are qualitative-only; use `.vita/skills/assess/` for
+shared scoring guidance. Keep canonical criteria, evidence rules and the host
+assessment contract authoritative. Put cover letter preferences in
 `.vita/skills/cover/`; CV-only skills are not loaded for the letter.
 
 Custom skills work with every configured provider and with manual prompt

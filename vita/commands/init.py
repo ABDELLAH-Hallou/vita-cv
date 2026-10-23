@@ -68,7 +68,7 @@ def run(force: bool = False) -> None:
     print(f"   {EXTENSIONS_FILE}   — add your custom role aliases, languages, and LLMs")
     print(f"   {ENV_FILE}               — local API keys (managed via `vita keys`)")
     print(f"   {VITA_DIR}/logs/             — CLI activity logs")
-    print(f"   {SKILLS_DIR}/<task>/        — custom Markdown skills (extract, analyze, adapt, review, cover)")
+    print(f"   {SKILLS_DIR}/<task>/        — custom Markdown skills (assess, extract, analyze, adapt, review, cover)")
     print()
     print("Next: edit .vita/extensions.json to customize role aliases and languages.")
     print("   See EXTENSIONS.md for the full format reference.")

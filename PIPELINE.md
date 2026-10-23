@@ -265,6 +265,93 @@ The provider request formats follow the official
 [OpenAI Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
 and [OpenRouter Chat Completions API](https://openrouter.ai/docs/api/api-reference/chat/create-a-chat-completion).
 
+## Shared scoring assessment and unchanged-input controls
+
+Analyze and Review now use one `assess.md` prompt and one
+`assessment-judge.md` skill, with the same JSON assessment and evidence contract.
+The judge sees current captured sources, JD context, and locked criteria. It does
+not receive the stage name, previous score/statuses, or review writing advice.
+For approved canonical requirements, identical inputs produce identical judge
+payloads across both stages. The host still verifies the approved revision,
+criteria/weights, job hashes, evidence quotations, and calculated scores.
+
+Customize the scoring judge in `.vita/skills/assess/`. Existing Analyze/Review
+writing skills and task prompts are used only for optional, separate commentary:
+
+```sh
+vita analyze --auto
+vita review --auto                 # reuse a valid identical-input assessment
+vita review --auto --reassess      # explicitly request a fresh judgment
+vita review --auto --qualitative   # additional writing audit, separate from scoring
+```
+
+`--qualitative` is also available on Analyze. It writes
+`<stage>-qualitative.json` and `<stage>-qualitative.md`, linked to the assessment
+execution and source/job hashes, with its own provider/model, reasoning and
+prompt provenance. It cannot change criterion judgments or host scores.
+Assessment/baseline comparison claims are removed from this commentary while
+achievement metrics remain. It is still model writing advice, not verified fact.
+
+Each automatic assessment records `metadata.assessment`: contract version,
+candidate-graph and CV/include fingerprints, raw job/context/criteria hashes,
+approved revision, requested and reported provider/model/reasoning, effective
+configuration fingerprint, date context, judge/system/prompt hashes, host and
+generation schema hashes, and host-code fingerprint. The cache `key` covers
+these input descriptors. Model aliases and provider defaults describe the
+configured request; they do not identify immutable server weights or guarantee
+determinism. `metadata.assessment_execution` records a unique execution ID,
+generated/reused/reassessment mode, reuse origin, UTC timestamp, final attempt
+count, actual final user-prompt hash (including schema/retry instructions), and
+output mode. Credentials and the private resolved provider session are never
+serialized into these fields.
+
+The exact-input cache lives in `.vita/results/assessments/<key>.json`. A valid
+identical initial assessment takes precedence over a later forced reassessment.
+Reuse makes no scoring provider call and records a successful outcome with zero
+attempts and a cache origin. Before reuse, the host validates the envelope checksum,
+complete input descriptor, current sources, current job/revision, taxonomy, and
+source-bound evidence. Stale captures, unverifiable matched/partial evidence,
+corrupt entries, and changed inputs cannot supply cached judgments. Missing
+criteria can be reused without an invented evidence claim. Cache files are local
+candidate artifacts and should be handled like the CV; they are not signed audit
+records against a malicious local editor.
+
+Legacy reports remain readable and comparable under the existing job/taxonomy
+guards. They cannot seed exact-input reuse without the new provenance and verified
+sources. Before a legacy taxonomy is locked, its first generation has no fixed
+criteria input and is not cacheable. Once locked, subsequent assessments use it
+explicitly; prefer the independently approved canonical requirement set for
+cross-candidate and cross-stage controls. Unreported custom-adapter routing,
+external-assistant execution, and inherited Codex model/reasoning disable reuse.
+Configure explicit model and reasoning settings to make Codex reuse eligible.
+
+`assessment_comparison` in reports and deltas separates CV/include edits from
+knowledge/approval changes, configuration changes, unchanged-input reuse, and
+fresh reassessment. Unknown/stale provenance is labelled as such. An unchanged
+CV's score difference is never presented as a tailoring improvement. Even with
+actual source edits, a delta compares recorded judgments and is not causal proof
+that tailoring helped. Delta reports include evidence/citation changes as well
+as criterion status changes. Changes to model, reasoning, judge, schema, host
+code, date context, job context, or sources invalidate exact-input reuse.
+
+Generated prompts include the same shared judge payload and separate host saving
+instructions. Recapture sources and prepare the current job/request at execution
+time, especially after adaptation or deferred extraction. A chosen external
+assistant is not automatically the configured API provider: its runtime identity
+is explicitly unreported and cannot be cached as a verified API execution. Public
+integration helpers are `prepare_assessment`, `new_execution`, `finalize`,
+`save_evaluation`, and `run_assessment`; never serialize `request.session`.
+
+The [issue #36 benchmark control](https://github.com/ABDELLAH-Hallou/vita-cv/issues/36)
+observed cross-stage inconsistency with different Analyze/Review prompts. It did
+not isolate same-prompt stochastic variation or estimate its frequency. Every
+automated quality/regression and installed-wheel run includes paired unchanged
+controls using the shared judge; the installed control also records
+`unchanged-control.json`. Future/live quality benchmarks must include an unchanged
+Analyze/Review pair alongside edited-CV cases, retain source/configuration/prompt
+provenance, and report cache reuse separately from forced reassessment. Mocked
+controls test pipeline behavior and attribution, not live-model reliability.
+
 ## Candidate evidence provenance
 
 Analyze and Review capture the configured `tex_entry` and the supported literal

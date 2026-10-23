@@ -153,7 +153,8 @@ def test_host_checks_remain_authoritative(project, monkeypatch, evaluation_repor
     assert outcome("review")["attempts"][0]["category"] in ("schema_error", "validation_error")
     assert outcome("review")["attempts"][0]["detail"] in provider.call_args.args[1]
     report = parse_json(Path(".vita/results/review.json").read_text(encoding="utf-8"))
-    assert report["metadata"] == baseline["metadata"]
+    assert {key: report["metadata"][key] for key in baseline["metadata"]} == baseline["metadata"]
+    assert report["metadata"]["assessment"]["contract_version"] == "assessment-v1"
 
 
 def test_extraction_retries_format_and_rejects_wrong_provenance(project, monkeypatch):
@@ -340,7 +341,7 @@ def test_schema_projection_keeps_full_host_schema_unchanged():
 def test_disk_failure_is_not_retried_as_model_format_failure(project, monkeypatch, evaluation_report):
     provider = Mock(return_value=json.dumps(evaluation_report()))
     monkeypatch.setattr(ai_step, "llm_generate", provider)
-    monkeypatch.setattr(ai_step, "save_evaluation", Mock(side_effect=OSError("disk full")))
+    monkeypatch.setattr("vita.helpers.assessment.save_evaluation", Mock(side_effect=OSError("disk full")))
     assert ai_step.run("analyze", auto=True) is False
     provider.assert_called_once()
     assert outcome()["error"]["code"] == "artifact_error"

@@ -23,7 +23,9 @@ COMPARISON = re.compile(
     r"initial\s+(?:evaluation|assessment|analysis)|"
     r"(?:previous|prior|original)\s+(?:evaluation|assessment|analysis|score)|"
     r"(?:before|after)[- ]adaptation\s+score|comparison|"
-    r"(?:évaluation|analyse)\s+initiale|comparaison|score\s+initial)\b",
+    r"(?:évaluation|analyse)\s+initiale|comparaison|score\s+initial|"
+    r"(?:tailor(?:ing|ed)?|adaptation|(?:CV|resume)\s+edits?|rewrit(?:ing|e))"
+    r"(?=[^.!?;\n]*\b(?:points?|score|match|fit|coverage|gain)\b))\b",
     re.IGNORECASE,
 )
 # Distance to an achievement term distinguishes e.g. "40% cost reduction"
