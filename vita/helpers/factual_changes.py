@@ -395,6 +395,7 @@ def stage(context, document):
             f"Inspect: vita facts show {report['step']} (or --json). Revision: {report['revision']}"
         )
         return False
+    _current(report)  # Persistence can take time; preserve intervening source edits.
     write_artifact(Path(report["target"]), document)
     report["status"] = "applied"
     report["application_status"] = "applied"
@@ -419,6 +420,7 @@ def decide(step, revision, approve):
     report["status"] = "approved" if approve else "rejected"
     save(report)
     if approve:
+        _current(report)
         write_artifact(Path(report["target"]), report["document"])
         report["application_status"] = "applied"
         save(report)

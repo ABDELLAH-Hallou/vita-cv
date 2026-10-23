@@ -277,3 +277,26 @@ def test_cover_cannot_overwrite_an_included_candidate_source(project, monkeypatc
     assert not ai_step.run("cover", auto=True)
     provider.assert_not_called()
     assert Path("details.tex").read_text(encoding="utf-8") == "Original qualifications"
+
+
+@pytest.mark.parametrize("approval", [False, True])
+def test_intervening_source_edits_during_proposal_persistence_are_preserved(project, monkeypatch, approval):
+    context = fc.capture("adapt")
+    document = LATEX % "Confirmed change" if approval else Path("main.tex").read_text(encoding="utf-8")
+    if approval:
+        assert not fc.stage(context, document)
+    save = fc.save
+
+    def concurrent_save(report):
+        save(report)
+        Path("main.tex").write_text("Concurrent source edit", encoding="utf-8")
+
+    monkeypatch.setattr(fc, "save", concurrent_save)
+    with pytest.raises(ValueError):
+        if approval:
+            fc.decide("adapt", fc.load("adapt")["revision"], True)
+        else:
+            fc.stage(context, document)
+    assert Path("main.tex").read_text(encoding="utf-8") == "Concurrent source edit"
+    assert fc.load("adapt")["application_status"] == "not_applied"
+    assert not fc.guard()
