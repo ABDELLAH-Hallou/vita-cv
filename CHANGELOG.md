@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.2](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.6.1...v2.6.2) (2026-10-23)
+
+
+### Bug Fixes
+
+* share scoring judge and reuse verified identical-input assessments ([#59](https://github.com/ABDELLAH-Hallou/vita-cv/issues/59)) ([a0abd34](https://github.com/ABDELLAH-Hallou/vita-cv/commit/a0abd34289e959552d3a880f95c8c3910cfc6288))
+
 ## [2.6.1](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.6.0...v2.6.1) (2026-10-22)
 
 
