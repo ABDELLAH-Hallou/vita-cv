@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.3](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.6.2...v2.6.3) (2026-10-23)
+
+
+### Bug Fixes
+
+* expose typed provider errors and bounded shared retries ([#62](https://github.com/ABDELLAH-Hallou/vita-cv/issues/62)) ([6ca7e16](https://github.com/ABDELLAH-Hallou/vita-cv/commit/6ca7e16173a10537c9746be3efcb95a7884353ec))
+
 ## [2.6.2](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.6.1...v2.6.2) (2026-10-23)
 
 
