@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "version": "2.8.0",
+  "tag": "v2.8.0",
+  "source_sha": "805d9d995fcc78d895395f0030024572c2495b54",
+  "testpypi_run_id": 40016334118,
+  "testpypi_run_attempt": 1,
+  "files": {
+    "vita_cv-2.8.0-py3-none-any.whl": "8c96c5da5abecc97faf2006cb9c8a03ac5a8b972b7ebb8740058e50ca24be30d",
+    "vita_cv-2.8.0.tar.gz": "d7ceef4bd34fbdf160c2f0a4ef146d634f244ea13fe996846fb6295cfa3eac38"
+  }
+}
