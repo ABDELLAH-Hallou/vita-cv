@@ -63,6 +63,11 @@ ENABLE_JD_EXTRACTION=false
 # ADAPT_MODEL=gemini-2.5-flash
 # COVER_PROVIDER=gemini
 # COVER_MODEL=gemini-2.5-flash
+# One shared attempt budget per operation, including format recovery (1..5).
+VITA_PROVIDER_MAX_ATTEMPTS=3
+# Capped exponential backoff; Retry-After longer than the cap stops the run.
+VITA_PROVIDER_RETRY_BASE_SECONDS=1
+VITA_PROVIDER_RETRY_MAX_SECONDS=30
 OPENAI_API_KEY=your_openai_key
 OPENROUTER_API_KEY=your_openrouter_key
 GEMINI_API_KEY=your_gemini_key

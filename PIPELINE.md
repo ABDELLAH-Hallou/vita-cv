@@ -454,8 +454,8 @@ job provenance, evidence requirements, and locked review criteria. Evaluation
 metadata is excluded from model output and supplied by the host. Extraction must
 return the source fingerprint supplied in its prompt; a mismatch is rejected.
 
-There are at most **three provider attempts per structured step**, including any
-schema-negotiation rejection. Malformed JSON, schema violations, and invalid job
+By default there are at most **three adapter calls per operation**, including
+transient failures, schema-negotiation rejection and format recovery. Malformed JSON, schema violations, and invalid job
 or review criteria can trigger a new generation from the original evidence and
 contract. VITA does not patch candidate facts or accept a partial assessment.
 The selected provider, model, and configured reasoning effort stay fixed across
@@ -465,10 +465,10 @@ An endpoint explicitly rejecting the structured-output feature (or an older
 Codex CLI rejecting `--output-schema`) can fall back to prompt-based JSON with
 the same host validation. Other adapters use this validated prompt mode directly.
 Set `"structured_output": "off"` in that provider's `.vita/extensions.json`
-configuration to select it explicitly. Authentication, quota, transport errors,
-refusals, incomplete responses, and invalid native schemas fail promptly; they
-are not repaired by changing models or by format retries. Transient-error backoff
-is outside this feature's scope.
+configuration to select it explicitly. Authentication, exhausted billing quota,
+invalid models, refusals, incomplete responses and invalid native schemas fail
+promptly. Transient overload, rate limits, timeouts and connection failures can
+retry under the same operation budget. No failure selects another provider or model.
 
 Each execution records `.vita/results/attempts/<step>-<run_id>.json` and updates
 `.vita/results/<step>.outcome.json`. Read `status` (`running`, `success`, `failed`)
@@ -494,3 +494,97 @@ Protocol references: [Codex schema output](https://learn.chatgpt.com/docs/non-in
 [OpenAI structured output](https://developers.openai.com/api/docs/guides/structured-outputs),
 [OpenRouter structured output](https://openrouter.ai/docs/guides/features/structured-outputs),
 and [Gemini generation configuration](https://ai.google.dev/api/generate-content#v1beta.GenerationConfig).
+
+## Provider failures and bounded backoff
+
+Automatic extraction, canonical-requirement drafting, Analyze, Review, Adapt,
+Cover and optional qualitative calls use the same operation runner. Each
+operation has its own run ID and capped budget. Qualitative commentary is a
+separate requested operation. `llm.generate` is a single adapter attempt; direct
+integrations should use `run_structured` or `run_text` from
+`vita.helpers.structured_output` rather than adding another retry loop.
+
+The default exponential delays are 1 and 2 seconds. Configure them in `.vita/.env`
+or process environment:
+
+```env
+VITA_PROVIDER_MAX_ATTEMPTS=3          # 1..5, including the first call
+VITA_PROVIDER_RETRY_BASE_SECONDS=1   # finite, 0..maximum delay
+VITA_PROVIDER_RETRY_MAX_SECONDS=30   # finite, 0..30
+```
+
+Invalid retry settings fail before a provider call. `Retry-After` supports both
+integer seconds and HTTP dates, as defined in
+[HTTP semantics](https://www.rfc-editor.org/rfc/rfc9110.html#name-retry-after).
+When present, wait at least that long and at least the configured backoff. If
+the requested wait exceeds the delay cap, stop with
+`retry_stopped: "retry_after_exceeds_delay_cap"`; retrying early would violate
+the requested wait. Exhaustion makes no additional call or sleep. Delayed
+transport responses and timeouts can already have consumed usage; retries are
+not a guarantee of exactly-once provider execution.
+
+Provider failures retain `error.code: "provider_error"` for existing consumers.
+Their versioned fields are defined by
+`vita.helpers.provider_errors.PROVIDER_ERROR_SCHEMA`. For example:
+
+```json
+{
+  "schema_version": 1,
+  "code": "provider_error",
+  "category": "overloaded",
+  "provider": "gemini",
+  "model": "configured-model-id",
+  "step": "extract",
+  "status": 503,
+  "retryable": true,
+  "attempts": 3,
+  "max_attempts": 3,
+  "exhausted": true,
+  "retry_after_seconds": null,
+  "action": "The provider is temporarily overloaded. Retry this step later."
+}
+```
+
+`status` is the HTTP status or `null` for failures without one. Safe identifiers
+are strings or `null` when unavailable or unsafe. `attempts` counts adapter
+invocations, including format attempts; an early configuration failure can have
+zero calls. The outer outcome also records `attempt_count`. Each failed provider
+attempt carries its own error object; transient attempts that recover remain
+in the trace while the final outcome has `error: null` and `recovered: true`.
+`retryable` classifies the failure; it does not promise another automatic call
+after exhaustion or a delay-cap stop.
+
+Categories distinguish `overloaded` (503/529), `rate_limit` (429),
+`server_error` (500/502), `timeout` and `connection` from `authentication` (401),
+`permission` (403), `invalid_model`, `quota_exceeded`, `invalid_request`,
+`not_found`, `configuration`, `unsupported_schema`, `refusal`,
+`incomplete_response`, `empty_response` and unclassified `provider_error`.
+Only recognized transient categories retry. Invalid-model classification uses
+explicit provider markers; a generic 404 remains `not_found`. CLI stderr has
+no stable structured envelope, so only explicit recognized status/model markers
+are classified. Raw bodies, URLs, exception text, credentials and CLI stderr are
+never copied to public errors. Internal resolution snapshots contain credentials
+and must never be serialized.
+
+### Discovery versus generation checks
+
+```sh
+vita providers check --provider gemini --model exact-model-id --json
+vita providers check --provider gemini --model exact-model-id --generate --json
+```
+
+The first command reads one catalog page and reports `check: "discovery"` and
+`generation_verified: false`. A listed model does not prove that generation is
+allowed or available. Catalogs may be partial, and Codex catalog discovery is
+unavailable; absence never automatically diagnoses an invalid model. The second
+command explicitly sends a short synthetic generation, warns that it may consume
+usage, and sets `generation_verified: true` only after a nonempty generation
+succeeds. It sends no CV or JD. A successful check measures connectivity and
+generation access at that moment, not content quality or later availability.
+
+Checks save `.vita/results/provider-discovery.json` or `provider-check.json`,
+with separate operation traces. `--json` prints one JSON result to stdout and
+routes usage notices/provider progress to stderr. Failures exit nonzero. Both
+checks preserve the exact selected route and use the same capped retry policy.
+Deterministic regression and installed-wheel fixtures exercise these paths with
+stubbed HTTP and sleeps; no live-availability claim follows from those tests.

@@ -176,6 +176,7 @@ def validate(value, schema: dict, path: str = "$") -> None:
         "object": isinstance(value, dict), "array": isinstance(value, list),
         "string": isinstance(value, str), "null": value is None,
         "integer": type(value) is int,
+        "boolean": type(value) is bool,
         "number": type(value) is int or (type(value) is float and math.isfinite(value)),
     }
     if not any(matches[kind] for kind in types):

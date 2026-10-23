@@ -16,6 +16,7 @@ from vita.commands import (
     keys,
     lock,
     new,
+    providers,
     push,
     requirements,
     run,
@@ -103,6 +104,14 @@ commands:
     
     keys_remove_p = keys_subp.add_parser("remove", help="Remove an API key")
     keys_remove_p.add_argument("provider", help="Provider name")
+
+    providers_p = subparsers.add_parser("providers", help="Discover models or explicitly test generation")
+    providers_sub = providers_p.add_subparsers(dest="providers_action", required=True)
+    check_p = providers_sub.add_parser("check", help="Model discovery only unless --generate is selected")
+    check_p.add_argument("--provider", required=True, help="Exact provider to check; no fallback")
+    check_p.add_argument("--model", help="Exact model to check; defaults to the selected provider configuration")
+    check_p.add_argument("--generate", action="store_true", help="Send a small synthetic generation (may consume usage)")
+    check_p.add_argument("--json", action="store_true", help="Print the machine-readable check result")
 
     # ── run (pipeline) ─────────────────────────────────────────────────────
     run_p = subparsers.add_parser("run", help="Run pipeline: optional extract → analyze → adapt → review → cover")
@@ -197,6 +206,10 @@ commands:
         provider = getattr(args, "provider", None)
         key = getattr(args, "key", None)
         keys.run(args.keys_command, provider, key)
+
+    elif args.command == "providers":
+        if providers.run(provider=args.provider, model=args.model, generate=args.generate, as_json=args.json) is False:
+            sys.exit(1)
 
     elif args.command == "run":
         if run.run(auto=args.auto, language=args.language, provider=args.provider) is False:

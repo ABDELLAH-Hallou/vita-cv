@@ -29,6 +29,7 @@ from vita.helpers.evaluation import (
     validate_evaluation,
 )
 from vita.helpers.job_extraction import fingerprint, read_job
+from vita.helpers.provider_errors import ProviderError
 from vita.helpers.skills import skill_context
 from vita.helpers.structured import (
     EVALUATION_OUTPUT_SCHEMA,
@@ -38,10 +39,10 @@ from vita.helpers.structured import (
     write_artifact,
 )
 from vita.helpers.structured_output import (
-    MAX_ATTEMPTS,
     StructuredOutputError,
-    accepts_keyword,
+    record_provider_failure,
     run_structured,
+    run_text,
 )
 
 ASSETS = Path(__file__).parent.parent / "assets"
@@ -62,7 +63,7 @@ class AssessmentRequest:
 
 def host_fingerprint() -> str:
     names = ("assessment", "evaluation", "candidate_evidence", "requirements", "structured", "llm",
-             "structured_output", "assessment_narrative", "context_builder", "skills", "pipeline_config")
+             "structured_output", "provider_errors", "assessment_narrative", "context_builder", "skills", "pipeline_config")
     return stable_hash({name: Path(__file__).with_name(name + ".py").read_text(encoding="utf-8") for name in names})
 
 
@@ -191,7 +192,7 @@ def reuse_outcome(step: str, report: dict) -> None:
     run_id = uuid.uuid4().hex
     execution = report["metadata"]["assessment_execution"]
     record = {"schema_version": 1, "run_id": run_id, "step": step, "status": "success",
-              "max_attempts": MAX_ATTEMPTS, "attempts": [], "error": None, "recovered": False,
+              "max_attempts": 0, "attempt_count": 0, "attempts": [], "error": None, "recovered": False,
               "input_sha256": report["metadata"]["assessment"]["key"],
               "cache": {"status": "hit", "origin_id": execution["origin_id"]}}
     write_artifact(RESULTS / "attempts" / f"{step}-{run_id}.json", json_text(record))
@@ -286,10 +287,9 @@ def run_assessment(step: str, job, *, settings, resume_entry: str, generate, aut
                 print("Assessment saved; optional assessment cache could not be written.")
         if qualitative:
             system, prompt = qualitative_prompt(step, request)
-            options = dict(request.route)
-            if accepts_keyword(generate, "session"):
-                options["session"] = request.session
-            commentary = qualitative_text(generate(system, prompt, **options))
+            commentary = qualitative_text(run_text(step=f"{step}-qualitative", generate=generate,
+                                                   system=system, prompt=prompt, route=request.route,
+                                                   session=request.session))
             actual = request.session.get("route", {})
             artifact = {"schema_version": 1, "assessment_key": report["metadata"]["assessment"]["key"],
                         "assessment_execution_id": report["metadata"]["assessment_execution"]["id"],
@@ -304,5 +304,7 @@ def run_assessment(step: str, job, *, settings, resume_entry: str, generate, aut
                            "This separate writing review does not set assessment scores or comparisons.\n\n" + commentary)
         return True
     except (StructuredOutputError, ValueError, OSError, KeyError, TypeError, RuntimeError) as exc:
+        if isinstance(exc, ProviderError):
+            record_provider_failure(step, exc, settings.route(step, provider).kwargs())
         print(f"Could not prepare, validate or save {step} assessment: {exc}")
         return False

@@ -169,7 +169,7 @@ def test_extraction_retries_format_and_rejects_wrong_provenance(project, monkeyp
     assert Path(".vita/results/job.toon").is_file()
 
 
-@pytest.mark.parametrize("error", [ProviderError("secret-body", status=401), ProviderError("secret", status=429),
+@pytest.mark.parametrize("error", [ProviderError("secret-body", status=401),
                                  RuntimeError("secret"), TypeError("adapter bug"), ValueError("missing key"),
                                  ProviderError("blocked", "refusal"), ProviderError("short", "incomplete_response")])
 def test_provider_failures_stop_without_format_retry_or_sensitive_trace(project, monkeypatch, error):

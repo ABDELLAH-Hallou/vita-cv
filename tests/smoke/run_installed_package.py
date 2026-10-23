@@ -80,7 +80,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             raise AssertionError(f"Unexpected version output: {version!r}")
 
         help_text = run([str(python), "-m", "vita", "--help"], cwd=project).stdout
-        for command in ("init", "new", "build", "extract", "requirements", "analyze", "adapt", "review", "cover", "run"):
+        for command in ("init", "new", "build", "extract", "requirements", "analyze", "adapt", "review", "cover", "run", "providers"):
             if command not in help_text:
                 raise AssertionError(f"CLI help is missing command {command!r}")
 
@@ -147,6 +147,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
         run([str(python), str(Path(__file__).with_name("canonical_requirements.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("candidate_evidence.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("assessment_consistency.py").resolve())], cwd=project)
+        run([str(python), str(Path(__file__).with_name("provider_failures.py").resolve())], cwd=project)
         build_help = run([str(python), "-m", "vita", "build", "--help"], cwd=project).stdout
         for option in ("both", "--resume", "--cover"):
             if option not in build_help:
