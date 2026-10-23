@@ -14,6 +14,7 @@ from vita.helpers.job_extraction import extract, prepare_job
 from vita.helpers.llm import generate as llm_generate
 from vita.helpers.pipeline_config import load_pipeline_settings
 from vita.helpers.skills import skill_context
+from vita.helpers.structured_output import run_text
 
 # ── Built-in language codes ───────────────────────────────────────────────────
 # Users can extend this via .vita/extensions.json ("language_map" key).
@@ -164,7 +165,8 @@ def run(
     results_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        response = llm_generate(system_context, prompt_text, **settings.route(step, provider).kwargs())
+        response = run_text(step=step, generate=llm_generate, system=system_context,
+                            prompt=prompt_text, route=settings.route(step, provider).kwargs())
     except Exception as e:
         print(f"❌ Failed to run AI: {e}")
         return False

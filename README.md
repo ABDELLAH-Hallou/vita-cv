@@ -436,6 +436,18 @@ score difference is never treated as evidence that tailoring helped. See the
 
 Manage API keys for LLM providers.
 
+Model discovery and generation checks are separate:
+
+```sh
+vita providers check --provider gemini --model exact-model-id --json
+vita providers check --provider gemini --model exact-model-id --generate --json
+```
+
+Discovery does not prove generation access. `--generate` sends a synthetic probe
+and may consume usage. Automatic tasks expose typed provider errors and retry
+recognized transient failures under a shared, capped budget with format recovery.
+See [provider errors and retry configuration](PIPELINE.md#provider-failures-and-bounded-backoff).
+
 ```sh
 vita keys list
 vita keys set gemini <your-key>

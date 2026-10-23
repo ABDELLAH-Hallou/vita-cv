@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import tempfile
 import urllib.error
@@ -19,7 +20,14 @@ from pathlib import Path
 from vita.helpers.config import load_config
 from vita.helpers.env import load_env
 from vita.helpers.extensions import add_llm_provider, get_llm_providers
-from vita.helpers.provider_errors import ProviderError, UnsupportedSchema
+from vita.helpers.provider_errors import (
+    ProviderError,
+    UnsupportedSchema,
+    http_category,
+    retry_after_seconds,
+    safe_identifier,
+    safe_route,
+)
 from vita.helpers.structured import generation_schema
 
 # ── OpenAI-Compatible Provider Registry ───────────────────────────────────────
@@ -60,13 +68,29 @@ def generate(
     model: str | None = None, *, response_schema: dict | None = None,
     session: dict | None = None,
 ) -> str:
-    """Auto-detect provider from config and call the appropriate API."""
+    """One adapter attempt. The operation runner owns the shared retry budget."""
+    try:
+        return _generate_once(system_prompt, user_prompt, provider, model,
+                              response_schema=response_schema, session=session)
+    except ProviderError:
+        raise
+    except (TimeoutError, subprocess.TimeoutExpired):
+        raise ProviderError(code="timeout") from None
+    except (KeyError, IndexError, TypeError, ValueError, OSError):
+        raise ProviderError(code="provider_error") from None
+
+
+def _generate_once(system_prompt, user_prompt, provider=None, model=None, *, response_schema=None, session=None):
+    """Resolve exactly one route and call it without a fallback or hidden retry."""
     # A structured operation reuses this private snapshot across attempts. It
     # contains credentials and must never be serialized into outcome records.
     if session is not None and "resolved" in session:
         resolved = session["resolved"]
     else:
-        resolved = _resolve(provider, model)
+        try:
+            resolved = _resolve(provider, model)
+        except (ValueError, OSError):
+            raise ProviderError(code="configuration") from None
         if session is not None:
             session["resolved"] = resolved
     provider_name, model, config, env = resolved
@@ -89,11 +113,9 @@ def generate(
     if provider_name == "google":
         api_key = api_key or env.get("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError(
-            f"Missing API key for '{provider_name}'. "
-            f"Run: vita keys set {provider_name} <your-key>"
-        )
-    print(f"🧠 Calling {provider_name} ({model})...")
+        raise ProviderError(code="configuration")
+    public = safe_route({"provider": provider_name, "model": model}, {"resolved": resolved})
+    print(f"🧠 Calling {public['provider']} ({public['model']})...")
     if provider_name == "openai":
         return _call_openai(system_prompt, user_prompt, api_key, model, **options)
     if provider_name == "openrouter":
@@ -113,7 +135,10 @@ def prepare_session(provider: str | None = None, model: str | None = None) -> di
     Explicit Codex assessment routing can use its CLI without modifying the
     provider registry or asking an interactive question during preparation.
     """
-    return {"resolved": _resolve(provider, model, allow_prompt=False)}
+    try:
+        return {"resolved": _resolve(provider, model, allow_prompt=False)}
+    except (ValueError, OSError):
+        raise ProviderError(code="configuration") from None
 
 
 def _resolve(provider: str | None, model: str | None, *, allow_prompt: bool = True) -> tuple:
@@ -167,9 +192,7 @@ def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "", *,
     """Run Codex CLI non-interactively using the user's local Codex login."""
     codex = _find_codex_cli()
     if not codex:
-        raise RuntimeError(
-            "Codex CLI not found. Install/login to Codex first, then run `codex login`."
-        )
+        raise ProviderError(code="configuration")
 
     prompt = f"{system_prompt}\n\n==== TASK ====\n{user_prompt}"
     output_dir = Path(".vita") / "tmp"
@@ -192,7 +215,13 @@ def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "", *,
             error = result.stderr.strip() or result.stdout.strip()
             if response_schema is not None and re.search(r"unexpected argument ['\"]--output-schema['\"]", error):
                 raise UnsupportedSchema()
-            raise ProviderError(error)
+            # CLI diagnostics have no stable JSON error envelope. Only recognize
+            # explicit status/model markers; never publish stderr or retry a guess.
+            status = re.search(r"\b(?:HTTP(?: status)?|status(?: code)?)[: =]+(401|403|408|429|500|502|503|504|529)\b", error, re.IGNORECASE)
+            code = http_category(int(status[1]), error) if status else (
+                "invalid_model" if re.search(r"model_not_found|invalid_model|model[^\n]{0,120}(?:does not exist|not supported)", error, re.IGNORECASE)
+                else "provider_error")
+            raise ProviderError(code=code, status=int(status[1]) if status else None)
         if not output_path.is_file():
             raise ProviderError("Codex returned no final output file", "empty_response")
         return output_path.read_text(encoding="utf-8").strip()
@@ -349,25 +378,35 @@ def _call_gemini(
 
 # ── HTTP Helper ───────────────────────────────────────────────────────────────
 
-def _post(url: str, headers: dict, data: dict) -> dict:
+def _post(url: str, headers: dict, data: dict | None, *, method: str = "POST") -> dict:
     """Make a JSON POST request and return the parsed response."""
     req = urllib.request.Request(
         url,
-        data=json.dumps(data).encode("utf-8"),
+        data=json.dumps(data).encode("utf-8") if data is not None else None,
         headers=headers,
-        method="POST",
+        method=method,
     )
     try:
         with urllib.request.urlopen(req, timeout=120) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
-        error_msg = e.read().decode("utf-8")
+        error_msg = e.read(8192).decode("utf-8", errors="replace")
         # Only explicit lack of format support permits a prompt-only fallback.
         # Invalid schemas, auth, quota, and transport failures never trigger it.
-        constrained = "response_format" in data or "responseJsonSchema" in data.get("generationConfig", {})
-        if constrained and e.code in (400, 422) and unsupported_schema_error(error_msg):
-            raise UnsupportedSchema() from e
-        raise ProviderError(f"API request failed (HTTP {e.code})", status=e.code) from e
+        constrained = data is not None and ("response_format" in data or "responseJsonSchema" in data.get("generationConfig", {}))
+        category = http_category(e.code, error_msg)
+        if constrained and category != "invalid_model" and e.code in (400, 422) and unsupported_schema_error(error_msg):
+            raise UnsupportedSchema(status=e.code) from None
+        raise ProviderError(code=category, status=e.code,
+                            retry_after=retry_after_seconds(e.headers.get("Retry-After") if e.headers else None)) from None
+    except urllib.error.URLError as e:
+        code = "configuration" if isinstance(e.reason, ssl.SSLCertVerificationError) else (
+            "timeout" if isinstance(e.reason, TimeoutError) else "connection")
+        raise ProviderError(code=code) from None
+    except TimeoutError:
+        raise ProviderError(code="timeout") from None
+    except (ValueError, UnicodeError):
+        raise ProviderError(code="invalid_request") from None
 
 
 def unsupported_schema_error(message: str) -> bool:
@@ -379,3 +418,29 @@ def unsupported_schema_error(message: str) -> bool:
     return any(field in text for field in fields) and any(
         phrase in text for phrase in ("not supported", "unsupported parameter", "unknown field", "unknown name")
     )
+
+
+def discover_models(session: dict) -> dict:
+    """Read one catalog page; discovery is never evidence of generation access."""
+    provider, model, _, env = session["resolved"]
+    session["route"] = {"provider": provider, "model": model or None, "reasoning_effort": None}
+    if provider == "codex":
+        return {"status": "unavailable", "models": [], "has_more": None,
+                "selected_model_listed": None}
+    key = env.get(f"{provider.upper()}_API_KEY") or (env.get("GEMINI_API_KEY") if provider == "google" else None)
+    if not key:
+        raise ProviderError(code="configuration")
+    if provider in ("gemini", "google"):
+        result = _post(f"https://generativelanguage.googleapis.com/v1beta/models?key={key}", {}, None, method="GET")
+        models = [item.get("name", "").removeprefix("models/") for item in result.get("models", [])]
+        more = bool(result.get("nextPageToken"))
+    else:
+        url = "https://api.anthropic.com/v1/models" if provider == "anthropic" else (
+            _OPENAI_COMPATIBLE[provider].removesuffix("/chat/completions") + "/models")
+        headers = {"x-api-key": key, "anthropic-version": "2023-06-01"} if provider == "anthropic" else {"Authorization": f"Bearer {key}"}
+        result = _post(url, headers, None, method="GET")
+        models = [item.get("id", "") for item in result.get("data", [])]
+        more = bool(result["has_more"]) if "has_more" in result else None
+    safe = [identifier for item in models if (identifier := safe_identifier(item, (key,))) is not None]
+    return {"status": "listed", "models": safe, "has_more": more,
+            "selected_model_listed": model in models}

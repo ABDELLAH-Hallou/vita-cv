@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, mock_open
 import pytest
 
 from vita.helpers import extensions, llm
+from vita.helpers.provider_errors import ProviderError
 
 
 def test_auto_adds_missing_codex_without_prompting(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -50,8 +51,9 @@ def test_declining_manual_confirmation_stops_execution(monkeypatch: pytest.Monke
     monkeypatch.setattr(llm, "load_config", lambda: {"auto_add_codex_provider": False})
     monkeypatch.setattr("builtins.input", lambda _: "n")
 
-    with pytest.raises(ValueError, match="Codex is not configured"):
+    with pytest.raises(ProviderError) as stopped:
         llm.generate("system", "user", provider="codex")
+    assert stopped.value.code == "configuration" and not stopped.value.retryable
 
 
 def test_add_provider_preserves_existing_extension_settings(monkeypatch: pytest.MonkeyPatch) -> None:
