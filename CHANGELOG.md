@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.1](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.9.0...v2.9.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **ci:** upgrade vulnerable release audit dependency ([#75](https://github.com/ABDELLAH-Hallou/vita-cv/issues/75)) ([bd686e0](https://github.com/ABDELLAH-Hallou/vita-cv/commit/bd686e0271eeda6fc3eb8e986825a6e79a853fbd))
+
 ## [2.9.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.8.0...v2.9.0) (2026-10-23)
 
 
