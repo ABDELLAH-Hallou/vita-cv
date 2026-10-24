@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "protocol_version": "vita-independent-evaluation/1",
+  "status": "draft_requires_human_preregistration",
+  "domains": ["software", "sales", "marketing", "operations"],
+  "seniority": ["junior", "mid", "senior"],
+  "native_formats": ["latex", "markdown", "docx", "pdf"],
+  "minimum_primary_per_cell": {"development": 1, "holdout": 2},
+  "challenge_tags": ["expired_credential", "ambiguous_date", "missing_evidence", "disqualifying_condition"],
+  "minimum_holdout_per_challenge": 8,
+  "tasks": ["extract", "analyze", "adapt", "review", "cover"],
+  "controls": ["unchanged_analyze", "unchanged_review", "mismatched_role"],
+  "required_dimensions": {
+    "extract": ["fidelity", "requirement_classification"],
+    "analyze": ["fidelity", "requirement_classification", "requirement_satisfaction"],
+    "adapt": ["fidelity", "omission", "addition"],
+    "review": ["fidelity", "requirement_classification", "requirement_satisfaction"],
+    "cover": ["fidelity", "omission", "addition"]
+  },
+  "labels": {
+    "fidelity": ["supported", "ambiguity_preserved", "contradicted", "unsupported_specificity", "cannot_judge"],
+    "requirement_classification": ["required", "preferred", "unclear", "employment_condition", "not_requirement", "cannot_judge"],
+    "requirement_satisfaction": ["matched", "partial", "missing", "not_assessable", "cannot_judge"],
+    "omission": ["retained", "justified", "harmful", "cannot_judge"],
+    "addition": ["supported", "unsupported", "cannot_judge"]
+  },
+  "error_labels": {"fidelity": ["contradicted", "unsupported_specificity"], "omission": ["harmful"], "addition": ["unsupported"]},
+  "review_policy": {
+    "independent_reviewers_per_case": 2,
+    "distinct_qualified_adjudicator_for_disagreement": true,
+    "source_first_then_blinded_output_review": true,
+    "jd_classification_before_candidate_review": true,
+    "qualification_minimum_years": 3,
+    "qualification_alternative": "Documented specialist experience approved by the study custodian",
+    "inventory_completeness_required": true
+  },
+  "analysis_policy": {
+    "endpoint": "Adapt/Cover candidate proposals, including proposals stopped by factual confirmation; validated reports for other stages. Execution success and content availability are separate.",
+    "agreement": "raw pre-adjudication nominal Cohen kappa and observed agreement, per reviewer pair and dimension",
+    "uncertainty": "95% Wilson intervals on primary case-level rates within each configuration/task slice; controls are descriptive",
+    "denominator": "Retain all preregistered observations; execution failures use attempted cases including unavailable providers, noncompletion uses all planned cases, semantic errors use available fully reviewed endpoint outputs including stopped proposals",
+    "stop_rule": "Fixed preregistered sample; no optional stopping or silent replacement of failures",
+    "ordering": "Serial execution in registered order; human reviewers blinded to configuration and each other's labels",
+    "success_threshold": null
+  },
+  "claim_boundaries": {
+    "ats_validated": false,
+    "hiring_outcomes_validated": false,
+    "representative_population_validated": false,
+    "human_reviews_completed": false,
+    "agreement_measured": false
+  }
+}
