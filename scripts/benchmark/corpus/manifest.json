@@ -1,0 +1,10 @@
+{
+  "revision": "synthetic-v1",
+  "files": {
+    "education.tex": "2e35d0d1f7e20afa26d32d290fdc102f783e4a1dc09ef28afc1b7c3830945ad1",
+    "job.md": "863330d3bd0addf090c7a62d8af807d2d10044432fae8906d47a8f47a46bf208",
+    "main.tex": "5f62e545284604bda3b5810812ca32da92494f45b11d43288a4449843275c3af",
+    "oracle.json": "490ff99bb8f4fc4e6b96eda38eb6bd751df2feb3e0f63d6d0ef75459a89b755f",
+    "requirements.json": "795c00e73039d5cdf1549a69fb510875a7c625358aca8fae1ea5c0fde206bae8"
+  }
+}

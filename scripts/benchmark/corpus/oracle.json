@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "classification": "synthetic proposed coverage, not an observed extraction failure",
+  "reviewed_requirements": "Only the explicit Python capability is weighted in consistency controls.",
+  "extraction_checks": {
+    "role_conflict": "Preserve the disagreement between the Marketing Manager title and Python Engineer body; do not silently resolve it.",
+    "location": "Remote, France; the New York footer is not the job location.",
+    "noise": "Navigation links and application-form fields are not candidate requirements."
+  },
+  "quality_rubric": [
+    "role_conflict_preserved", "job_location_correct", "navigation_and_form_noise_excluded",
+    "candidate_facts_preserved", "source_linked_evidence", "actionable_commentary"
+  ],
+  "quality_policy": "Host scores measure documented criterion coverage, not provider content quality. Human adjudication is required; no automatic quality score is assigned."
+}

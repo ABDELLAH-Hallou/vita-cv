@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "items": [{
+    "job_id": "job-1", "key": "python", "text": "Python production experience",
+    "kind": "capability", "category": "hard_skills", "classification": "required", "ambiguity": "",
+    "source_refs": [{"job_id": "job-1", "line_start": 7, "line_end": 7, "quote": "Python production experience is required."}]
+  }]
+}

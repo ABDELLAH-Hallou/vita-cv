@@ -5,10 +5,12 @@ include EXTENSIONS.md
 include PIPELINE.md
 include FACTUAL_CHANGES.md
 include DIAGNOSTICS.md
+include BENCHMARKING.md
 include tests/conftest.py
 
 recursive-include vita/assets *.md
 recursive-include vita *.py
 recursive-include scripts *.py
+recursive-include scripts/benchmark *.json *.tex *.md
 
 global-exclude *.py[cod] __pycache__ *.so
