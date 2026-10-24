@@ -646,6 +646,12 @@ For reproducible standalone CLI/provider checks, see [benchmarking](BENCHMARKING
 The harness separates network-free fixture CI from explicitly authorized live
 runs, with frozen inputs, unchanged assessment controls, and private run records.
 
+The [independent evaluation protocol](EVALUATION_PROTOCOL.md) and
+[annotation guide](ANNOTATION_GUIDE.md) define a separate, private holdout program,
+two independent qualified human reviewers, adjudication, and offline scoring.
+Holdout acquisition and human review remain pending; ATS and hiring outcomes are
+explicitly unvalidated.
+
 Adapt/Cover proposals now require explicit confirmation for unverified factual or
 wording changes. See [source-linked factual changes](FACTUAL_CHANGES.md) for
 `vita facts`, structured outputs, and the conservative unattended behavior.

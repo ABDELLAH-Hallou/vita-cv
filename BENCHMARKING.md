@@ -84,6 +84,13 @@ unmeasured until adjudicated.** Unavailable providers are N/A for quality and re
 in reliability denominators. Host assessment scores are not provider quality scores.
 Cross-stage inconsistencies must not be called isolated same-prompt randomness.
 
+For the independent human validation program, use
+[EVALUATION_PROTOCOL.md](EVALUATION_PROTOCOL.md) and
+[ANNOTATION_GUIDE.md](ANNOTATION_GUIDE.md). `python -m scripts.evaluation` creates
+the private split structure, freezes preregistrations, prepares blank review
+packets, and scores supplied independent human annotations. The conformance
+corpus is development-only and must never become the independent holdout.
+
 ## Opt-in live runs and spending
 
 Implementing/testing the harness does not authorize any live spending. A subscription
