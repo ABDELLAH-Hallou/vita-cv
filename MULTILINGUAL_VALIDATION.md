@@ -29,6 +29,8 @@ versioned source/unit manifest. Each includes:
 - One-, three- and eight-page source projects. The latter two use recursive,
   literal `\input` files. Eight pages contain 43 historical entries; the last
   pages are meaningful history, not blank page-count padding.
+  The long history exceeds 2500 whitespace-delimited words in each draft; mixed
+  Latin personal names are explicitly isolated as LTR spans inside RTL documents.
 
 All 16 source/target combinations across three lengths create **48 cases**,
 including 12 same-language identity controls. Page counts are controlled fixture

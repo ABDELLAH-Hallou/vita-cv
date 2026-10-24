@@ -13,7 +13,8 @@
     "award": "Official campaign {campaign}; team achievement, not individual ownership.",
     "volunteering": "Community workshops with {colleague}.",
     "custom": "Portfolio {url}; ambiguous date {date}.",
-    "history": "Earlier employment at {employer}, {year}; historical responsibility retained."
+    "history": "Earlier employment at {employer}, {year}; historical responsibility retained.",
+    "history_details": "Maintained data quality checks and documented routine procedures. Supported incident triage and recorded unresolved questions without expanding TTR. Collaborated on code review, tests and handover notes. Responsibilities describe team work without an extra credential, financial unit or individual ownership claim. This historical entry remains in the source when a vacancy emphasizes other skills. A portfolio link does not establish additional experience."
   },
   "es": {
     "language": "spanish",
@@ -26,7 +27,8 @@
     "award": "Campaña oficial {campaign}; logro del equipo, no responsabilidad individual.",
     "volunteering": "Talleres comunitarios con {colleague}.",
     "custom": "Portafolio {url}; fecha ambigua {date}.",
-    "history": "Empleo anterior en {employer}, {year}; se conserva la responsabilidad histórica."
+    "history": "Empleo anterior en {employer}, {year}; se conserva la responsabilidad histórica.",
+    "history_details": "Mantenimiento de controles de calidad de datos y documentación de procedimientos rutinarios. Apoyo en la clasificación de incidentes y registro de dudas sin desarrollar TTR. Colaboración en revisión de código, pruebas y notas de traspaso. Las responsabilidades describen trabajo en equipo sin añadir credenciales, unidades monetarias ni atribución individual. Esta entrada histórica se conserva cuando una oferta destaca otras competencias. Un enlace al portafolio no demuestra experiencia adicional."
   },
   "fr": {
     "language": "french",
@@ -39,7 +41,8 @@
     "award": "Campagne officielle {campaign} ; résultat d'équipe, sans attribution individuelle.",
     "volunteering": "Ateliers associatifs avec {colleague}.",
     "custom": "Portfolio {url} ; date ambiguë {date}.",
-    "history": "Emploi antérieur chez {employer}, {year} ; responsabilité historique conservée."
+    "history": "Emploi antérieur chez {employer}, {year} ; responsabilité historique conservée.",
+    "history_details": "Maintien de contrôles de qualité des données et documentation des procédures courantes. Appui au tri des incidents et consignation des questions sans développer TTR. Collaboration aux revues de code, aux tests et aux notes de passation. Les responsabilités décrivent un travail collectif sans ajouter de diplôme, de devise ni de responsabilité individuelle. Cette expérience reste dans la source même si une offre privilégie d'autres compétences. Un lien vers le portfolio ne prouve pas une expérience supplémentaire."
   },
   "ar": {
     "language": "arabic",
@@ -52,6 +55,7 @@
     "award": "الحملة الرسمية {campaign}؛ إنجاز للفريق وليس مسؤولية فردية.",
     "volunteering": "ورش مجتمعية مع {colleague}.",
     "custom": "ملف الأعمال {url}؛ تاريخ ملتبس {date}.",
-    "history": "عمل سابق لدى {employer}، {year}؛ تم الحفاظ على المسؤولية التاريخية."
+    "history": "عمل سابق لدى {employer}، {year}؛ تم الحفاظ على المسؤولية التاريخية.",
+    "history_details": "الحفاظ على فحوص جودة البيانات وتوثيق الإجراءات الروتينية. المساعدة في فرز الحوادث وتسجيل الأسئلة غير المحسومة دون تفسير اختصار TTR. التعاون في مراجعة الشيفرة والاختبارات وملاحظات تسليم العمل. تصف المسؤوليات عملا جماعيا دون إضافة مؤهل أو عملة أو ادعاء ملكية فردية للإنجاز. تبقى هذه الخبرة في المصدر عندما تركز الوظيفة الجديدة على مهارات أخرى. لا يثبت رابط ملف الأعمال وجود خبرة إضافية غير موثقة في السجل الأصلي."
   }
 }

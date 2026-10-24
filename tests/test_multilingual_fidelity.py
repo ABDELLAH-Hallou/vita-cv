@@ -256,3 +256,5 @@ def test_fixture_qualifications_and_history_have_independent_review_boundaries()
         assert "Sen 2017" in units["custom"]["text"]
         assert "2009" in units["history-7"]["text"]
         assert len([key for key in units if key.startswith("history-") and not key.startswith("history-heading")]) == 43
+        assert r"\textenglish{Nadia El-Haddad}" in units["name"]["text"]
+        assert sum(len(value["text"].split()) for key, value in units.items() if key.startswith("history-")) > 2500

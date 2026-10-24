@@ -20,7 +20,7 @@ def digest(text):
 
 def inventory(language, pages):
     locale = LOCALES[language]
-    units = {"name": {"kind": "CVText", "text": r"Nadia El-Haddad / \textarabic{نور الحداد}",
+    units = {"name": {"kind": "CVText", "text": r"\textenglish{Nadia El-Haddad} / \textarabic{نور الحداد}",
                       "protected": ["Nadia El-Haddad", "نور الحداد"]}}
     keys = ("profile", "experience", "education", "publication", "skills", "award", "volunteering", "custom")
     for index, key in enumerate(keys):
@@ -36,14 +36,14 @@ def inventory(language, pages):
         values = {"employer": "Atelier Boréal " + str(page + 1), "year": str(2016 - page)}
         units[f"history-heading-{page}"] = {"kind": "CVHeading", "text": locale["headings"][8], "protected": []}
         units[f"history-{page}"] = {"kind": "CVText", "text": locale["history"].format(**{
-            key: r"\textenglish{" + value + "}" for key, value in values.items()}), "protected": list(values.values())}
+            key: r"\textenglish{" + value + "}" for key, value in values.items()}) + " " + locale["history_details"], "protected": [*values.values(), "TTR"]}
         # Substantial included history, rather than padding eight mostly empty pages.
         if page:
             for entry in range(1, 6):
                 employer = f"Atelier Boréal {page + 1}-{entry}"
                 units[f"history-{page}-detail-{entry}"] = {"kind": "CVText", "text": locale["history"].format(
-                    employer=r"\textenglish{" + employer + "}", year=r"\textenglish{" + values["year"] + "}"),
-                    "protected": [employer, values["year"]]}
+                    employer=r"\textenglish{" + employer + "}", year=r"\textenglish{" + values["year"] + "}") + " " + locale["history_details"],
+                    "protected": [employer, values["year"], "TTR"]}
     return units
 
 
