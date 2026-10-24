@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.9.1...v2.10.0) (2026-10-24)
+
+
+### Features
+
+* **evaluation:** add independent human review protocol and scoring ([#79](https://github.com/ABDELLAH-Hallou/vita-cv/issues/79)) ([26484fc](https://github.com/ABDELLAH-Hallou/vita-cv/commit/26484fc8dd4637d8add8fd58c44dc9c0219e6b0e))
+
 ## [2.9.1](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.9.0...v2.9.1) (2026-10-24)
 
 
