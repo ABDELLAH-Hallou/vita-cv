@@ -53,7 +53,8 @@ vita = ["assets/prompts/*.md", "assets/skills/*.md"]
 [dependency-groups]
 dev = [
     "build>=1.0",
-    "pip-audit>=2.9",
+    # Patched filelock releases used by audit tooling require Python 3.11+.
+    "pip-audit>=2.9; python_version >= '3.11'",
     "pytest>=8.0",
     "pytest-cov>=6.0",
     "ruff>=0.14",
