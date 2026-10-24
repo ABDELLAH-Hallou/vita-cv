@@ -500,3 +500,24 @@ def test_credentials_and_duplicate_json_rejected(root):
     config["configurations"][0]["api_key"] = "not-allowed"
     with pytest.raises(ValueError, match="credentials"):
         c.configuration_check(config, c.read(root / "protocol.json"))
+
+
+def test_pending_adjudicator_cannot_resolve_a_disagreement(prepared):
+    root, _, _ = prepared
+    assignments = c.read(root / "assignments.json")
+    for row in assignments["assignments"]:
+        row["adjudicator_id"] = None
+    replace(root / "assignments.json", assignments)
+    packet = root / "pending-adjudicator-packet.json"
+    study.packet(root, packet)
+    a, b = [reviewed(root, packet, "test-human-" + str(i)) for i in range(2)]
+    doc = c.read(b)
+    decision = next(row for row in doc["annotations"] if row["unit_id"] == "adapt-fidelity")
+    decision["label"] = "unsupported_specificity"
+    replace(b, doc)
+    target = root / "invalid-adjudication.json"
+    replace(target, {"schema_version": 1, "packet_sha256": c.read(packet)["sha256"], "adjudicator_id": None,
+        "review_sha256": {c.read(p)["reviewer_id"]: c.fingerprint(c.read(p)) for p in (a, b)},
+        "completed_at": now(), "reviewed_original_submissions": True, "decisions": [decision]})
+    with pytest.raises(ValueError, match="third human"):
+        score(root, packet, [a, b], [target])

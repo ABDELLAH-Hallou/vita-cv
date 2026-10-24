@@ -113,7 +113,7 @@ def independent_reviews(root, registration, packet, paths):
 
 
 def adjudicate(root, registration, packet, paths, reviews, review_hashes):
-    decisions = {}
+    decisions, seen = {}, set()
     units = {u["id"]: u for u in packet["units"]}
     observations = {o["id"]: o for o in packet["observations"]}
     assignments = {a["case_id"]: a for a in packet["assignments"]["assignments"]}
@@ -125,10 +125,11 @@ def adjudicate(root, registration, packet, paths, reviews, review_hashes):
             require(doc["reviewed_original_submissions"] is True and stamp(packet["created_at"]) <= stamp(doc["completed_at"]) <= datetime.now(timezone.utc), "Adjudicator must attest original-review inspection and actual completion time")
         for annotation in doc["decisions"]:
             uid = annotation["unit_id"]
-            require(uid in units and uid not in decisions, "Unknown/duplicate adjudication")
+            require(uid in units and uid not in seen, "Unknown/duplicate adjudication")
+            seen.add(uid)
             unit = units[uid]
             assignment = assignments[observations[unit["observation_id"]]["case_id"]]
-            require(doc["adjudicator_id"] == assignment["adjudicator_id"] and doc["adjudicator_id"] not in assignment["reviewer_ids"], "Adjudication needs the assigned distinct third human")
+            require(doc["adjudicator_id"] is not None and doc["adjudicator_id"] in {r["id"] for r in packet["reviewers"]["reviewers"]} and doc["adjudicator_id"] == assignment["adjudicator_id"] and doc["adjudicator_id"] not in assignment["reviewer_ids"], "Adjudication needs the assigned distinct third human")
             ratings = [reviews.get((r, uid)) for r in assignment["reviewer_ids"]]
             require(all(r in doc["review_sha256"] for r in assignment["reviewer_ids"]), "Missing independent review hash in adjudication")
             require(all(ratings) and ratings[0]["label"] != ratings[1]["label"], "Adjudicate only actual independently rated disagreements")
