@@ -1,7 +1,9 @@
 """Human-only label resolution, pre-adjudication agreement, and explicit denominators."""
 
+import platform
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
 
 from scripts.evaluation.contracts import (
     SHA,
@@ -279,7 +281,11 @@ def score(root, packet_path, review_paths=(), adjudication_paths=()):
             "dimensions": dimensions})
     pending_count = sum(r["output_available"] and r["quality_status"] != "reviewed" for r in observation_scores)
     state = "human_review_pending" if pending_count or pending or disagreements or not reviews else "reviewed_available_outputs"
+    implementation = {name: Path(__file__).with_name(name + ".py").read_text(encoding="utf-8")
+                      for name in ("__main__", "contracts", "scoring", "study")}
     return {"schema_version": VERSION, "registration_sha256": registration["sha256"], "packet_sha256": packet["sha256"], "split": packet["split"],
+            "scoring_provenance": {"implementation_sha256": fingerprint(implementation), "python": platform.python_version(),
+                                   "protocol_version": registration["protocol"]["protocol_version"]},
             "status": state, "sampling": registration["sampling"], "review_sha256": hashes,
             "agreement": {"status": "measured" if agreement_rows else "pending_independent_reviews", "rows": agreement_rows},
             "pending": {"independent_units": pending, "adjudication_units": disagreements, "observations": pending_count},

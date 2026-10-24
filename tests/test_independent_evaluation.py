@@ -356,6 +356,7 @@ def test_stale_packet_outputs_and_review_hashes_are_rejected(prepared):
 def test_readable_pending_report_and_no_overwrites(prepared):
     root, _, packet = prepared
     report = score(root, packet)
+    assert c.SHA.fullmatch(report["scoring_provenance"]["implementation_sha256"])
     rendered = markdown(report)
     assert "unmeasured" in rendered and "ATS" in rendered and "hiring" in rendered
     with pytest.raises(ValueError, match="overwrite"):

@@ -267,6 +267,9 @@ python -m scripts.evaluation score --study .vita/evaluation/study-001 --packet .
 ```
 
 JSON/Markdown reports record pending work honestly even with no review files.
+They include the scoring implementation's source fingerprint, Python version,
+protocol version, registration/packet hashes and original submission hashes for
+reproduction and longitudinal comparisons.
 Add `--require-complete` for a nonzero gate while holdout sampling, execution,
 independent human review, inventory checks or adjudication are incomplete. This
 gate never validates ATS/hiring claims. Ordinary report generation exits 0,
