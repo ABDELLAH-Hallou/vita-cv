@@ -225,6 +225,8 @@ example with controls, **empty** `holdout/manifest.json`, private `sources/`,
 `protocol.json`, `governance.json`, `configurations.json`, `results.json`,
 `units.json`, `reviewers.json`, and `assignments.json`. Status explicitly reports
 sampling and human work pending. It produces no gold labels or agreement values.
+Private copies of this protocol and the annotation guide are also captured and
+hash-pinned when freezing; distribute those method snapshots to the reviewers.
 
 Populate approved sources and [contract fields](ANNOTATION_GUIDE.md#file-contracts).
 The custodian records actual approval in governance, changes protocol status to
@@ -237,6 +239,7 @@ python -m scripts.evaluation freeze --study .vita/evaluation/study-001
 This writes `registration.json` once. Source, protocol, governance or configuration
 changes invalidate it. Failed/outstanding quotas remain disclosed; freezing a
 development pilot does not mean a complete holdout exists.
+Changing either captured method document invalidates the registration too.
 
 After approved execution, collect output files under the study root, fill
 `results.json` from actual CLI artifacts/provenance, and create an atomic
@@ -258,6 +261,9 @@ Structured routing metadata and host score fields are removed from output views;
 view hashes and original hashes are distinct, and original citation spans retain
 their original line numbers. Custodians must audit free text for residual identity
 cues: automatic field removal cannot guarantee complete blinding.
+Blinded bundles retain task, endpoint and the preregistered as-of date so reviewers
+can apply the correct Cover omission policy and judge credential expiry without
+seeing provider/configuration identity.
 
 After both humans submit, create a blank adjudication form if needed:
 

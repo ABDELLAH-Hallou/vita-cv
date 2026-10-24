@@ -46,6 +46,8 @@ def blinded_output(path):
 
 def initialize(root):
     root.mkdir(parents=True, exist_ok=False)
+    for source, target in (("ANNOTATION_GUIDE.md", "annotation-guide.md"), ("EVALUATION_PROTOCOL.md", "evaluation-protocol.md")):
+        shutil.copyfile(HERE.parent.parent / source, root / target)
     write(root / "protocol.json", read(HERE / "protocol.json"))
     write(root / "configurations.json", {"schema_version": VERSION, "configurations": []})
     write(root / "reviewers.json", {"schema_version": VERSION, "reviewers": []})
@@ -118,12 +120,13 @@ def freeze(root):
     text(governance["registration_reference"])
     require(governance["sampling_plan_approved"] is True and governance["predeclared_analysis_approved"] is True and governance["holdout_tuning_forbidden"] is True, "Human preregistration approval remains pending")
     require(stamp(governance["protocol_approved_at"]) <= datetime.now(timezone.utc), "Invalid protocol approval time")
+    methods = {name: file_hash(root / name) for name in ("annotation-guide.md", "evaluation-protocol.md")}
     observations = [{"id": "obs-" + fingerprint([c["id"], cfg["id"], task])[:24],
                      "case_id": c["id"], "configuration_id": cfg["id"], "task": task,
                      "target": "proposal" if task in ("adapt", "cover") else "validated_report"}
                     for c in cases for cfg in configs for task in c["tasks"]]
     body = {"schema_version": VERSION, "registered_at": datetime.now(timezone.utc).isoformat(),
-            "protocol": protocol, "governance": governance, "cases": cases, "configurations": configs, "observations": observations,
+            "protocol": protocol, "method_documents": methods, "governance": governance, "cases": cases, "configurations": configs, "observations": observations,
             "sampling": coverage(cases, protocol), "ordering": "Serial: manifest case order, configuration order, then task order",
             "human_review": "pending; freeze assignments before distributing annotation packets"}
     registration = {**body, "sha256": fingerprint(body)}
@@ -137,6 +140,8 @@ def registered(root):
     protocol_check(doc["protocol"])
     require(read(root / "protocol.json") == doc["protocol"], "Protocol changed after registration; start a new study revision")
     require(read(root / "governance.json") == doc["governance"], "Preregistration approval changed after freezing")
+    for name, sha in doc["method_documents"].items():
+        local_file(root, name, sha)
     require(dataset(root, doc["protocol"]) == doc["cases"], "Dataset changed after registration")
     require(configuration_check(read(root / "configurations.json"), doc["protocol"]) == doc["configurations"], "Configurations changed after registration")
     return doc
@@ -321,7 +326,12 @@ def review_template(root, packet_path, reviewer_id, destination):
                         "view_sha256": hashlib.sha256(content.encode()).hexdigest(), "content": content,
                         "view_note": "Structured routing/host-score metadata omitted; original unit spans reference the original hash, not view line numbers. Custodian must audit residual textual identifiers."})
     job_docs = [d for d in documents if d["document"] in {"asset:" + a["id"] for o in observations if o["id"] == d["observation_id"] for a in cases[o["case_id"]]["assets"] if a["role"] == "job"}]
-    write(destination.with_suffix(".job-pass.json"), {"packet_sha256": doc["sha256"], "units": job_units, "documents": job_docs})
-    write(destination.with_suffix(".source-pass.json"), {"packet_sha256": doc["sha256"], "units": source_units, "documents": documents})
-    write(destination.with_suffix(".output-pass.json"), {"packet_sha256": doc["sha256"], "units": output_units, "documents": outputs})
+    configs = {c["id"]: c for c in registration["configurations"]}
+    contexts = [{"observation_id": o["id"], "task": o["task"], "target": o["target"],
+                 "as_of_date": configs[o["configuration_id"]]["as_of_date"], "language": cases[o["case_id"]]["language"]} for o in observations]
+    header = {"packet_sha256": doc["sha256"], "protocol_version": registration["protocol"]["protocol_version"],
+              "method_documents": registration["method_documents"], "contexts": contexts}
+    write(destination.with_suffix(".job-pass.json"), {**header, "units": job_units, "documents": job_docs})
+    write(destination.with_suffix(".source-pass.json"), {**header, "units": source_units, "documents": documents})
+    write(destination.with_suffix(".output-pass.json"), {**header, "units": output_units, "documents": outputs})
     return form

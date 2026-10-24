@@ -184,13 +184,14 @@ def test_invalid_or_stale_corpus_is_rejected(root, change):
         study.status(root)
 
 
-def test_registration_is_immutable_and_source_changes_invalidate_it(root):
+@pytest.mark.parametrize("changed_file", ["development/sources/education.tex", "annotation-guide.md"])
+def test_registration_is_immutable_and_source_changes_invalidate_it(root, changed_file):
     configure(root)
     reg = study.freeze(root)
     with pytest.raises(ValueError, match="overwrite"):
         study.freeze(root)
     assert study.registered(root)["sha256"] == reg["sha256"]
-    path = root / "development/sources/education.tex"
+    path = root / changed_file
     path.write_text("Changed education", encoding="utf-8")
     with pytest.raises(ValueError, match="Stale"):
         study.registered(root)
@@ -465,6 +466,8 @@ def test_jd_pass_never_contains_candidate_or_machine_predictions(prepared):
     assert job_pass["documents"] and all(d["document"] == "asset:job" for d in job_pass["documents"])
     assert all(u["dimension"] == "requirement_classification" and "prediction_pointer" not in u for u in job_pass["units"])
     assert "Fictional Institute" not in json.dumps(job_pass)
+    assert job_pass["contexts"] and all(c["as_of_date"] == "2026-10-24" and c["task"] in ("extract", "analyze", "adapt", "review", "cover") for c in job_pass["contexts"])
+    assert job_pass["method_documents"] == c.read(root / "registration.json")["method_documents"]
     output_pass = c.read(dest.with_suffix(".output-pass.json"))
     assert "synthetic-test-only" not in json.dumps(output_pass)
     assert all("overall_score" not in json.loads(d["content"]) for d in output_pass["documents"])
