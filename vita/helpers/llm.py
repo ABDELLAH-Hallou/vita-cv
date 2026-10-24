@@ -350,7 +350,8 @@ def _call_openai_compatible(
     if choice["message"].get("refusal") or choice.get("finish_reason") == "content_filter":
         raise ProviderError("Provider refused the response", "refusal")
     if choice.get("finish_reason") not in (None, "stop"):
-        raise ProviderError("Provider did not complete its response", "incomplete_response")
+        raise ProviderError("Provider did not complete its response", "incomplete_response",
+                            limit_kind="output_length" if choice.get("finish_reason") == "length" else None)
     content = choice["message"].get("content")
     if not isinstance(content, str) or not content.strip():
         if diagnostic.current():
@@ -384,7 +385,8 @@ def _call_anthropic(
     if result.get("stop_reason") == "refusal":
         raise ProviderError("Provider refused the response", "refusal")
     if result.get("stop_reason") not in (None, "end_turn", "stop_sequence"):
-        raise ProviderError("Provider did not complete its response", "incomplete_response")
+        raise ProviderError("Provider did not complete its response", "incomplete_response",
+                            limit_kind="output_length" if result.get("stop_reason") == "max_tokens" else None)
     if not isinstance(result.get("content"), list) or any(not isinstance(p, dict) or not isinstance(p.get("text", ""), str) for p in result["content"]):
         raise ProviderError(code="response_shape")
     content = "".join(part.get("text", "") for part in result["content"] if part.get("type", "text") == "text")
@@ -429,7 +431,8 @@ def _call_gemini(
     if reason in {"SAFETY", "RECITATION", "PROHIBITED_CONTENT", "BLOCKLIST"}:
         raise ProviderError("Provider blocked the response", "refusal")
     if reason not in (None, "STOP"):
-        raise ProviderError("Provider did not complete its response", "incomplete_response")
+        raise ProviderError("Provider did not complete its response", "incomplete_response",
+                            limit_kind="output_length" if reason == "MAX_TOKENS" else None)
     parts = candidate.get("content", {}).get("parts")
     if not isinstance(parts, list) or any(not isinstance(p, dict) or not isinstance(p.get("text", ""), str) for p in parts):
         raise ProviderError(code="response_shape")
@@ -492,7 +495,10 @@ def _post(url: str, headers: dict, data: dict | None, *, method: str = "POST") -
         diagnostic.failure("provider_request", e, category=category, http_status=e.code)
         if constrained and category != "invalid_model" and e.code in (400, 422) and unsupported_schema_error(error_msg):
             raise UnsupportedSchema(status=e.code) from None
-        raise ProviderError(code=category, status=e.code,
+        context_limit = category == "invalid_request" and bool(re.search(
+            r"context_length_exceeded|context.window|maximum context|input.{0,40}(?:too long|token limit)|too many input tokens|input token count.{0,100}exceeds|prompt is too long",
+            error_msg, re.IGNORECASE))
+        raise ProviderError(code=category, status=e.code, limit_kind="input_context" if context_limit else None,
                             retry_after=retry_after_seconds(e.headers.get("Retry-After") if e.headers else None)) from None
     except urllib.error.URLError as e:
         code = "tls" if isinstance(e.reason, ssl.SSLCertVerificationError) else (

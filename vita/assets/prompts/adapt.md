@@ -7,8 +7,9 @@ Instructions:
 4. Optimize the bullet points using the XYZ formula, but keep them EXTREMELY concise (maximum 1 line, strip all fluff/bloat).
 5. Naturally weave in the required keywords from the job description below without sounding bloated.
 6. Bold key tools and technologies mentioned in the bullet points (e.g., `\textbf{Python}`, `\textbf{LangGraph}`) to enhance scannability.
-7. Keep `main.tex` structurally identical; only update existing content strings and existing title/summary fields or sections.
+7. Preserve formatting macros, layout and logical section structure; update existing content strings and existing title/summary fields or sections. In autonomous single-file mode, follow the host instruction to inline translated included content while preserving its rendered structure.
 8. Save a high-level summary of the edits you made into a new file at `.vita/results/adapt.md`.
+9. Preserve every employment-history entry, qualification, date, metric and unit. Never silently delete history or return a partial CV to fit input/output limits. If the complete task cannot fit, stop and report the limit. Read all supported input/include files; translation covers their prose too when a target language is selected.
 
 If multiple job descriptions are provided, produce ONE optimized CV, not separate CV versions:
 - Prioritize skills, keywords, and bullet points that match 2 or more jobs.

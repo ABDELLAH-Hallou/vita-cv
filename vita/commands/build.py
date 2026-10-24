@@ -1,7 +1,9 @@
+import re
 import subprocess
 from pathlib import Path
 
 from vita.helpers.config import load_config
+from vita.helpers.context_builder import cv_source_files
 from vita.helpers.diagnostics import diagnosed, failure, journal, local_artifact
 from vita.helpers.factual_changes import guard
 from vita.helpers.logging import log
@@ -12,6 +14,10 @@ def run(target: str = "resume") -> bool:
     if not guard(("adapt", "cover") if target in ("cover", "both") else ("adapt",)):
         return False
     config   = load_config()
+    engine = config.get("latex_engine", "pdflatex")
+    if engine not in ("pdflatex", "xelatex", "lualatex"):
+        print("Unsupported latex_engine. Use pdflatex, xelatex, or lualatex in .vita/config.json.")
+        return False
     output_dir      = config.get("output_dir", "out")
     author          = config.get("author", "cv")
     documents = {
@@ -42,14 +48,22 @@ def run(target: str = "resume") -> bool:
             print(f"LaTeX entry file not found: '{entry}'")
             print("Check .vita/config.json; use `vita cover --auto` to generate a cover letter.")
             return False
+        if engine == "pdflatex" and any(
+            re.search(r"\\usepackage(?:\[[^\]]*\])?\s*\{[^}]*\b(?:fontspec|polyglossia)\b", content)
+            for content in cv_source_files(entry).values()
+        ):
+            print("This source uses fontspec/polyglossia, which requires XeLaTeX or LuaLaTeX. "
+                  "Set latex_engine in .vita/config.json and install the source's fonts. No source was changed.")
+            return False
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     for entry, filename, label in selected:
-        if not _build_document(entry, output_dir, filename, label):
+        if not _build_document(entry, output_dir, filename, label, engine):
             return False
     return True
 
 
-def _build_document(tex_entry: str, output_dir: str, output_filename: str, label: str) -> bool:
+def _build_document(tex_entry: str, output_dir: str, output_filename: str, label: str,
+                    engine: str = "pdflatex") -> bool:
     # Use the final name during compilation so two sources with the same stem
     # cannot overwrite each other's PDFs or auxiliary files.
     final = Path(output_dir) / output_filename
@@ -62,9 +76,12 @@ def _build_document(tex_entry: str, output_dir: str, output_filename: str, label
 
 
     if not _step([
-        "latexmk", "-pdf", "-interaction=nonstopmode", "-halt-on-error",
+        "latexmk", {"pdflatex": "-pdf", "xelatex": "-xelatex", "lualatex": "-lualatex"}[engine],
+        "-interaction=nonstopmode", "-halt-on-error",
         f"-outdir={output_dir}", f"-jobname={job_name}", tex_entry,
     ]):
+        print(f"Check the {engine} installation, required TeX packages, and fonts named by the source. "
+              "Inspect the compiler log in the output directory; compilation does not validate translation.")
         return False
     if not final.is_file():
         print(f"Build did not produce the expected PDF: {final}")

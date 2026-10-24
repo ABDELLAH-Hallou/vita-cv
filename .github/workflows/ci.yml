@@ -134,6 +134,41 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
+  multilingual:
+    name: Multilingual structural and PDF conformance (synthetic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install explicit Unicode engine, language packages, fonts and PDF inspection tools
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+            sudo sed -i 's|https\?://azure\.archive\.ubuntu\.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+          apt_options=(-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)
+          sudo apt-get "${apt_options[@]}" update
+          sudo apt-get "${apt_options[@]}" install --yes --no-install-recommends latexmk texlive-xetex texlive-lang-arabic texlive-lang-french texlive-lang-spanish fonts-hosny-amiri fonts-dejavu-core poppler-utils fontconfig
+      - name: Exercise all language pairs, lengths, included files and limit controls
+        run: python -m scripts.multilingual --real-pdf --output .vita/multilingual-fixtures
+      - name: Preserve sources, held proposals, compiler logs, geometry and all page images
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: multilingual-synthetic-conformance
+          path: .vita/multilingual-fixtures
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
   dependency-audit:
     name: Dependency audit
     runs-on: ubuntu-latest
@@ -233,7 +268,7 @@ jobs:
     name: CI gate
     if: always()
     needs:
-      [conventional-title, quality, regression, fixture-conformance, dependency-audit, dependency-review, package, smoke]
+      [conventional-title, quality, regression, fixture-conformance, multilingual, dependency-audit, dependency-review, package, smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -247,6 +282,7 @@ jobs:
           PACKAGE: ${{ needs.package.result }}
           SMOKE: ${{ needs.smoke.result }}
           CONFORMANCE: ${{ needs.fixture-conformance.result }}
+          MULTILINGUAL: ${{ needs.multilingual.result }}
         run: |
           test "$TITLE" = success || test "$TITLE" = skipped
           test "$QUALITY" = success
@@ -255,4 +291,5 @@ jobs:
           test "$PACKAGE" = success
           test "$SMOKE" = success
           test "$CONFORMANCE" = success
+          test "$MULTILINGUAL" = success
           test "$REVIEW" = success || test "$REVIEW" = skipped
