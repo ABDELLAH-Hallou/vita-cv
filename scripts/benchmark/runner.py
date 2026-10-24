@@ -408,6 +408,8 @@ def main(argv=None):
                 "settings": settings, "corpus": corpus, "ordering": "serial, listed case order; pipeline then manual then unchanged controls",
                 "source_versions": source_versions,
                 "limits": {"generation_attempts_per_operation": 3, "request_timeout_seconds": 120,
+                           "retry_base_seconds": 0 if args.mode == "fixture" else 1,
+                           "retry_max_seconds": 0 if args.mode == "fixture" else 30,
                            "authorization_max_requests": read(args.authorization)["max_requests"] if args.authorization else 0},
                 "approval_policy": "Fixture-only synthetic approvals; live changes require explicit revision-bound human decisions."})
         if args.mode == "live":
