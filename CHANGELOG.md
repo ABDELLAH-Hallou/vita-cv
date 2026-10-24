@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.10.0...v2.11.0) (2026-10-24)
+
+
+### Features
+
+* **multilingual:** validate translation and long-document fidelity ([#82](https://github.com/ABDELLAH-Hallou/vita-cv/issues/82)) ([164d745](https://github.com/ABDELLAH-Hallou/vita-cv/commit/164d745e81201504abc82a23e5e2602d951ecc8d))
+
 ## [2.10.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.9.1...v2.10.0) (2026-10-24)
 
 
