@@ -105,6 +105,34 @@ jobs:
           sudo apt-get "${apt_options[@]}" install --yes --no-install-recommends latexmk texlive-latex-base
       - name: Run regression suite with branch coverage
         run: uv run --python ${{ matrix.python-version }} pytest --ignore=tests/smoke --cov=vita --cov-report=term-missing
+      - name: Verify benchmark handoff with real LaTeX
+        if: matrix.python-version == '3.12'
+        run: uv run python -m scripts.benchmark --case openai-extract-true --real-pdf --output .vita/benchmark-real-pdf
+
+  fixture-conformance:
+    name: Standalone fixture conformance (no live providers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Run all adapters, reasoning variants, toggles, and failure fixtures
+        run: python -m scripts.benchmark --output .vita/benchmark-fixtures
+      - name: Preserve first attempts, recovery records, and frozen outputs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: standalone-fixture-conformance
+          path: .vita/benchmark-fixtures
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
 
   dependency-audit:
     name: Dependency audit
@@ -205,7 +233,7 @@ jobs:
     name: CI gate
     if: always()
     needs:
-      [conventional-title, quality, regression, dependency-audit, dependency-review, package, smoke]
+      [conventional-title, quality, regression, fixture-conformance, dependency-audit, dependency-review, package, smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -218,6 +246,7 @@ jobs:
           REVIEW: ${{ needs.dependency-review.result }}
           PACKAGE: ${{ needs.package.result }}
           SMOKE: ${{ needs.smoke.result }}
+          CONFORMANCE: ${{ needs.fixture-conformance.result }}
         run: |
           test "$TITLE" = success || test "$TITLE" = skipped
           test "$QUALITY" = success
@@ -225,4 +254,5 @@ jobs:
           test "$AUDIT" = success
           test "$PACKAGE" = success
           test "$SMOKE" = success
+          test "$CONFORMANCE" = success
           test "$REVIEW" = success || test "$REVIEW" = skipped

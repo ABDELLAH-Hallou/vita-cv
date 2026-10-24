@@ -1,0 +1,2 @@
+# Frozen benchmark checksums must survive Windows/Linux checkouts.
+scripts/benchmark/corpus/* text eol=lf

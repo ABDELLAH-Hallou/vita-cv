@@ -642,6 +642,10 @@ journal contains actual prompts, requests, outputs, configuration precedence,
 and full errors with credentials redacted. See [execution journals](DIAGNOSTICS.md)
 for capture modes, file locations, and sanitized support exports.
 
+For reproducible standalone CLI/provider checks, see [benchmarking](BENCHMARKING.md).
+The harness separates network-free fixture CI from explicitly authorized live
+runs, with frozen inputs, unchanged assessment controls, and private run records.
+
 Adapt/Cover proposals now require explicit confirmation for unverified factual or
 wording changes. See [source-linked factual changes](FACTUAL_CHANGES.md) for
 `vita facts`, structured outputs, and the conservative unattended behavior.

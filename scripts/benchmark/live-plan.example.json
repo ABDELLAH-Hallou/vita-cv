@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {"id": "configured-openai", "provider": "openai", "model": "REPLACE_WITH_ACCESSIBLE_MODEL_ID", "reasoning_effort": "low", "extraction": true},
+    {"id": "configured-codex", "provider": "codex", "model": "REPLACE_WITH_ACCESSIBLE_MODEL_ID", "reasoning_effort": "low", "extraction": true}
+  ]
+}
