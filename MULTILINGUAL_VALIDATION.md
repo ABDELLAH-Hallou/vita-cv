@@ -68,7 +68,9 @@ python -m scripts.multilingual --check-project PATH_TO_PROPOSAL_PROJECT --source
 ```
 
 Retain the original source project beside its manifest; stale hashes fail. This
-accepts the explicit synthetic LaTeX macro contract, not arbitrary CVs or PDFs.
+also rechecks the captured source units against the synthetic contract: updating
+hashes after changing source facts does not turn them into the declared fixture.
+The checker accepts the explicit synthetic LaTeX macro contract, not arbitrary CVs or PDFs.
 Do not feed real-person material into a public CI artifact upload. Live model
 execution requires separate explicit spending authorization and the existing
 [benchmark policy](BENCHMARKING.md); this runner has no live mode.

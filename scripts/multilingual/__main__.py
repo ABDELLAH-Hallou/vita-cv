@@ -164,6 +164,8 @@ def main(argv=None):
             _, captured = capture(source_root)
             if set(captured) != set(manifest["sources"]) or any(digest((source_root / name).read_text(encoding="utf-8")) != sha for name, sha in manifest["sources"].items()):
                 raise ValueError("Stale fixture source manifest")
+            if structural(manifest, source_root, manifest["language"])["status"] != "mechanical_checks_passed":
+                raise ValueError("Captured source text does not match the declared synthetic fixture units")
             result = structural(manifest, args.check_project.resolve(), args.target_language)
             (destination / "report.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
             return 0 if result["status"] == "mechanical_checks_passed" else 1

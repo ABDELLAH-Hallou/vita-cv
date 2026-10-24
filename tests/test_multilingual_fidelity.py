@@ -11,7 +11,7 @@ import pytest
 
 from scripts.multilingual.__main__ import main, pdf_check, rate, run_case
 from scripts.multilingual.checks import capture, layout, structural
-from scripts.multilingual.fixtures import LANGUAGES, PAGES, inventory, materialize
+from scripts.multilingual.fixtures import LANGUAGES, PAGES, digest, inventory, materialize
 from vita.commands import ai_step, build
 from vita.helpers import llm
 from vita.helpers.provider_errors import PROVIDER_ERROR_SCHEMA, ProviderError
@@ -139,7 +139,6 @@ def test_context_and_output_limits_preserve_all_source_history(tmp_path, monkeyp
     assert "Atelier Boréal 8" in system
     assert "2016" in system and "2009" in system
     for path, sha in original["sources"].items():
-        from scripts.multilingual.fixtures import digest
         assert digest((root / path).read_text(encoding="utf-8")) == sha
     outcome = json.loads(Path(".vita/results/adapt.outcome.json").read_text(encoding="utf-8"))
     assert outcome["attempt_count"] == 1
@@ -258,3 +257,15 @@ def test_fixture_qualifications_and_history_have_independent_review_boundaries()
         assert len([key for key in units if key.startswith("history-") and not key.startswith("history-heading")]) == 43
         assert r"\textenglish{Nadia El-Haddad}" in units["name"]["text"]
         assert sum(len(value["text"].split()) for key, value in units.items() if key.startswith("history-")) > 2500
+
+
+def test_recomputed_hashes_cannot_mask_changed_source_facts(tmp_path):
+    manifest = materialize(tmp_path / "source", "fr", 1)
+    materialize(tmp_path / "output", "es", 1)
+    entry = tmp_path / "source/main.tex"
+    entry.write_text(entry.read_text(encoding="utf-8").replace(r"40\%", r"60\%"), encoding="utf-8")
+    manifest["sources"]["main.tex"] = digest(entry.read_text(encoding="utf-8"))
+    path = tmp_path / "source/fixture.json"
+    path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+    assert main(["--check-project", str(tmp_path / "output"), "--source-manifest", str(path),
+                 "--target-language", "es", "--output", str(tmp_path / "report")]) == 2
