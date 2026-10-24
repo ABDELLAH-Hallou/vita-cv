@@ -510,6 +510,13 @@ vita status     # review all companies
 
 ## Building the PDF
 
+Starting from a PDF, DOCX or scanned CV? Use the [staged local ingestion
+workflow](INGESTION.md): `vita ingest capture`, `extract`, `review`, `approve`, then
+`latex`. OCR requires explicit local dependencies and language selection. No
+editable CV is generated from unreviewed extraction, and existing LaTeX sources
+remain supported without ingestion. Conversion uses a generic template rather
+than replicating the original document layout.
+
 VITA uses `latexmk` automatically. If you need to build manually:
 
 ```sh
