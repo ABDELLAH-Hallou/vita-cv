@@ -478,3 +478,11 @@ def test_review_report_keeps_source_markdown_as_literal_text(project):
     _, _, result = extracted_project(project, ['```\n![contact](https://example.invalid/no-fetch)\n```'])
     report = (store() / "extractions" / result["revision"] / "review.md").read_text(encoding="utf-8")
     assert "````text\n```\n![contact]" in report
+
+
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-16", "utf-32"])
+def test_xml_entity_declarations_are_blocked_across_encodings(encoding):
+    entity = '<!DOCTYPE x [<!ENTITY sample "synthetic">]><x>&sample;</x>'
+    with pytest.raises(IngestionError, match="entity declarations"):
+        extractors.xml(entity.encode(encoding))
+    assert extractors.xml('<x>Élodie — 40% — سيرة</x>'.encode("utf-16")).text == "Élodie — 40% — سيرة"

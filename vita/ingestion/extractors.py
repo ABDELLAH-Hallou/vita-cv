@@ -31,7 +31,11 @@ W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
 
 def xml(data):
-    require(len(data) <= MAX_EXPANDED and b"<!DOCTYPE" not in data.upper() and b"<!ENTITY" not in data.upper(),
+    require(len(data) <= MAX_EXPANDED, "XML exceeds the declared size limit.", "oversized_document")
+    # XML may be UTF-16/32. Match declaration markup before parsing, including
+    # NUL-padded ASCII, so alternate encodings cannot enable entity expansion.
+    markup = data.replace(b"\0", b"").upper()
+    require(b"<!DOCTYPE" not in markup and b"<!ENTITY" not in markup,
             "XML entity declarations or oversized XML are unsupported.", "unsupported_document")
     try:
         return ET.fromstring(data)
