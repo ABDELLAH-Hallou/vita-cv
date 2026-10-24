@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.8.0...v2.9.0) (2026-10-23)
+
+
+### Features
+
+* **diagnostics:** add detailed private execution journals ([#71](https://github.com/ABDELLAH-Hallou/vita-cv/issues/71)) ([06ff6ea](https://github.com/ABDELLAH-Hallou/vita-cv/commit/06ff6ea69419f4e7d8d7bd0067e22393db273dce))
+
 ## [2.8.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.7.0...v2.8.0) (2026-10-23)
 
 
