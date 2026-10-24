@@ -1,5 +1,10 @@
 # Standalone conformance and opt-in provider benchmarks
 
+The separate [multilingual document suite](MULTILINGUAL_VALIDATION.md) covers
+synthetic English/Spanish/French/Arabic source units, long included history,
+context-limit controls and Unicode PDF geometry. It does not make live provider,
+semantic translation or RTL reading-order claims; independent review is pending.
+
 Issue [#45](https://github.com/ABDELLAH-Hallou/vita-cv/issues/45) separates
 adapter availability, CLI correctness, and content quality. The harness never
 claims provider parity from fixture success or host-calculated CV coverage scores.

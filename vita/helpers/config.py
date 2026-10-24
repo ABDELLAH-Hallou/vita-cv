@@ -26,6 +26,7 @@ DEFAULT_CONFIG: dict = {
     "cover_tex_entry": "cover-letter.tex",
     "cover_output_filename": "cover-letter-{author}.pdf",
     "build_mode": "auto",
+    "latex_engine": "pdflatex",
     "default_base_branch": "master",
     "strict_mode": False,
     "allow_multiple_per_company": True,

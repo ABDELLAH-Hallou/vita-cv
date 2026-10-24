@@ -160,6 +160,7 @@ Role: Senior Software Engineer
   "cover_tex_entry": "cover-letter.tex",
   "cover_output_filename": "cover-letter-{author}.pdf",
   "build_mode": "auto",
+  "latex_engine": "pdflatex",
   "default_base_branch": "master",
   "strict_mode": false,
   "allow_multiple_per_company": true,
@@ -177,6 +178,7 @@ Role: Senior Software Engineer
 | `cover_tex_entry` | Cover letter LaTeX source (default: `cover-letter.tex`) |
 | `cover_output_filename` | Cover letter PDF name (default: `cover-letter-{author}.pdf`) |
 | `build_mode` | Reserved build mode setting (`auto` by default) |
+| `latex_engine` | `pdflatex` (default), `xelatex`, or `lualatex`; Unicode/fontspec/Arabic projects need a compatible engine and installed fonts |
 | `default_base_branch` | The branch `vita new` checks out from if no base exists |
 | `strict_mode` | Reserved stricter workflow setting (`false` by default) |
 | `allow_multiple_per_company` | Reserved duplicate-policy setting |
@@ -283,6 +285,11 @@ vita build -c              # Cover letter only; also --cover
 ```
 
 Both PDFs use the same configured `output_dir`: by default `out/cv-<author>.pdf` and `out/cover-letter-<author>.pdf`. Generate the cover letter first with `vita cover --auto` or `vita run --auto`. Building compiles existing sources; it does not call an AI provider. A missing source or compiler failure returns a nonzero exit status. `both` cannot be combined with `--resume` or `--cover`.
+
+For multilingual and Arabic/RTL sources, configure `latex_engine` and install the
+fonts required by the document. See [multilingual validation](MULTILINGUAL_VALIDATION.md)
+for synthetic fixtures, structural checks, rendering prerequisites and independent
+language-review requirements. A compiled PDF is not proof of correct translation.
 
 ---
 
