@@ -27,6 +27,7 @@ PROVIDER_ERROR_SCHEMA = {
         "retry_after_seconds": {"type": ["number", "null"], "minimum": 0},
         "action": {"type": "string"},
         "retry_stopped": {"type": "string", "enum": ["retry_after_exceeds_delay_cap"]},
+        "limit_kind": {"type": "string", "enum": ["input_context", "output_length"]},
     },
     "required": ["schema_version", "code", "category", "provider", "model", "step", "status",
                  "retryable", "exhausted", "attempts", "max_attempts", "retry_after_seconds", "action"],
@@ -99,7 +100,7 @@ def retry_after_seconds(value: str | None, *, now: datetime | None = None) -> fl
 
 class ProviderError(RuntimeError):
     def __init__(self, message: str = "", code: str = "provider_error", status: int | None = None,
-                 *, retry_after: float | None = None):
+                 *, retry_after: float | None = None, limit_kind: str | None = None):
         # The supplied message may contain keys, URLs, CLI stderr or candidate data.
         # Never retain it in the public exception, repr, trace or result.
         self.code = http_category(status) if code == "provider_error" and status is not None else code
@@ -113,15 +114,22 @@ class ProviderError(RuntimeError):
         self.status = status if type(status) is int and 100 <= status <= 599 else None
         self.retryable = self.code in TRANSIENT
         self.retry_after = retry_after if isinstance(retry_after, (int, float)) and math.isfinite(retry_after) and retry_after >= 0 else None
-        super().__init__(ACTIONS[self.diagnostic_category])
+        self.limit_kind = limit_kind if limit_kind in ("input_context", "output_length") else None
+        action = ACTIONS[self.diagnostic_category]
+        if self.limit_kind:
+            action += " The " + self.limit_kind.replace("_", " ") + " limit was reached. Use an adequate model/context or output budget; CV history was not shortened automatically."
+        super().__init__(action)
 
     def contract(self, *, step: str, route: dict, attempts: int, max_attempts: int,
                  exhausted: bool = False) -> dict:
-        return {"schema_version": 1, "code": "provider_error", "category": self.code,
+        result = {"schema_version": 1, "code": "provider_error", "category": self.code,
                 "provider": route.get("provider"), "model": route.get("model"), "step": safe_identifier(step),
                 "status": self.status, "retryable": self.retryable, "attempts": attempts,
                 "max_attempts": max_attempts, "exhausted": exhausted,
                 "retry_after_seconds": self.retry_after, "action": str(self)}
+        if self.limit_kind:
+            result["limit_kind"] = self.limit_kind
+        return result
 
 
 def normalize_error(exc: Exception) -> ProviderError:

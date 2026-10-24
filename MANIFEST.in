@@ -8,6 +8,7 @@ include DIAGNOSTICS.md
 include BENCHMARKING.md
 include EVALUATION_PROTOCOL.md
 include ANNOTATION_GUIDE.md
+include MULTILINGUAL_VALIDATION.md
 include tests/conftest.py
 
 recursive-include vita/assets *.md
@@ -15,5 +16,6 @@ recursive-include vita *.py
 recursive-include scripts *.py
 recursive-include scripts/benchmark *.json *.tex *.md
 recursive-include scripts/evaluation *.json *.md
+recursive-include scripts/multilingual *.json *.md
 
 global-exclude *.py[cod] __pycache__ *.so

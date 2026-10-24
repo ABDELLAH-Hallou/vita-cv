@@ -113,6 +113,12 @@ def run(
             "factual information, including dates, metrics, and qualifications. Keep proper nouns "
             "such as personal, company, product, and official certification names unchanged when "
             "appropriate, along with technical terms conventionally retained in the target language."
+            " Translate prose in every captured input/include file as well. Preserve every employment "
+            "history entry, qualification, date, metric and unit; never silently shorten history to "
+            "satisfy an input/output context limit. If the complete document cannot fit, stop and "
+            "report the limit instead of returning a partial CV. For Arabic/RTL, preserve logical "
+            "reading order and mixed-direction names, dates and URLs; report required Unicode engine "
+            "and fonts rather than silently dropping unsupported characters."
         )
 
     if step == "cover":
@@ -176,6 +182,10 @@ def run(
     if step in ("adapt", "cover"):
         target = cover_entry if step == "cover" else resume_entry
         prompt_text += f"\nYou MUST output the complete {target} file in exactly one ```latex code block."
+        if step == "adapt":
+            prompt_text += ("\nThe returned file must contain translated content from all captured input/include "
+                            "files inline, because this response can replace only the entry file. Do not leave "
+                            "prose in unchanged includes. Preserve source history and all protected facts.")
         prompt_text += "\nBefore the code block, write a short summary of the changes you made."
 
     results_dir = Path(".vita") / "results"
@@ -195,7 +205,8 @@ def run(
         matches = list(re.finditer(pattern, response, re.DOTALL))
         new_tex = matches[0].group(1).strip() if len(matches) == 1 else ""
         valid = bool(new_tex)
-        if step == "cover":
+        standalone = step == "cover" or r"\begin{document}" in (factual_context["target_before"] or "")
+        if standalone:
             valid = valid and all(
                 marker in new_tex
                 for marker in (r"\documentclass", r"\begin{document}", r"\end{document}")
