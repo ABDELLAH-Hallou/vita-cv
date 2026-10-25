@@ -126,19 +126,39 @@ jobs:
           python-version: "3.12"
       - name: Run all adapters, reasoning variants, toggles, and failure fixtures
         run: python -m scripts.benchmark --output .vita/benchmark-fixtures
-      - name: Exercise paired agent configurations and stopped-proposal controls
-        run: |
-          python -m scripts.benchmark.execution_comparison plan --model fixture/custom-agent-v1 --reasoning high --output .vita/agent-ci-plan.json
-          python -m scripts.benchmark --plan .vita/agent-ci-plan.json --case short-1-A --case short-1-B --case ambiguities-1-B --case context_limit-1-B --case malformed-1-B --output .vita/agent-execution-ci
-          python -m scripts.benchmark.execution_comparison report .vita/agent-execution-ci
       - name: Preserve first attempts, recovery records, and frozen outputs
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: standalone-fixture-conformance
-          path: |
-            .vita/benchmark-fixtures
-            .vita/agent-execution-ci
+          path: .vita/benchmark-fixtures
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  agent-comparison:
+    name: Agent execution comparison (fixtures only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Run all 40 frozen paired development fixtures without providers
+        run: |
+          python -m scripts.benchmark --plan scripts/benchmark/plans/agent-fixture-v1.json --output .vita/agent-execution-ci
+          python -m scripts.benchmark.execution_comparison report .vita/agent-execution-ci
+      - name: Preserve synthetic inputs, stopped proposals and comparison results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agent-execution-comparison
+          path: .vita/agent-execution-ci
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 14
@@ -288,7 +308,7 @@ jobs:
     name: CI gate
     if: always()
     needs:
-      [conventional-title, quality, regression, fixture-conformance, multilingual, dependency-audit, dependency-review, package, smoke]
+      [conventional-title, quality, regression, fixture-conformance, agent-comparison, multilingual, dependency-audit, dependency-review, package, smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -302,6 +322,7 @@ jobs:
           PACKAGE: ${{ needs.package.result }}
           SMOKE: ${{ needs.smoke.result }}
           CONFORMANCE: ${{ needs.fixture-conformance.result }}
+          AGENT_COMPARISON: ${{ needs.agent-comparison.result }}
           MULTILINGUAL: ${{ needs.multilingual.result }}
         run: |
           test "$TITLE" = success || test "$TITLE" = skipped
@@ -311,5 +332,6 @@ jobs:
           test "$PACKAGE" = success
           test "$SMOKE" = success
           test "$CONFORMANCE" = success
+          test "$AGENT_COMPARISON" = success
           test "$MULTILINGUAL" = success
           test "$REVIEW" = success || test "$REVIEW" = skipped
