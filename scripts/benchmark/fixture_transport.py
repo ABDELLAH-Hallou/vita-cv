@@ -31,10 +31,11 @@ def answer(prompt):
                       "criterion": "Python production experience", "importance": "must_have"}]
         source = next(s for s in snapshot["sources"] if s["path"] == "main.tex")
         documented = "Python engineer" in source["content"]
+        evidence_line = next((index for index, line in enumerate(source["content"].split("\n"), 1) if "Python engineer" in line), None)
         criteria = [{**{k: u[k] for k in evaluation.TAXONOMY_FIELDS}, "status": "partial" if documented else "missing",
                      "evidence": "Python engineer" if documented else "", "feedback": "Document production scope.",
                      "evidence_kind": "direct" if documented else "none", "evidence_refs": [{"source_id": source["id"],
-                         "quote": "Python engineer", "line_start": 4, "line_end": 4}] if documented else []} for u in units]
+                         "quote": "Python engineer", "line_start": evidence_line, "line_end": evidence_line}] if documented else []} for u in units]
         return json.dumps({"schema_version": 1, "overall_score": 50,
             "category_scores": {k: 50 if k == "hard_skills" else 0 for k in CATEGORIES},
             "executive_summary": "Python is documented; production scope is unclear.",

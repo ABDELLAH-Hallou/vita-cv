@@ -151,6 +151,8 @@ def test_manual_prompt_separates_generation_and_host_tools(project):
     prompt = Path(".vita/prompts/adapt.md").read_text(encoding="utf-8")
     assert "HOST OPERATIONS" in prompt and "Host capture/validation/saving commands may use tools" in prompt
     assert "Certificado Delta expired 2020" in prompt
+    assert "vita facts capture adapt" in prompt and "vita facts check adapt --proposal" in prompt
+    assert "GENERATION OUTPUT CONTRACT" in prompt and "exactly one ```latex code block" in prompt
 
 
 def test_unresolved_fact_edit_preserves_original_and_remains_inspectable(project, monkeypatch):
@@ -269,3 +271,33 @@ def test_transport_and_format_recovery_share_three_attempts(project, monkeypatch
     assert [a["execution"]["capability_processes"] for a in record["attempts"]] == [6, 0, 0]
     assert all('model_reasoning_effort="high"' in c for c in generated)
     assert base_calls  # Local checks were mocked; no real process/provider ran.
+
+
+def test_denied_calls_are_deduplicated_and_unidentified_calls_unknown():
+    items = [{"type":"turn.started"}, *[{"type":kind,"item":{"id":"same","type":"mcp_tool_call","status":"denied"}} for kind in ("item.started","item.completed")], {"type":"turn.completed"}]
+    telemetry = agent.events("\n".join(map(json.dumps, items)))
+    assert telemetry["tool_calls"] == {"mcp":1} and telemetry["denied_tool_calls"] == 1
+    items.insert(1,{"type":"item.completed","item":{"type":"command_execution"}})
+    telemetry = agent.events("\n".join(map(json.dumps, items)))
+    assert telemetry["tool_calls"] is None and "shell" in telemetry["observed_tool_types"]
+
+
+def test_tool_ids_can_repeat_in_distinct_turns_without_undercounting():
+    turn = [{"type":"turn.started"}, {"type":"item.completed","item":{"id":"same","type":"command_execution","status":"denied"}}, {"type":"turn.completed"}]
+    result = agent.events("\n".join(map(json.dumps, turn + turn)))
+    assert result["turns_completed"] == 2 and result["model_calls"] is None
+    assert result["tool_calls"] == {"shell":2} and result["denied_tool_calls"] == 2
+
+
+def test_multilingual_fixture_evidence_tracks_preamble_source_lines(tmp_path, monkeypatch):
+    from scripts.benchmark.fixture_transport import answer
+    from vita.helpers.candidate_evidence import candidate_instruction, capture_candidate_sources
+    case = next(c for c in comparison.plan("fixture/model", "high")["cases"] if c["scenario"] == "arabic")
+    runner.project_setup(tmp_path / "project", case)
+    monkeypatch.chdir(tmp_path / "project")
+    snapshot = capture_candidate_sources()
+    response = json.loads(answer(candidate_instruction(snapshot)))
+    ref = response["metrics"]["criteria"][0]["evidence_refs"][0]
+    source = next(s for s in snapshot["sources"] if s["id"] == ref["source_id"])
+    assert ref["line_start"] > 4
+    assert ref["quote"] in source["content"].split("\n")[ref["line_start"] - 1]

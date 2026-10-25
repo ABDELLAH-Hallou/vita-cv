@@ -34,6 +34,15 @@ _BUILTIN_LANGUAGE_MAP: dict[str, str] = {
     "pt": "Portuguese",
 }
 
+
+def document_output_instruction(step, target):
+    text = f"\nYou MUST output the complete {target} file in exactly one ```latex code block."
+    if step == "adapt":
+        text += ("\nThe returned file must contain translated content from all captured input/include "
+                 "files inline, because this response can replace only the entry file. Do not leave "
+                 "prose in unchanged includes. Preserve source history and all protected facts.")
+    return text + "\nBefore the code block, write a short summary of the changes you made."
+
 @diagnosed()
 def run(
     step: str,
@@ -166,10 +175,17 @@ def run(
                 "with vita.helpers.factual_changes.capture, generate from the supplied context only, then validate the complete LaTeX "
                 "and submit it through vita.helpers.factual_changes.stage. Never overwrite targets or bypass unresolved approvals. "
                 "Host capture/validation/saving commands may use tools; generation itself needs no exploration or file saving.\n\n")
+        if factual_context:
+            host += (f"Before generation run `vita facts capture {step}`. If inputs changed, regenerate this prompt first. "
+                     f"After generation, use host file tools to save only the returned LaTeX block as a NEW `.vita/proposals/{step}.tex`, "
+                     f"then run `vita facts check {step} --proposal .vita/proposals/{step}.tex` and `vita facts show {step}`. "
+                     "Never auto-approve. Preserve any stopped proposal for source-linked review.\n\n")
         system = build_system_context(prompt_text, step=step, resume_entry=resume_entry, include_job=False)
         prompt_text = host + "==== GENERATION INPUTS ====\n" + system + "\n" + prior_context + "\n==== TASK ====\n" + prompt_text
         if factual_context:
             prompt_text += "\nCAPTURED FACTUAL SOURCES:\n" + json_text(factual_context["candidate_sources"])
+            prompt_text += "\nGENERATION OUTPUT CONTRACT — file-reading/saving tasks above belong to the host only."
+            prompt_text += document_output_instruction(step, factual_context["target"])
         local_artifact("generated-prompt", prompt_text)
         print(f"\n{'='*60}")
         print(f"AI Prompt for '{step}'")
@@ -209,12 +225,7 @@ def run(
     
     if step in ("adapt", "cover"):
         target = cover_entry if step == "cover" else resume_entry
-        prompt_text += f"\nYou MUST output the complete {target} file in exactly one ```latex code block."
-        if step == "adapt":
-            prompt_text += ("\nThe returned file must contain translated content from all captured input/include "
-                            "files inline, because this response can replace only the entry file. Do not leave "
-                            "prose in unchanged includes. Preserve source history and all protected facts.")
-        prompt_text += "\nBefore the code block, write a short summary of the changes you made."
+        prompt_text += document_output_instruction(step, target)
 
     results_dir = Path(".vita") / "results"
     results_dir.mkdir(parents=True, exist_ok=True)

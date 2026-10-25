@@ -114,8 +114,10 @@ def events(content):
     """Count allowlisted event fields; never retain reasoning, commands or payloads."""
     result = {"event_stream": "unavailable", "turns_completed": 0, "model_calls": None,
               "tool_calls": None, "denied_tool_calls": None, "usage": None, "cost": None,
-              "terminal": None, "unknown_items": 0, "error_category": None}
-    counts, seen, usage, valid, explicit_denials = {}, set(), {}, False, 0
+              "terminal": None, "unknown_items": 0, "error_category": None,
+              "observed_tool_types": [], "tool_count_scope": "reported_item_events_only"}
+    counts, seen, usage, valid, denials, tool_types, unidentified = {}, set(), {}, False, set(), set(), False
+    turn_serial = 0
     mapping = {"command_execution": "shell", "mcp_tool_call": "mcp", "web_search": "web_search",
                "collab_tool_call": "subagent", "collaboration_tool_call": "subagent",
                "file_change": "file_change", "todo_list": "planning", "image_view": "image_view"}
@@ -127,6 +129,8 @@ def events(content):
         if not isinstance(event, dict):
             continue
         kind = event.get("type")
+        if kind == "turn.started":
+            turn_serial += 1
         valid = valid or kind in ("thread.started", "turn.started", "turn.completed", "turn.failed")
         if kind in ("item.started", "item.completed"):
             item = event.get("item", {})
@@ -134,13 +138,17 @@ def events(content):
                 continue
             item_type = item.get("type")
             if item_type in mapping:
-                identity = (item_type, item.get("id"))
+                tool_types.add(mapping[item_type])
+                if not isinstance(item.get("id"), str) or not item["id"]:
+                    unidentified = True
+                    continue
+                identity = (turn_serial, item_type, item.get("id"))
                 if identity not in seen:
                     seen.add(identity)
                     key = mapping[item_type]
                     counts[key] = counts.get(key, 0) + 1
                 if item.get("status") == "denied":
-                    explicit_denials += 1
+                    denials.add(identity)
             elif item_type not in ("agent_message", "reasoning"):
                 result["unknown_items"] += 1
         if kind == "turn.completed":
@@ -159,9 +167,10 @@ def events(content):
             result["error_category"] = ("refusal" if "refus" in text else "input_context" if re.search(r"context|input.*too long", text)
                                          else "output_length" if re.search(r"truncat|max_tokens|output.*limit", text) else None)
     if valid:
-        result.update(event_stream="observed", tool_calls=counts, usage=usage or None)
+        result.update(event_stream="observed", tool_calls=None if unidentified else counts, usage=usage or None,
+                      observed_tool_types=sorted(tool_types))
         # Absence of an explicit denial event does not establish zero denials.
-        result["denied_tool_calls"] = explicit_denials if explicit_denials else None
+        result["denied_tool_calls"] = len(denials) if denials and not unidentified else None
     return result
 
 
@@ -216,7 +225,7 @@ def invoke(codex, cmd, prompt, options, session):
         if telemetry.get("terminal") == "completed":
             effective["generation_dispatch"] = "turn_completed"
         telemetry["exit_status"] = result.returncode
-        if restricted and any((telemetry.get("tool_calls") or {}).get(k) for k in ("shell", "mcp", "web_search", "subagent")):
+        if restricted and set(telemetry.get("observed_tool_types", [])).intersection(("shell", "mcp", "web_search", "subagent")):
             effective["restriction_status"] = "contradicted_by_observed_activity"
             print("Codex events contradicted the requested restrictions. Output rejected; inspect execution diagnostics and update the CLI/configuration.")
             raise ProviderError(code="configuration")
