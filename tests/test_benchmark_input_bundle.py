@@ -1,7 +1,10 @@
 """Public-source pilots must pin actual inputs without weakening live safeguards."""
 
+import os
 import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -112,3 +115,11 @@ def test_job_setup_policy_is_explicit_and_identical_in_paired_arms(tmp_path,monk
     plan['cases'][1]['approved_job_criteria']=False
     with pytest.raises(ValueError,match='preserve'):
         runner.validate_plan(plan,live=True)
+
+
+def test_both_arms_have_the_calling_pythons_console_scripts_on_path(tmp_path):
+    base={'provider':'codex','model':'synthetic','extraction':True,'reasoning_effort':'high'}
+    a=runner.child_env(tmp_path,{**base,'execution_mode':'baseline'},'live')
+    b=runner.child_env(tmp_path,{**base,'execution_mode':'restricted'},'live')
+    assert a['PATH']==b['PATH']
+    assert a['PATH'].split(os.pathsep)[0]==str(Path(sys.executable).parent)

@@ -120,6 +120,10 @@ def validate_authorization(path, plan):
 
 def child_env(project, case, mode):
     env = os.environ.copy()
+    # An absolute venv Python does not activate its console scripts. Both
+    # agent arms must have the real Vita CLI available in a checkout run.
+    scripts = str(Path(sys.executable).parent)
+    env["PATH"] = scripts + os.pathsep + env.get("PATH", "")
     for key in list(env):
         if key.startswith("VITA_") or key in {"ENABLE_JD_EXTRACTION", *(p + "_" + s for p in STAGE_PREFIXES.values() for s in ("PROVIDER", "MODEL"))}:
             if key != "VITA_CODEX":

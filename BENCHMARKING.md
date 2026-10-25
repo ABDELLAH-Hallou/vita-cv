@@ -133,6 +133,9 @@ results as a separate setup condition; do not pool those with controlled timings
 The live observer preserves a shorter adapter timeout even when the full workflow
 has a longer command limit. Spending, retries, approval gates and request-ledger
 rules below still apply. An input bundle does not authorize spending or factual edits.
+The runner also puts the calling Python environment's console scripts on PATH in
+both arms. This avoids mislabelling a missing `vita` launcher in a source checkout
+as a baseline agent failure.
 
 Implementing/testing the harness does not authorize any live spending. A subscription
 does not authorize APIs. Credentials must already be in the calling environment;
