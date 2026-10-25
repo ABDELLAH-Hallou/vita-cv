@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.12.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.11.0...v2.12.0) (2026-10-24)
+
+
+### Features
+
+* **ingestion:** import documents through reviewed source-to-LaTeX stages ([#85](https://github.com/ABDELLAH-Hallou/vita-cv/issues/85)) ([fec9de7](https://github.com/ABDELLAH-Hallou/vita-cv/commit/fec9de77e1cb86f4ea28231e087b344e80a4b8de))
+
 ## [2.11.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.10.0...v2.11.0) (2026-10-24)
 
 
