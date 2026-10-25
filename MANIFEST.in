@@ -20,5 +20,6 @@ recursive-include scripts/benchmark *.json *.tex *.md
 recursive-include scripts/evaluation *.json *.md
 recursive-include scripts/multilingual *.json *.md
 recursive-include benchmarks/agent-execution *.json *.md
+recursive-include tests/fixtures/agent_execution *.jsonl
 
 global-exclude *.py[cod] __pycache__ *.so

@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "status": "offline_conformance_passed_not_live_validation",
+  "ci_run_id": 40146308700,
+  "ci_url": "https://github.com/ABDELLAH-Hallou/vita-cv/actions/runs/40146308700",
+  "artifact": "agent-execution-comparison",
+  "artifact_retention_days": 14,
+  "feature_head": "dc4a9ece655d7be63d754d71df25266f01276bef",
+  "checkout_revision": "db2e31302347da5a40d181a6bd736baddb54ec85",
+  "fixture_plan_sha256": "1b9c5c4e469fad9d960c259a02330170c65ee4da28ccf02658ed646b79a4061c",
+  "live_plan_sha256": "f591b4bb5f97e89b12f1b8f370ac397acbb7c4d8f1e269a445bdb6856b528596",
+  "conformance_cases": 40,
+  "conformance_errors": [],
+  "workflow_dispositions": {
+    "passed": 28,
+    "failed": 4,
+    "unavailable": 0,
+    "confirmation_required": 8,
+    "not_run": 0
+  },
+  "originals_preserved_on_all_approval_stops": {
+    "numerator": 8,
+    "denominator": 8,
+    "cases": [
+      "missing_evidence-1-A",
+      "missing_evidence-1-B",
+      "missing_evidence-2-A",
+      "missing_evidence-2-B",
+      "ambiguities-1-A",
+      "ambiguities-1-B",
+      "ambiguities-2-A",
+      "ambiguities-2-B"
+    ]
+  },
+  "format_recovery_cases": [
+    "malformed-1-A",
+    "malformed-1-B",
+    "malformed-2-A",
+    "malformed-2-B"
+  ],
+  "fresh_and_cached_controls": {
+    "analyze_to_analyze": 28,
+    "analyze_to_review": 28,
+    "cache_reuse": 28
+  },
+  "host_fixture_dispatches_including_controls": 252,
+  "real_pdf_build": {
+    "status": "passed",
+    "scope": "one local restricted fixture workflow, resume and cover letter; CI also compiled baseline and restricted fixture workflows",
+    "model_transport": "mocked"
+  },
+  "initial_development_failure": {
+    "ci_run_id": 40145588446,
+    "conformance_errors": [
+      "arabic-1-A: Identical-input Review did not reuse its assessment",
+      "arabic-1-B: Identical-input Review did not reuse its assessment",
+      "arabic-2-A: Identical-input Review did not reuse its assessment",
+      "arabic-2-B: Identical-input Review did not reuse its assessment"
+    ],
+    "cause": "Arabic preamble moved quoted CV line; stale fixture spans were marked unverified and prevented cache reuse. Fixture now derives the source line. Raw failed run retained in CI/local artifacts."
+  },
+  "incomplete_local_dry_run": "Stopped for Windows execution overhead; excluded from timing findings. Incomplete artifacts retained locally.",
+  "live_generations": 0,
+  "independent_human_review": "pending",
+  "accuracy": "unmeasured",
+  "cost": null,
+  "internal_model_calls": null,
+  "late_hardening": "Final source adds timeout privacy, explicit document/host timing and resumed-run accounting; generation model, reasoning, input snapshots and retry policy are unchanged. Final CI verifies the resulting source separately."
+}

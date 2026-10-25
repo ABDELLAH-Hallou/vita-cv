@@ -20,6 +20,16 @@
     "critical_factual_errors": 0,
     "minimum_completion_rate": 0.95,
     "minimum_delivered_document_build_success": 1.0,
+    "minimum_independently_reviewed_document_usability": 1.0,
+    "maximum_critical_layout_defects": 0,
+    "maximum_human_correction_time_relative_regression": 0.0,
+    "maximum_blinded_rating_regression": {
+      "relevance": 0,
+      "clarity": 0,
+      "usefulness": 0
+    },
+    "population": "Future preregistered supported-input primary cases, retaining unexpected failures/unavailability; deliberate invalid-input controls require safe stops separately. Not fixture adoption thresholds.",
+    "practical_rubric": "Proposed 1..5 blinded ratings; custodian must approve a protocol supplement before collection. No ratings supplied.",
     "policy": "Engineering proposals, not approved quality-loss tolerances or measured findings."
   },
   "authorization": "Separate plan-bound artifact with billing acknowledgment, explicit max_requests and future expiry; no authorization created."

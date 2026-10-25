@@ -1,0 +1,2319 @@
+{
+  "contract_version": "execution-comparison/1",
+  "plan_sha256": "1b9c5c4e469fad9d960c259a02330170c65ee4da28ccf02658ed646b79a4061c",
+  "mode": "fixture",
+  "execution_git_revision": "db2e31302347da5a40d181a6bd736baddb54ec85",
+  "analysis_source_sha256": "5cce85b8ceef932c1e805e272d32a4d16edd7fbc803ba60342b79756cad5873f",
+  "split": "development_only",
+  "ordering": "serial in exact listed plan order; reverse ordering requires a separately authorized reversed plan",
+  "planned": 40,
+  "not_run": 0,
+  "attempted": 40,
+  "cases": [
+    {
+      "id": "short-1-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "short",
+      "arm": "A",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "status": "passed",
+      "end_to_end_seconds": 11.856359,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "short-1-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "short",
+      "arm": "B",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "status": "passed",
+      "end_to_end_seconds": 12.358464,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "short-2-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "short",
+      "arm": "A",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "status": "passed",
+      "end_to_end_seconds": 10.702537,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "short-2-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "short",
+      "arm": "B",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "status": "passed",
+      "end_to_end_seconds": 10.953303,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "long_includes-1-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "long_includes",
+      "arm": "A",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "status": "passed",
+      "end_to_end_seconds": 9.598596,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "long_includes-1-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "long_includes",
+      "arm": "B",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "status": "passed",
+      "end_to_end_seconds": 10.652351,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "long_includes-2-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "long_includes",
+      "arm": "A",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "status": "passed",
+      "end_to_end_seconds": 11.60419,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "long_includes-2-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "long_includes",
+      "arm": "B",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "status": "passed",
+      "end_to_end_seconds": 11.456513,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "mismatched_role-1-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "mismatched_role",
+      "arm": "A",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "status": "passed",
+      "end_to_end_seconds": 10.753408,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "mismatched_role-1-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "mismatched_role",
+      "arm": "B",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "status": "passed",
+      "end_to_end_seconds": 11.354177,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "mismatched_role-2-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "mismatched_role",
+      "arm": "A",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "status": "passed",
+      "end_to_end_seconds": 10.101784,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "mismatched_role-2-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "mismatched_role",
+      "arm": "B",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "status": "passed",
+      "end_to_end_seconds": 11.507411999999999,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "missing_evidence-1-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "missing_evidence",
+      "arm": "A",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": false,
+      "status": "confirmation_required",
+      "end_to_end_seconds": 5.02775,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "missing_evidence-1-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "missing_evidence",
+      "arm": "B",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": false,
+      "status": "confirmation_required",
+      "end_to_end_seconds": 3.472576,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "missing_evidence-2-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "missing_evidence",
+      "arm": "A",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": false,
+      "status": "confirmation_required",
+      "end_to_end_seconds": 3.322578,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "missing_evidence-2-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "missing_evidence",
+      "arm": "B",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": false,
+      "status": "confirmation_required",
+      "end_to_end_seconds": 3.522794,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "ambiguities-1-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "ambiguities",
+      "arm": "A",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": false,
+      "status": "confirmation_required",
+      "end_to_end_seconds": 3.372329,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "ambiguities-1-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "ambiguities",
+      "arm": "B",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": false,
+      "status": "confirmation_required",
+      "end_to_end_seconds": 3.321977,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "ambiguities-2-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "ambiguities",
+      "arm": "A",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": false,
+      "status": "confirmation_required",
+      "end_to_end_seconds": 3.672851,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "ambiguities-2-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "ambiguities",
+      "arm": "B",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": false,
+      "status": "confirmation_required",
+      "end_to_end_seconds": 3.57249,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "spanish-1-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "spanish",
+      "arm": "A",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "target_language": "es",
+      "status": "passed",
+      "end_to_end_seconds": 9.451322999999999,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "spanish-1-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "spanish",
+      "arm": "B",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "target_language": "es",
+      "status": "passed",
+      "end_to_end_seconds": 11.204649,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "spanish-2-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "spanish",
+      "arm": "A",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "target_language": "es",
+      "status": "passed",
+      "end_to_end_seconds": 11.204742,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "spanish-2-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "spanish",
+      "arm": "B",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "target_language": "es",
+      "status": "passed",
+      "end_to_end_seconds": 11.958434,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "french-1-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "french",
+      "arm": "A",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "target_language": "fr",
+      "status": "passed",
+      "end_to_end_seconds": 12.509928,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "french-1-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "french",
+      "arm": "B",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "target_language": "fr",
+      "status": "passed",
+      "end_to_end_seconds": 12.461777,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "french-2-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "french",
+      "arm": "A",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "target_language": "fr",
+      "status": "passed",
+      "end_to_end_seconds": 10.002836,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "french-2-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "french",
+      "arm": "B",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "target_language": "fr",
+      "status": "passed",
+      "end_to_end_seconds": 9.551145,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "arabic-1-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "arabic",
+      "arm": "A",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "target_language": "ar",
+      "status": "passed",
+      "end_to_end_seconds": 9.250107,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "arabic-1-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "arabic",
+      "arm": "B",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "target_language": "ar",
+      "status": "passed",
+      "end_to_end_seconds": 11.707576,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "arabic-2-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "arabic",
+      "arm": "A",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "target_language": "ar",
+      "status": "passed",
+      "end_to_end_seconds": 10.052957000000001,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "arabic-2-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "arabic",
+      "arm": "B",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "target_language": "ar",
+      "status": "passed",
+      "end_to_end_seconds": 12.510106,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "malformed-1-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "malformed",
+      "arm": "A",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "faults": [
+        "malformed"
+      ],
+      "status": "passed",
+      "end_to_end_seconds": 9.852011000000001,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "malformed-1-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "malformed",
+      "arm": "B",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "faults": [
+        "malformed"
+      ],
+      "status": "passed",
+      "end_to_end_seconds": 10.906748,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "malformed-2-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "malformed",
+      "arm": "A",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "faults": [
+        "malformed"
+      ],
+      "status": "passed",
+      "end_to_end_seconds": 11.056639,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "malformed-2-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "malformed",
+      "arm": "B",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "faults": [
+        "malformed"
+      ],
+      "status": "passed",
+      "end_to_end_seconds": 11.708382,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": true
+    },
+    {
+      "id": "context_limit-1-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "context_limit",
+      "arm": "A",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "max_input_bytes": 256,
+      "status": "failed",
+      "end_to_end_seconds": 0.866303,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": false
+    },
+    {
+      "id": "context_limit-1-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "context_limit",
+      "arm": "B",
+      "repeat": 1,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "max_input_bytes": 256,
+      "status": "failed",
+      "end_to_end_seconds": 0.866428,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": false
+    },
+    {
+      "id": "context_limit-2-A",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "baseline",
+      "agent_telemetry": true,
+      "scenario": "context_limit",
+      "arm": "A",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "max_input_bytes": 256,
+      "status": "failed",
+      "end_to_end_seconds": 0.966614,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": false
+    },
+    {
+      "id": "context_limit-2-B",
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning_effort": "high",
+      "extraction": true,
+      "execution_mode": "restricted",
+      "agent_telemetry": true,
+      "scenario": "context_limit",
+      "arm": "B",
+      "repeat": 2,
+      "max_attempts": 3,
+      "fixture_approvals": true,
+      "max_input_bytes": 256,
+      "status": "failed",
+      "end_to_end_seconds": 0.816291,
+      "approval_wait_seconds": null,
+      "content_quality": "unmeasured",
+      "fresh_generation_requested": false
+    }
+  ],
+  "paired": [
+    {
+      "contrast": "B versus A",
+      "complete_paired_repeats": 14,
+      "time_change_definition": "1 - compared workflow seconds / baseline seconds; positive is less time, negative is more time (not reciprocal throughput).",
+      "scenario_clusters": 7,
+      "paired_fractional_speed_change": {
+        "n": 14,
+        "median": -0.063105650154055,
+        "p95": 0.04515629367511376,
+        "p95_method": "nearest_rank"
+      },
+      "independent_families": 1,
+      "family_cluster_bootstrap95": null,
+      "all_outcome_terminal_time_change": {
+        "n": 20,
+        "median": -0.04910839071658424,
+        "p95": 0.15551502461168576,
+        "p95_method": "nearest_rank"
+      },
+      "interpretation": "Fixture host mechanics only; no real model speed claim."
+    },
+    {
+      "contrast": "C versus A",
+      "complete_paired_repeats": 0,
+      "time_change_definition": "1 - compared workflow seconds / baseline seconds; positive is less time, negative is more time (not reciprocal throughput).",
+      "scenario_clusters": 0,
+      "paired_fractional_speed_change": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "p95_method": "nearest_rank"
+      },
+      "independent_families": 0,
+      "family_cluster_bootstrap95": null,
+      "all_outcome_terminal_time_change": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "p95_method": "nearest_rank"
+      },
+      "interpretation": "Fixture host mechanics only; no real model speed claim."
+    }
+  ],
+  "proposed_thresholds": {
+    "status": "proposed_requires_user_decision_before_live_comparison",
+    "minimum_paired_median_speed_improvement": 0.2,
+    "maximum_regression_percentage_points": {
+      "factual_error_documents": 0,
+      "unsupported_additions": 0,
+      "contradictions": 0,
+      "harmful_omissions": 0,
+      "requirement_classification": 0,
+      "requirement_satisfaction": 0,
+      "translation_fidelity": 0
+    },
+    "critical_factual_errors": 0,
+    "minimum_completion_rate": 0.95,
+    "minimum_delivered_document_build_success": 1.0,
+    "minimum_independently_reviewed_document_usability": 1.0,
+    "maximum_critical_layout_defects": 0,
+    "maximum_human_correction_time_relative_regression": 0.0,
+    "maximum_blinded_rating_regression": {
+      "relevance": 0,
+      "clarity": 0,
+      "usefulness": 0
+    },
+    "population": "Future preregistered supported-input primary cases, retaining unexpected failures/unavailability; deliberate invalid-input controls require safe stops separately. Not fixture adoption thresholds.",
+    "practical_rubric": "Proposed 1..5 blinded ratings; custodian must approve a protocol supplement before collection. No ratings supplied.",
+    "policy": "Engineering proposals, not approved quality-loss tolerances or measured findings."
+  },
+  "approval_waits": "unmeasured; not included in generation durations",
+  "accuracy": {
+    "factual_error_documents": {
+      "numerator": null,
+      "denominator": 0,
+      "status": "unmeasured_pending_independent_review"
+    },
+    "unsupported_additions": {
+      "numerator": null,
+      "denominator": 0,
+      "status": "unmeasured_pending_independent_review"
+    },
+    "contradictions": {
+      "numerator": null,
+      "denominator": 0,
+      "status": "unmeasured_pending_independent_review"
+    },
+    "harmful_omissions": {
+      "numerator": null,
+      "denominator": 0,
+      "status": "unmeasured_pending_independent_review"
+    },
+    "requirement_classification": {
+      "numerator": null,
+      "denominator": 0,
+      "status": "unmeasured_pending_independent_review"
+    },
+    "requirement_satisfaction": {
+      "numerator": null,
+      "denominator": 0,
+      "status": "unmeasured_pending_independent_review"
+    },
+    "translation_fidelity": {
+      "numerator": null,
+      "denominator": 0,
+      "status": "unmeasured_pending_independent_review"
+    }
+  },
+  "source_reference_verification": {
+    "criterion_observations": 288,
+    "counts": {
+      "not_applicable": 4,
+      "verified": 284
+    },
+    "interpretation": "Mechanical quotation/source checks; includes dependent repeated report observations, not semantic accuracy."
+  },
+  "uncertainty": "No naive binomial intervals for dependent repeats. All current variants share one synthetic candidate/job family: family-cluster speed intervals are unestimable, not invented from variant/repeat counts. Completed-output comparisons condition on both arms completing.",
+  "practical_quality": {
+    "correction_time": null,
+    "blinded_preference": null,
+    "layout_defects": null
+  },
+  "document_builds": {
+    "attempted": 28,
+    "successful": 28,
+    "measurement": "fixture_handoff_only"
+  },
+  "accepted_output_resources": null,
+  "host_generation_dispatches": 252,
+  "document_validation_timing": "Validated-output and stage-terminal timings use outer public host step spans, including preparation and document gates. Unavailable/unfinished/ambiguous spans remain null. Post-approval waiting is unmeasured and generation-contract timing is never substituted.",
+  "model_calls": null,
+  "cost": null,
+  "direct_api_reference": "not_run; comparable accessible model not established",
+  "decision": "inconclusive; retain baseline and gather authorized live timings plus independent human evaluation",
+  "human_evaluation": "Use EVALUATION_PROTOCOL.md / ANNOTATION_GUIDE.md and scripts.evaluation with two independent qualified reviewers, adjudication and agreement; no labels supplied here.",
+  "stage_metrics": [
+    {
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning": "high",
+      "execution": "baseline",
+      "stage": "adapt",
+      "planned_operations": 20,
+      "not_run_operations": 2,
+      "attempted_operations": 18,
+      "fresh_generation_operations": 18,
+      "cache_reuse_operations": 0,
+      "first_attempt_contract_validity": {
+        "numerator": 18,
+        "denominator": 18,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "contract_completion": {
+        "numerator": 18,
+        "denominator": 18,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "terminal_rates": {
+        "success": {
+          "numerator": 14,
+          "denominator": 18,
+          "value": 0.7777777777777778,
+          "wilson95": null
+        },
+        "failed": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "post_generation_failure": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "timeout": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "approval_required": {
+          "numerator": 4,
+          "denominator": 18,
+          "value": 0.2222222222222222,
+          "wilson95": null
+        },
+        "incomplete_response": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "refusal": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        }
+      },
+      "time_to_validated_output_seconds": {
+        "n": 14,
+        "median": 2.3098840000000003,
+        "p95": 2.765357,
+        "p95_method": "nearest_rank"
+      },
+      "time_to_contract_valid_seconds": {
+        "n": 18,
+        "median": 0.6039187670000388,
+        "p95": 0.920246512999995,
+        "p95_method": "nearest_rank"
+      },
+      "all_terminal_seconds": {
+        "n": 18,
+        "median": 2.2743705,
+        "p95": 2.890369,
+        "p95_method": "nearest_rank"
+      },
+      "efficiency": {
+        "model_calls": null,
+        "cost": null,
+        "host_generation_dispatches": 18,
+        "format_repairs": 0,
+        "transport_retries": 0,
+        "reported_usage_attempts": 18,
+        "unknown_usage_attempts": 0,
+        "observed_token_totals": {
+          "input_tokens": 198,
+          "output_tokens": 126
+        },
+        "tool_calls_by_attempt": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ],
+        "denied_calls_by_attempt": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning": "high",
+      "execution": "baseline",
+      "stage": "analyze",
+      "planned_operations": 20,
+      "not_run_operations": 2,
+      "attempted_operations": 18,
+      "fresh_generation_operations": 18,
+      "cache_reuse_operations": 0,
+      "first_attempt_contract_validity": {
+        "numerator": 18,
+        "denominator": 18,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "contract_completion": {
+        "numerator": 18,
+        "denominator": 18,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "terminal_rates": {
+        "success": {
+          "numerator": 18,
+          "denominator": 18,
+          "value": 1.0,
+          "wilson95": null
+        },
+        "failed": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "post_generation_failure": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "timeout": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "approval_required": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "incomplete_response": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "refusal": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        }
+      },
+      "time_to_validated_output_seconds": {
+        "n": 18,
+        "median": 0.8870134999999999,
+        "p95": 1.3631110000000002,
+        "p95_method": "nearest_rank"
+      },
+      "time_to_contract_valid_seconds": {
+        "n": 18,
+        "median": 0.369023552999991,
+        "p95": 0.6420242129999849,
+        "p95_method": "nearest_rank"
+      },
+      "all_terminal_seconds": {
+        "n": 18,
+        "median": 0.8870134999999999,
+        "p95": 1.3631110000000002,
+        "p95_method": "nearest_rank"
+      },
+      "efficiency": {
+        "model_calls": null,
+        "cost": null,
+        "host_generation_dispatches": 18,
+        "format_repairs": 0,
+        "transport_retries": 0,
+        "reported_usage_attempts": 18,
+        "unknown_usage_attempts": 0,
+        "observed_token_totals": {
+          "input_tokens": 198,
+          "output_tokens": 126
+        },
+        "tool_calls_by_attempt": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ],
+        "denied_calls_by_attempt": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning": "high",
+      "execution": "baseline",
+      "stage": "cover",
+      "planned_operations": 20,
+      "not_run_operations": 6,
+      "attempted_operations": 14,
+      "fresh_generation_operations": 14,
+      "cache_reuse_operations": 0,
+      "first_attempt_contract_validity": {
+        "numerator": 14,
+        "denominator": 14,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "contract_completion": {
+        "numerator": 14,
+        "denominator": 14,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "terminal_rates": {
+        "success": {
+          "numerator": 14,
+          "denominator": 14,
+          "value": 1.0,
+          "wilson95": null
+        },
+        "failed": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "post_generation_failure": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "timeout": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "approval_required": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "incomplete_response": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "refusal": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        }
+      },
+      "time_to_validated_output_seconds": {
+        "n": 14,
+        "median": 3.6946585,
+        "p95": 4.551983,
+        "p95_method": "nearest_rank"
+      },
+      "time_to_contract_valid_seconds": {
+        "n": 14,
+        "median": 0.8570755464999849,
+        "p95": 1.3394138120000036,
+        "p95_method": "nearest_rank"
+      },
+      "all_terminal_seconds": {
+        "n": 14,
+        "median": 3.6946585,
+        "p95": 4.551983,
+        "p95_method": "nearest_rank"
+      },
+      "efficiency": {
+        "model_calls": null,
+        "cost": null,
+        "host_generation_dispatches": 14,
+        "format_repairs": 0,
+        "transport_retries": 0,
+        "reported_usage_attempts": 14,
+        "unknown_usage_attempts": 0,
+        "observed_token_totals": {
+          "input_tokens": 154,
+          "output_tokens": 98
+        },
+        "tool_calls_by_attempt": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ],
+        "denied_calls_by_attempt": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning": "high",
+      "execution": "baseline",
+      "stage": "extract",
+      "planned_operations": 20,
+      "not_run_operations": 0,
+      "attempted_operations": 20,
+      "fresh_generation_operations": 18,
+      "cache_reuse_operations": 0,
+      "first_attempt_contract_validity": {
+        "numerator": 16,
+        "denominator": 18,
+        "value": 0.8888888888888888,
+        "wilson95": null
+      },
+      "contract_completion": {
+        "numerator": 18,
+        "denominator": 20,
+        "value": 0.9,
+        "wilson95": null
+      },
+      "terminal_rates": {
+        "success": {
+          "numerator": 18,
+          "denominator": 20,
+          "value": 0.9,
+          "wilson95": null
+        },
+        "failed": {
+          "numerator": 2,
+          "denominator": 20,
+          "value": 0.1,
+          "wilson95": null
+        },
+        "post_generation_failure": {
+          "numerator": 0,
+          "denominator": 20,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "timeout": {
+          "numerator": 0,
+          "denominator": 20,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "approval_required": {
+          "numerator": 0,
+          "denominator": 20,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "incomplete_response": {
+          "numerator": 0,
+          "denominator": 20,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "refusal": {
+          "numerator": 0,
+          "denominator": 20,
+          "value": 0.0,
+          "wilson95": null
+        }
+      },
+      "time_to_validated_output_seconds": {
+        "n": 18,
+        "median": 0.5956045,
+        "p95": 1.7517550000000002,
+        "p95_method": "nearest_rank"
+      },
+      "time_to_contract_valid_seconds": {
+        "n": 18,
+        "median": 0.3498148415000131,
+        "p95": 1.1818086890000359,
+        "p95_method": "nearest_rank"
+      },
+      "all_terminal_seconds": {
+        "n": 20,
+        "median": 0.563373,
+        "p95": 0.9912799999999999,
+        "p95_method": "nearest_rank"
+      },
+      "efficiency": {
+        "model_calls": null,
+        "cost": null,
+        "host_generation_dispatches": 20,
+        "format_repairs": 2,
+        "transport_retries": 0,
+        "reported_usage_attempts": 20,
+        "unknown_usage_attempts": 2,
+        "observed_token_totals": {
+          "input_tokens": 220,
+          "output_tokens": 140
+        },
+        "tool_calls_by_attempt": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          null,
+          null
+        ],
+        "denied_calls_by_attempt": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning": "high",
+      "execution": "baseline",
+      "stage": "review",
+      "planned_operations": 20,
+      "not_run_operations": 6,
+      "attempted_operations": 14,
+      "fresh_generation_operations": 14,
+      "cache_reuse_operations": 0,
+      "first_attempt_contract_validity": {
+        "numerator": 14,
+        "denominator": 14,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "contract_completion": {
+        "numerator": 14,
+        "denominator": 14,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "terminal_rates": {
+        "success": {
+          "numerator": 14,
+          "denominator": 14,
+          "value": 1.0,
+          "wilson95": null
+        },
+        "failed": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "post_generation_failure": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "timeout": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "approval_required": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "incomplete_response": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "refusal": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        }
+      },
+      "time_to_validated_output_seconds": {
+        "n": 14,
+        "median": 1.706644,
+        "p95": 2.819608,
+        "p95_method": "nearest_rank"
+      },
+      "time_to_contract_valid_seconds": {
+        "n": 14,
+        "median": 0.6254769169999577,
+        "p95": 1.2500466679999818,
+        "p95_method": "nearest_rank"
+      },
+      "all_terminal_seconds": {
+        "n": 14,
+        "median": 1.706644,
+        "p95": 2.819608,
+        "p95_method": "nearest_rank"
+      },
+      "efficiency": {
+        "model_calls": null,
+        "cost": null,
+        "host_generation_dispatches": 14,
+        "format_repairs": 0,
+        "transport_retries": 0,
+        "reported_usage_attempts": 14,
+        "unknown_usage_attempts": 0,
+        "observed_token_totals": {
+          "input_tokens": 154,
+          "output_tokens": 98
+        },
+        "tool_calls_by_attempt": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ],
+        "denied_calls_by_attempt": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning": "high",
+      "execution": "restricted",
+      "stage": "adapt",
+      "planned_operations": 20,
+      "not_run_operations": 2,
+      "attempted_operations": 18,
+      "fresh_generation_operations": 18,
+      "cache_reuse_operations": 0,
+      "first_attempt_contract_validity": {
+        "numerator": 18,
+        "denominator": 18,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "contract_completion": {
+        "numerator": 18,
+        "denominator": 18,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "terminal_rates": {
+        "success": {
+          "numerator": 14,
+          "denominator": 18,
+          "value": 0.7777777777777778,
+          "wilson95": null
+        },
+        "failed": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "post_generation_failure": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "timeout": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "approval_required": {
+          "numerator": 4,
+          "denominator": 18,
+          "value": 0.2222222222222222,
+          "wilson95": null
+        },
+        "incomplete_response": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "refusal": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        }
+      },
+      "time_to_validated_output_seconds": {
+        "n": 14,
+        "median": 2.2519145,
+        "p95": 3.6371599999999997,
+        "p95_method": "nearest_rank"
+      },
+      "time_to_contract_valid_seconds": {
+        "n": 18,
+        "median": 0.7041075900000351,
+        "p95": 0.9501639789999672,
+        "p95_method": "nearest_rank"
+      },
+      "all_terminal_seconds": {
+        "n": 18,
+        "median": 2.246404,
+        "p95": 3.6371599999999997,
+        "p95_method": "nearest_rank"
+      },
+      "efficiency": {
+        "model_calls": null,
+        "cost": null,
+        "host_generation_dispatches": 18,
+        "format_repairs": 0,
+        "transport_retries": 0,
+        "reported_usage_attempts": 18,
+        "unknown_usage_attempts": 0,
+        "observed_token_totals": {
+          "input_tokens": 198,
+          "output_tokens": 126
+        },
+        "tool_calls_by_attempt": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ],
+        "denied_calls_by_attempt": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning": "high",
+      "execution": "restricted",
+      "stage": "analyze",
+      "planned_operations": 20,
+      "not_run_operations": 2,
+      "attempted_operations": 18,
+      "fresh_generation_operations": 18,
+      "cache_reuse_operations": 0,
+      "first_attempt_contract_validity": {
+        "numerator": 18,
+        "denominator": 18,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "contract_completion": {
+        "numerator": 18,
+        "denominator": 18,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "terminal_rates": {
+        "success": {
+          "numerator": 18,
+          "denominator": 18,
+          "value": 1.0,
+          "wilson95": null
+        },
+        "failed": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "post_generation_failure": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "timeout": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "approval_required": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "incomplete_response": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "refusal": {
+          "numerator": 0,
+          "denominator": 18,
+          "value": 0.0,
+          "wilson95": null
+        }
+      },
+      "time_to_validated_output_seconds": {
+        "n": 18,
+        "median": 0.962824,
+        "p95": 1.441435,
+        "p95_method": "nearest_rank"
+      },
+      "time_to_contract_valid_seconds": {
+        "n": 18,
+        "median": 0.38172852849999117,
+        "p95": 0.7631370610000658,
+        "p95_method": "nearest_rank"
+      },
+      "all_terminal_seconds": {
+        "n": 18,
+        "median": 0.962824,
+        "p95": 1.441435,
+        "p95_method": "nearest_rank"
+      },
+      "efficiency": {
+        "model_calls": null,
+        "cost": null,
+        "host_generation_dispatches": 18,
+        "format_repairs": 0,
+        "transport_retries": 0,
+        "reported_usage_attempts": 18,
+        "unknown_usage_attempts": 0,
+        "observed_token_totals": {
+          "input_tokens": 198,
+          "output_tokens": 126
+        },
+        "tool_calls_by_attempt": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ],
+        "denied_calls_by_attempt": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning": "high",
+      "execution": "restricted",
+      "stage": "cover",
+      "planned_operations": 20,
+      "not_run_operations": 6,
+      "attempted_operations": 14,
+      "fresh_generation_operations": 14,
+      "cache_reuse_operations": 0,
+      "first_attempt_contract_validity": {
+        "numerator": 14,
+        "denominator": 14,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "contract_completion": {
+        "numerator": 14,
+        "denominator": 14,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "terminal_rates": {
+        "success": {
+          "numerator": 14,
+          "denominator": 14,
+          "value": 1.0,
+          "wilson95": null
+        },
+        "failed": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "post_generation_failure": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "timeout": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "approval_required": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "incomplete_response": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "refusal": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        }
+      },
+      "time_to_validated_output_seconds": {
+        "n": 14,
+        "median": 4.3442549999999995,
+        "p95": 5.333406,
+        "p95_method": "nearest_rank"
+      },
+      "time_to_contract_valid_seconds": {
+        "n": 14,
+        "median": 1.0516688510000023,
+        "p95": 1.2585128919999988,
+        "p95_method": "nearest_rank"
+      },
+      "all_terminal_seconds": {
+        "n": 14,
+        "median": 4.3442549999999995,
+        "p95": 5.333406,
+        "p95_method": "nearest_rank"
+      },
+      "efficiency": {
+        "model_calls": null,
+        "cost": null,
+        "host_generation_dispatches": 14,
+        "format_repairs": 0,
+        "transport_retries": 0,
+        "reported_usage_attempts": 14,
+        "unknown_usage_attempts": 0,
+        "observed_token_totals": {
+          "input_tokens": 154,
+          "output_tokens": 98
+        },
+        "tool_calls_by_attempt": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ],
+        "denied_calls_by_attempt": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning": "high",
+      "execution": "restricted",
+      "stage": "extract",
+      "planned_operations": 20,
+      "not_run_operations": 0,
+      "attempted_operations": 20,
+      "fresh_generation_operations": 18,
+      "cache_reuse_operations": 0,
+      "first_attempt_contract_validity": {
+        "numerator": 16,
+        "denominator": 18,
+        "value": 0.8888888888888888,
+        "wilson95": null
+      },
+      "contract_completion": {
+        "numerator": 18,
+        "denominator": 20,
+        "value": 0.9,
+        "wilson95": null
+      },
+      "terminal_rates": {
+        "success": {
+          "numerator": 18,
+          "denominator": 20,
+          "value": 0.9,
+          "wilson95": null
+        },
+        "failed": {
+          "numerator": 2,
+          "denominator": 20,
+          "value": 0.1,
+          "wilson95": null
+        },
+        "post_generation_failure": {
+          "numerator": 0,
+          "denominator": 20,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "timeout": {
+          "numerator": 0,
+          "denominator": 20,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "approval_required": {
+          "numerator": 0,
+          "denominator": 20,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "incomplete_response": {
+          "numerator": 0,
+          "denominator": 20,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "refusal": {
+          "numerator": 0,
+          "denominator": 20,
+          "value": 0.0,
+          "wilson95": null
+        }
+      },
+      "time_to_validated_output_seconds": {
+        "n": 18,
+        "median": 0.585337,
+        "p95": 1.251597,
+        "p95_method": "nearest_rank"
+      },
+      "time_to_contract_valid_seconds": {
+        "n": 18,
+        "median": 0.35428898349999827,
+        "p95": 0.7009248549999256,
+        "p95_method": "nearest_rank"
+      },
+      "all_terminal_seconds": {
+        "n": 20,
+        "median": 0.583761,
+        "p95": 1.142047,
+        "p95_method": "nearest_rank"
+      },
+      "efficiency": {
+        "model_calls": null,
+        "cost": null,
+        "host_generation_dispatches": 20,
+        "format_repairs": 2,
+        "transport_retries": 0,
+        "reported_usage_attempts": 20,
+        "unknown_usage_attempts": 2,
+        "observed_token_totals": {
+          "input_tokens": 220,
+          "output_tokens": 140
+        },
+        "tool_calls_by_attempt": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          null,
+          null
+        ],
+        "denied_calls_by_attempt": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "provider": "codex",
+      "model": "fixture/custom-agent-v1",
+      "reasoning": "high",
+      "execution": "restricted",
+      "stage": "review",
+      "planned_operations": 20,
+      "not_run_operations": 6,
+      "attempted_operations": 14,
+      "fresh_generation_operations": 14,
+      "cache_reuse_operations": 0,
+      "first_attempt_contract_validity": {
+        "numerator": 14,
+        "denominator": 14,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "contract_completion": {
+        "numerator": 14,
+        "denominator": 14,
+        "value": 1.0,
+        "wilson95": null
+      },
+      "terminal_rates": {
+        "success": {
+          "numerator": 14,
+          "denominator": 14,
+          "value": 1.0,
+          "wilson95": null
+        },
+        "failed": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "post_generation_failure": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "timeout": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "approval_required": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "incomplete_response": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        },
+        "refusal": {
+          "numerator": 0,
+          "denominator": 14,
+          "value": 0.0,
+          "wilson95": null
+        }
+      },
+      "time_to_validated_output_seconds": {
+        "n": 14,
+        "median": 1.769759,
+        "p95": 3.010263,
+        "p95_method": "nearest_rank"
+      },
+      "time_to_contract_valid_seconds": {
+        "n": 14,
+        "median": 0.6585776139999666,
+        "p95": 1.1809449529999938,
+        "p95_method": "nearest_rank"
+      },
+      "all_terminal_seconds": {
+        "n": 14,
+        "median": 1.769759,
+        "p95": 3.010263,
+        "p95_method": "nearest_rank"
+      },
+      "efficiency": {
+        "model_calls": null,
+        "cost": null,
+        "host_generation_dispatches": 14,
+        "format_repairs": 0,
+        "transport_retries": 0,
+        "reported_usage_attempts": 14,
+        "unknown_usage_attempts": 0,
+        "observed_token_totals": {
+          "input_tokens": 154,
+          "output_tokens": 98
+        },
+        "tool_calls_by_attempt": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ],
+        "denied_calls_by_attempt": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    }
+  ],
+  "proposal_review_inventory_count": 120,
+  "execution_source_versions_sha256": "a71f816895fe63c577a12dbfc30d64479dad727bc1fbb56da4b08e90257778e0",
+  "detail_report": "execution-comparison.json",
+  "detail_report_sha256": "52fb6f34529b3f20688703aa6d647b4b555eb3f6faded077d0c794272c54caa5",
+  "timing_scope": "CLI workflow/build wall time, including their host work; excludes harness artifact copying, manual/control commands and human waits. Fixtures are not real model timing."
+}

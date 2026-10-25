@@ -223,6 +223,9 @@ def test_reports_keep_not_run_and_unknown_quality_visible(tmp_path):
     assert report["not_run"] == 40 and report["attempted"] == 0
     assert report["decision"].startswith("inconclusive")
     assert report["model_calls"] is None and report["accuracy"]["harmful_omissions"]["numerator"] is None
+    compact = runner.read(tmp_path / "execution-comparison.compact.json")
+    assert compact["not_run"] == 40 and "stage_metrics" in compact
+    assert compact["detail_report_sha256"] == runner.digest((tmp_path / "execution-comparison.json").read_bytes())
 
 
 def test_hidden_events_and_legacy_reasoning_are_not_logged():
@@ -301,3 +304,75 @@ def test_multilingual_fixture_evidence_tracks_preamble_source_lines(tmp_path, mo
     source = next(s for s in snapshot["sources"] if s["id"] == ref["source_id"])
     assert ref["line_start"] > 4
     assert ref["quote"] in source["content"].split("\n")[ref["line_start"] - 1]
+
+
+def test_timeout_diagnostics_never_receive_raw_partial_reasoning(project, monkeypatch):
+    timeout = subprocess.TimeoutExpired("synthetic-codex", 600, output=STREAM, stderr="SYNTHETIC_HIDDEN_STDERR")
+    transport(monkeypatch, final=timeout)
+    captured = []
+    monkeypatch.setattr(llm.diagnostic, "failure", lambda phase, exc=None, **kwargs: captured.append(exc))
+    session = {}
+    with pytest.raises(ProviderError) as error:
+        llm.generate("system", "task", provider="codex", session=session)
+    assert error.value.code == "timeout"
+    assert any(isinstance(e, subprocess.TimeoutExpired) for e in captured)
+    assert timeout.output is None and timeout.stderr is None
+    assert session["agent_telemetry"]["process_outcome"] == "timeout"
+    assert "SYNTHETIC_HIDDEN" not in json.dumps(session["agent_telemetry"])
+
+
+def test_report_distinguishes_text_contract_from_failed_document_gate(tmp_path):
+    plan = comparison.plan("fixture/model", "high")
+    case = plan["cases"][0]
+    runner.write(tmp_path / "manifest.json", {"plan":plan,"plan_sha256":runner.object_hash(plan),"settings":{"mode":"fixture"}})
+    outcome = {"run_id":"synthetic-adapt","status":"success","duration_seconds":1,"time_to_contract_valid_seconds":.5,"attempts":[{"category":"valid"}]}
+    command = {"label":"pipeline","exit_status":1,"duration_seconds":2,"outputs":[],"outcomes":{"adapt.outcome.json":outcome},"pending_confirmation":None,
+               "transport":{"requests":[{"step":"adapt"}]}}
+    runner.write(tmp_path / "summary.json", {"cases":[{"id":case["id"],"status":"failed","commands":[command]}]})
+    value = comparison.report(tmp_path)
+    row = next(s for s in value["stages"] if s["execution"] == "baseline" and s["stage"] == "adapt")
+    assert row["operations"][0]["terminal"] == "post_generation_failure"
+    assert row["time_to_contract_valid_seconds"]["n"] == 1
+    assert row["time_to_validated_output_seconds"]["n"] == 0
+
+
+def test_report_deduplicates_generation_outcomes_and_includes_resume(tmp_path):
+    plan = comparison.plan("fixture/model", "high")
+    runner.write(tmp_path / "manifest.json", {"plan":plan,"plan_sha256":runner.object_hash(plan),"settings":{"mode":"fixture"}})
+    before = {"run_id":"synthetic-adapt","status":"success","duration_seconds":1,"attempts":[{"category":"valid"}]}
+    after = {"run_id":"synthetic-review","status":"success","duration_seconds":2,"attempts":[{"category":"valid"}]}
+    root = {"label":"pipeline","exit_status":1,"duration_seconds":2,"outputs":[],"outcomes":{"adapt.outcome.json":before},
+            "pending_confirmation":{"step":"adapt"},"resolved_confirmation":{"step":"adapt"},"transport":{"requests":[{"step":"adapt"}]}}
+    resumed = {"label":"resumed-review","exit_status":0,"duration_seconds":3,"outputs":[],"pending_confirmation":None,
+               "outcomes":{"adapt.outcome.json":before,"review.outcome.json":after},"transport":{"requests":[{"step":"review"}]}}
+    runner.write(tmp_path / "summary.json", {"cases":[{"id":plan['cases'][0]['id'],"status":"passed","commands":[root,resumed]}]})
+    value = comparison.report(tmp_path)
+    adapt = next(s for s in value["stages"] if s["execution"] == "baseline" and s["stage"] == "adapt")
+    review = next(s for s in value["stages"] if s["execution"] == "baseline" and s["stage"] == "review")
+    assert adapt["attempted_operations"] == 1 and adapt["operations"][0]["terminal"] == "success"
+    assert review["attempted_operations"] == 1 and value["host_generation_dispatches"] == 2
+
+
+def test_host_stage_timings_include_outer_gate_and_do_not_double_count(tmp_path):
+    path = tmp_path / "public-events.jsonl"
+    def start(identity, parent, phase):
+        return {"event":"span_start","span_id":identity,"parent_span_id":parent,"phase":phase,"step":"adapt"}
+    def end(identity, phase, duration):
+        return {"event":"span_end","span_id":identity,"phase":phase,"step":"adapt","status":"ok","details":{"duration_ms":duration}}
+    a,b,c = "a"*16,"b"*16,"c"*16
+    values = [start(a,None,"step"),start(b,a,"step"),start(c,b,"validation"),end(c,"validation",20),end(b,"step",100),end(a,"step",500)]
+    path.write_text("\n".join(map(json.dumps, values)))
+    result = runner.public_span_timings([path])
+    assert len(result["stage_spans"]) == 1 and result["stage_spans"][0]["duration_seconds"] == .5
+    assert len(result["spans"]) == 3
+    path.write_text(json.dumps(start(a,None,"step")))
+    result = runner.public_span_timings([path])
+    assert result["status"] == "partial" and result["stage_spans"][0]["duration_seconds"] is None
+
+
+def test_preflight_timeout_clears_private_discovery_output(monkeypatch):
+    failure = subprocess.TimeoutExpired("synthetic-codex",20,output="PRIVATE_MCP_TRANSPORT",stderr="PRIVATE_MCP_HEADER")
+    monkeypatch.setattr(subprocess,"run",lambda *a,**k: (_ for _ in ()).throw(failure))
+    with pytest.raises(ProviderError) as error:
+        agent.local("synthetic-codex",["mcp","list","--json"])
+    assert error.value.code == "configuration" and failure.output is None and failure.stderr is None

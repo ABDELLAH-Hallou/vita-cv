@@ -16,6 +16,7 @@ from pathlib import Path
 
 from vita import __version__
 from vita.helpers import llm
+from vita.helpers.diagnostics import PHASES
 from vita.helpers.pipeline_config import STAGE_PREFIXES
 from vita.helpers.provider_errors import safe_identifier
 
@@ -184,6 +185,61 @@ def capture_outputs(project, destination):
     return outputs
 
 
+def diagnostic_files(project):
+    return set((Path(project) / ".vita/logs/traces").glob("*/events-*.jsonl"))
+
+
+def public_span_timings(files):
+    """Reuse sanitized host spans; never read prompts/private agent journals."""
+    spans, outer, partial = [], [], False
+    for path in sorted(files):
+        starts, ends = {}, {}
+        try:
+            if path.stat().st_size > 16 * 1024 * 1024:
+                partial = True
+                continue
+            for line in path.read_text(encoding="utf-8").splitlines():
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    partial = True
+                    continue
+                if not isinstance(event, dict) or event.get("phase") not in PHASES:
+                    continue
+                identity = event.get("span_id")
+                if not isinstance(identity, str) or not re.fullmatch(r"[0-9a-f]{16}", identity):
+                    continue
+                if event.get("event") == "span_start":
+                    starts[identity] = event
+                elif event.get("event") == "span_end":
+                    ends[identity] = event
+        except (OSError, UnicodeError):
+            partial = True
+            continue
+        for identity, start in starts.items():
+            end = ends.get(identity, {})
+            duration = end.get("details", {}).get("duration_ms")
+            duration = duration / 1000 if type(duration) in (int, float) and math.isfinite(duration) and duration >= 0 else None
+            partial = partial or duration is None
+            step = start.get("step")
+            step = step if step in (*STAGE_PREFIXES, "build", "operation", "requirements", "analyze-qualitative", "review-qualitative", None) else None
+            item = {"phase": start["phase"], "step": step, "span_id": identity,
+                    "parent_span_id": start.get("parent_span_id"), "duration_seconds": duration,
+                    "status": end.get("status") if end.get("status") in ("ok", "error", "interrupted") else "unreported"}
+            spans.append(item)
+            parent, visited, duplicate = start.get("parent_span_id"), set(), False
+            while parent in starts and parent not in visited:
+                visited.add(parent)
+                ancestor = starts[parent]
+                duplicate = duplicate or ancestor["phase"] == "step" and ancestor.get("step") == step
+                parent = ancestor.get("parent_span_id")
+            if start["phase"] == "step" and not duplicate:
+                outer.append(item)
+    return {"status": "partial" if partial else "observed" if spans else "unavailable",
+            "clock": "host_monotonic_public_span_durations", "spans": spans, "stage_spans": outer,
+            "scope": "Nested spans overlap; do not sum them as independent time or infer model startup/inference."}
+
+
 def invoke(run_dir, case, workspace, label, argv, settings, *, seed=False, inject=False):
     directory = run_dir / "cases" / case["id"] / "commands"
     directory.mkdir(parents=True, exist_ok=True)
@@ -196,6 +252,7 @@ def invoke(run_dir, case, workspace, label, argv, settings, *, seed=False, injec
             "real_pdf": settings["real_pdf"], "timeout": settings["timeout"]}
     write(command_dir / "invocation.json", spec)
     write(command_dir / "transport.json", {"requests": [], "synthetic_approvals": []})
+    before_logs = diagnostic_files(workspace)
     started = time.monotonic()
     with (command_dir / "stdout.txt").open("w", encoding="utf-8") as out, (command_dir / "stderr.txt").open("w", encoding="utf-8") as err:
         try:
@@ -210,6 +267,7 @@ def invoke(run_dir, case, workspace, label, argv, settings, *, seed=False, injec
               "duration_seconds": round(time.monotonic() - started, 6),
               "transport": read(command_dir / "transport.json"), "outputs": capture_outputs(workspace, command_dir),
               "pending_confirmation": pending(workspace)}
+    record["host_timing"] = public_span_timings(diagnostic_files(workspace) - before_logs)
     record["outcomes"] = {p.name: read(p) for p in sorted((workspace / ".vita/results").glob("*.outcome.json"))}
     record["assessments"] = {p.stem: read(p) for p in (workspace / ".vita/results/analysis.json", workspace / ".vita/results/review.json") if p.exists()}
     record["job"] = read(workspace / ".vita/results/job.json") if (workspace / ".vita/results/job.json").exists() else None

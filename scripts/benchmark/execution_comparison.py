@@ -22,6 +22,12 @@ THRESHOLDS = {"status": "proposed_requires_user_decision_before_live_comparison"
                   "requirement_classification", "requirement_satisfaction", "translation_fidelity")},
               "critical_factual_errors": 0, "minimum_completion_rate": 0.95,
               "minimum_delivered_document_build_success": 1.0,
+              "minimum_independently_reviewed_document_usability": 1.0,
+              "maximum_critical_layout_defects": 0,
+              "maximum_human_correction_time_relative_regression": 0.0,
+              "maximum_blinded_rating_regression": {"relevance": 0, "clarity": 0, "usefulness": 0},
+              "population": "Future preregistered supported-input primary cases, retaining unexpected failures/unavailability; deliberate invalid-input controls require safe stops separately. Not fixture adoption thresholds.",
+              "practical_rubric": "Proposed 1..5 blinded ratings; custodian must approve a protocol supplement before collection. No ratings supplied.",
               "policy": "Engineering proposals, not approved quality-loss tolerances or measured findings."}
 EFFORTS = ("minimal", "low", "medium", "high", "xhigh")
 
@@ -173,25 +179,53 @@ def report(root):
     for case in planned:
         result = results.get(case["id"], {"status": "not_run", "commands": []})
         commands = result["commands"]
-        operation = next((c for c in commands if c["label"] == "pipeline"), {})
+        workflow = [c for c in commands if c["label"] == "pipeline" or c["label"].startswith("resumed-")]
         row = {**case, "status": result["status"], "end_to_end_seconds": sum(c["duration_seconds"] for c in commands if not c["label"].startswith(("manual-", "control-", "repeat-", "cached-"))) if commands else None,
                "approval_wait_seconds": None, "content_quality": "unmeasured",
                "fresh_generation_requested": any(c.get("transport", {}).get("requests") for c in commands)}
         rows.append(row)
-        for filename, outcome in operation.get("outcomes", {}).items():
-            step = filename.split(".")[0]
+        unique = {}
+        for operation in workflow:
+            recorded = operation.get("outcomes", {})
+            order = ("extract", "analyze", "adapt", "review", "cover")
+            latest = next((s for s in reversed(order) if f"{s}.outcome.json" in recorded), None)
+            timing = operation.get("host_timing")
+            if timing is None and len(workflow) == 1 and operation.get("cwd"):
+                # Older frozen runs already retained public spans. Workflow-only
+                # files have one pipeline plus a separate build; exclude build.
+                project = (root / operation["cwd"]).resolve()
+                timing = runner.public_span_timings(runner.diagnostic_files(project)) if project.is_relative_to(root.resolve()) else None
+            for filename, outcome in recorded.items():
+                step = filename.split(".")[0]
+                identity = outcome.get("run_id", step)
+                if identity not in unique:
+                    matches = [s for s in (timing or {}).get("stage_spans", []) if s["step"] == step]
+                    unique[identity] = {"step": step, "outcome": outcome,
+                        "host_stage": matches[0] if len(matches) == 1 else None,
+                        "requests": [t for t in operation.get("transport", {}).get("requests", []) if t.get("step") == step]}
+                # Snapshots retain old outcomes on resume. Deduplicate generation
+                # IDs while allowing later explicit approvals to resolve a stop.
+                entry = unique[identity]
+                entry["confirmation"] = (operation.get("pending_confirmation") or {}).get("step") == step and not operation.get("resolved_confirmation")
+                entry["post_generation_failure"] = (operation.get("exit_status") not in (None, 0) and step == latest
+                                                    and step in ("adapt", "cover") and outcome["status"] == "success" and not entry["confirmation"])
+        for entry in unique.values():
+            step, outcome = entry["step"], entry["outcome"]
             key = (case["provider"], case["model"], case["reasoning_effort"], case["execution_mode"], step)
             bucket = stages.setdefault(key, [])
             attempts = outcome.get("attempts", [])
-            confirmation = (operation.get("pending_confirmation") or {}).get("step") == step
-            requests = [t for t in operation.get("transport", {}).get("requests", []) if t.get("step") == step]
-            bucket.append({"case": case["id"], "terminal": "approval_required" if confirmation else outcome["status"],
-                           "contract_status": outcome["status"], "category": (outcome.get("error") or {}).get("category"),
+            confirmation, requests = entry["confirmation"], entry["requests"]
+            terminal = "approval_required" if confirmation else "post_generation_failure" if entry["post_generation_failure"] else outcome["status"]
+            host_stage = entry.get("host_stage") or {}
+            bucket.append({"case": case["id"], "terminal": terminal,
+                           "contract_status": outcome["status"], "category": (outcome.get("error") or {}).get("category", (outcome.get("error") or {}).get("code")),
                            "input_sha256": outcome.get("input_sha256"),
                            "provider_requests": requests,
                            "time_to_contract_valid_seconds": outcome.get("time_to_contract_valid_seconds"),
-                           "time_to_validated_output_seconds": outcome.get("duration_seconds") if outcome["status"] == "success" and not confirmation else None,
-                           "terminal_seconds": outcome.get("duration_seconds"), "attempts": len(attempts),
+                           "time_to_validated_output_seconds": host_stage.get("duration_seconds") if terminal == "success" and host_stage.get("status") == "ok" else None,
+                           "terminal_seconds": host_stage.get("duration_seconds"),
+                           "operation_terminal_seconds": outcome.get("duration_seconds"), "host_stage": host_stage,
+                           "attempts": len(attempts),
                            "cache_reused": bool(outcome.get("cache")), "fresh_generation": bool(requests),
                            "first_attempt_contract_valid": bool(attempts and attempts[0]["category"] == "valid"),
                            "format_repairs": sum(a["category"] in ("invalid_json", "schema_error", "validation_error") for a in attempts[:-1]),
@@ -215,6 +249,7 @@ def report(root):
             if values:
                 clusters.append(values)
         comparisons.append({"contrast": arm + " versus A", "complete_paired_repeats": sum(map(len, clusters)),
+                            "time_change_definition": "1 - compared workflow seconds / baseline seconds; positive is less time, negative is more time (not reciprocal throughput).",
                             "scenario_clusters": len(clusters), "paired_fractional_speed_change": quantiles([v for c in clusters for v in c]),
                             "independent_families": int(bool(clusters)),
                             "family_cluster_bootstrap95": paired_interval([[v for c in clusters for v in c]] if clusters else []),
@@ -237,7 +272,7 @@ def report(root):
             "cache_reuse_operations": sum(v["cache_reused"] for v in values),
             "first_attempt_contract_validity": rate(sum(v["first_attempt_contract_valid"] for v in generated), len(generated)),
             "contract_completion": rate(sum(v["contract_status"] == "success" for v in values), len(values)),
-            "terminal_rates": {status: rate(sum(v["terminal"] == status or v["category"] == status for v in values), len(values)) for status in ("success", "failed", "timeout", "approval_required", "incomplete_response", "refusal")},
+            "terminal_rates": {status: rate(sum(v["terminal"] == status or v["category"] == status for v in values), len(values)) for status in ("success", "failed", "post_generation_failure", "timeout", "approval_required", "incomplete_response", "refusal")},
             "time_to_validated_output_seconds": quantiles([v["time_to_validated_output_seconds"] for v in values if v["time_to_validated_output_seconds"] is not None]),
             "time_to_contract_valid_seconds": quantiles([v["time_to_contract_valid_seconds"] for v in values if v["time_to_contract_valid_seconds"] is not None]),
             "all_terminal_seconds": quantiles([v["terminal_seconds"] for v in values if v["terminal_seconds"] is not None]),
@@ -251,6 +286,9 @@ def report(root):
     reference_states = [criterion.get("evidence_verification", {}).get("status", "unreported") for r in results.values() for c in r["commands"]
                         for assessment in c.get("assessments", {}).values() for criterion in assessment["metrics"]["criteria"]]
     value = {"contract_version": "execution-comparison/1", "plan_sha256": manifest["plan_sha256"], "mode": manifest["settings"]["mode"],
+             "execution_git_revision": manifest.get("git_revision"),
+             "execution_source_versions": manifest.get("source_versions"),
+             "analysis_source_sha256": runner.digest(Path(__file__).read_bytes()),
              "split": "development_only", "ordering": "serial in exact listed plan order; reverse ordering requires a separately authorized reversed plan",
              "planned": len(planned), "not_run": sum(r["status"] == "not_run" for r in rows),
              "attempted": sum(r["status"] != "not_run" for r in rows), "cases": rows, "stages": stage_rows,
@@ -264,17 +302,30 @@ def report(root):
                  "successful": sum(c["label"] == "build" and c["exit_status"] == 0 for r in results.values() for c in r["commands"]),
                  "measurement": "real_compilation" if manifest["settings"].get("real_pdf") or manifest["settings"]["mode"] == "live" else "fixture_handoff_only"},
              "proposal_review_inventory": review_refs, "accepted_output_resources": None,
+             "host_generation_dispatches": sum(len(c.get("transport", {}).get("requests", [])) for r in results.values() for c in r["commands"]),
+             "document_validation_timing": "Validated-output and stage-terminal timings use outer public host step spans, including preparation and document gates. Unavailable/unfinished/ambiguous spans remain null. Post-approval waiting is unmeasured and generation-contract timing is never substituted.",
              "model_calls": None, "cost": None, "direct_api_reference": "not_run; comparable accessible model not established",
              "decision": "inconclusive; retain baseline and gather authorized live timings plus independent human evaluation",
              "human_evaluation": "Use EVALUATION_PROTOCOL.md / ANNOTATION_GUIDE.md and scripts.evaluation with two independent qualified reviewers, adjudication and agreement; no labels supplied here."}
     runner.write(root / "execution-comparison.json", value)
+    compact = {key: item for key, item in value.items() if key not in ("stages", "proposal_review_inventory", "execution_source_versions")}
+    compact["stage_metrics"] = [{key: item for key, item in row.items() if key != "operations"} for row in stage_rows]
+    compact["proposal_review_inventory_count"] = len(review_refs)
+    compact["execution_source_versions_sha256"] = runner.object_hash(value.get("execution_source_versions"))
+    compact["detail_report"] = "execution-comparison.json"
+    compact["detail_report_sha256"] = runner.digest((root / "execution-comparison.json").read_bytes())
+    compact["timing_scope"] = "CLI workflow/build wall time, including their host work; excludes harness artifact copying, manual/control commands and human waits. Fixtures are not real model timing."
+    runner.write(root / "execution-comparison.compact.json", compact)
     lines = ["# Agent execution comparison", "", "Decision: **inconclusive — retain baseline; gather more evidence**.", "",
              f"Mode: {value['mode']}; development only. Planned {value['planned']}, attempted {value['attempted']}, not run {value['not_run']}.", "",
              "Fixture timings measure software mechanics, not real model latency, accuracy, OCR, translation or hiring outcomes.", "",
-             "| Configuration / stage | Fresh operations | First-attempt contract validity | Median contract-valid seconds | p95 |", "| --- | ---: | --- | ---: | ---: |"]
+             "Validated timing means existing host gates, not independent semantic correctness. Positive fixtures use explicitly synthetic approvals; human waiting is unmeasured.", "",
+             "| Configuration / stage | Fresh operations | First-attempt contract validity | Validated n | Median validated seconds | p95 |", "| --- | ---: | --- | ---: | ---: | ---: |"]
     for row in stage_rows:
-        validity, speed = row["first_attempt_contract_validity"], row["time_to_contract_valid_seconds"]
-        lines.append(f"| {row['model']} / {row['reasoning']} / {row['execution']} / {row['stage']} | {row['fresh_generation_operations']} | {validity['numerator']}/{validity['denominator']} | {speed['median']} | {speed['p95']} |")
+        validity, speed = row["first_attempt_contract_validity"], row["time_to_validated_output_seconds"]
+        median = f"{speed['median']:.3f}" if speed["median"] is not None else "unmeasured"
+        tail = f"{speed['p95']:.3f}" if speed["p95"] is not None else "unmeasured"
+        lines.append(f"| {row['model']} / {row['reasoning']} / {row['execution']} / {row['stage']} | {row['fresh_generation_operations']} | {validity['numerator']}/{validity['denominator']} | {speed['n']} | {median} | {tail} |")
     lines.extend(["", "JSON contains terminal outcomes, paired timing counts, retries, effective settings, usage where observable, and all retained proposals including stopped Adapt/Cover output. Variants share one synthetic source family; independent-family uncertainty intervals are not estimable.", "",
                   "Semantic accuracy, harmful omissions, unsupported additions, translation fidelity, human correction time and blinded preference are unmeasured. Source-reference validity and successful compilation are separate technical checks, not semantic correctness.", "",
                   "Proposed thresholds require a user decision before live comparisons. CLI invocations are capped by the existing authorization ledger; internal model requests and cost are not bounded by that invocation cap. Unknown telemetry is null, never zero."])

@@ -187,6 +187,12 @@ reliability/terminal results but not accepted-output timings. Human waiting and
 correction time remain unmeasured. Source-reference validity is separate from
 semantic accuracy. Fixture reliability includes deliberate negative controls;
 it is not real provider uptime.
+Text-contract completion is not document validation. Outer public diagnostic step
+spans include preparation and LaTeX/factual gates; only successful, observed spans
+supply validated-output times. Unfinished/ambiguous timing and post-approval waits
+remain null. Nested host phases overlap and must not be summed as independent
+time. Post-generation failures and approval stops remain terminal outcomes.
+Resume records deduplicate generation IDs instead of recounting copied outcomes.
 
 Median/p95 include sample counts (nearest-rank p95). Paired speed changes condition
 on both arms completing; read all-attempt terminal results too. Independent-family
@@ -226,8 +232,13 @@ keep waiting time separate. The ledger spans stages, failures, retries and resum
 Proposed margins, **pending user/custodian decision before live comparison**:
 20% minimum paired median speed improvement; zero allowed regression in each
 semantic quality dimension; no critical factual errors; at least 95% completion;
-100% build success for delivered documents. These are engineering proposals, not
-approved tolerances or measured findings.
+100% build success and independently reviewed usability for delivered documents;
+no critical layout defects, increase in human correction time or decline in
+blinded relevance/clarity/usefulness ratings. The proposed 1–5 practical rating
+rubric needs an approved protocol supplement before collection. Completion targets
+apply to supported-input primary cases (including unexpected failures), while
+deliberate invalid-input controls must stop safely and remain separately reported.
+These are engineering proposals, not approved tolerances or measured findings.
 
 Use [EVALUATION_PROTOCOL.md](EVALUATION_PROTOCOL.md), [ANNOTATION_GUIDE.md](ANNOTATION_GUIDE.md)
 and `scripts.evaluation`: independent holdout separate from development fixtures,

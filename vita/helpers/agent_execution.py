@@ -59,7 +59,11 @@ def configuration(provider, config, env):
 def local(codex, args):
     try:
         result = subprocess.run([codex, *args], capture_output=True, text=True, encoding="utf-8", timeout=20)
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        if isinstance(exc, subprocess.TimeoutExpired):
+            # MCP discovery output may contain private transport credentials.
+            exc.output = None
+            exc.stderr = None
         raise ProviderError(code="configuration") from None
     if result.returncode != 0:
         raise ProviderError(code="configuration")
@@ -236,6 +240,17 @@ def invoke(codex, cmd, prompt, options, session):
         if result.returncode == 0 and telemetry.get("terminal") != "completed":
             raise ProviderError(code="response_shape")
         return result
+    except subprocess.TimeoutExpired as exc:
+        # Existing diagnostics retain partial process output on exceptions.
+        # Preserve only allowlisted observations, never raw partial reasoning.
+        partial = exc.output or ""
+        if isinstance(partial, bytes):
+            partial = partial.decode("utf-8", errors="replace")
+        telemetry.update(events(partial))
+        telemetry["process_outcome"] = "timeout"
+        exc.output = None
+        exc.stderr = None
+        raise
     finally:
         telemetry["agent_process_seconds"] = time.monotonic() - started
         session["agent_telemetry"] = telemetry
