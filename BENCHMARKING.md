@@ -105,6 +105,26 @@ corpus is development-only and must never become the independent holdout.
 
 ## Opt-in live runs and spending
 
+### Using public CVs and real job posts
+
+A paired case can include an `input_bundle` with a checkout-relative folder,
+`candidate_id`, `job_id`, and a `files` map of filename to SHA-256. It must contain
+`main.tex`, `job.md`, and `requirements.json` (a source-linked control criteria
+proposal made from that job alone). Supported LaTeX includes, styles and bibliography
+files can also be pinned. The runner copies only these files and freezes them again
+inside each project. It rejects changed files, paths outside the checkout, hidden
+files, credentials and executable helpers before sending any request.
+
+Use identical bundles for A/B. Record where each document came from, its original
+revision or retrieval date, and any conversion. Public CVs are snapshots, not verified
+current biographies. Keep source documents and live outputs local; they are not CI
+fixtures or independent holdout data. Public-document reports do not apply the
+synthetic corpus's factual oracle. Human semantic review remains pending.
+
+The live observer preserves a shorter adapter timeout even when the full workflow
+has a longer command limit. Spending, retries, approval gates and request-ledger
+rules below still apply. An input bundle does not authorize spending or factual edits.
+
 Implementing/testing the harness does not authorize any live spending. A subscription
 does not authorize APIs. Credentials must already be in the calling environment;
 personal projects' `.env` files are not copied. Never put credentials in plans.

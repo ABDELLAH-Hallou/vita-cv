@@ -84,7 +84,7 @@ def validate_plan(plan, *, live):
     ids = set()
     for case in plan["cases"]:
         fields = {"id", "provider", "model", "extraction", "reasoning_effort"}
-        optional = {"execution_mode", "agent_telemetry", "scenario", "arm", "repeat", "max_input_bytes", "target_language", "max_attempts", "fixture_approvals"}
+        optional = {"execution_mode", "agent_telemetry", "scenario", "arm", "repeat", "max_input_bytes", "target_language", "max_attempts", "fixture_approvals", "input_bundle"}
         if not fields.issubset(case) or set(case) - (fields | optional | ({"faults"} if not live else set())):
             raise ValueError("Invalid case fields (credentials/endpoints are not accepted in plans).")
         if not isinstance(case["id"], str) or not NAME.fullmatch(case["id"]) or case["id"] in ids:
@@ -99,6 +99,9 @@ def validate_plan(plan, *, live):
             validate_case(case)
             if live and case.get("fixture_approvals"):
                 raise ValueError("Live comparisons cannot enable synthetic factual approvals")
+        if "input_bundle" in case:
+            from scripts.benchmark.input_bundle import validate
+            validate(case["input_bundle"])
     if any("arm" in c for c in plan["cases"]):
         from scripts.benchmark.execution_comparison import validate_pairs
         validate_pairs(plan)
@@ -141,9 +144,13 @@ def child_env(project, case, mode):
 def project_setup(path, case):
     path.mkdir(parents=True)
     (path / ".vita").mkdir()
-    for file in ("main.tex", "education.tex", "job.md", "requirements.json"):
-        shutil.copyfile(CORPUS / file, path / file)
-    write(path / ".vita/config.json", {"author": "synthetic", "tex_entry": "main.tex",
+    if "input_bundle" in case:
+        from scripts.benchmark.input_bundle import copy
+        copy(case["input_bundle"], path)
+    else:
+        for file in ("main.tex", "education.tex", "job.md", "requirements.json"):
+            shutil.copyfile(CORPUS / file, path / file)
+    write(path / ".vita/config.json", {"author": case.get("input_bundle", {}).get("candidate_id", "synthetic"), "tex_entry": "main.tex",
           "cover_tex_entry": "cover-letter.tex", "output_dir": "artifacts/pdf",
           "output_filename": "resume.pdf", "cover_output_filename": "letter.pdf"})
     config = {"model": case["model"]}
@@ -153,7 +160,7 @@ def project_setup(path, case):
         if key in case:
             config[key] = case[key]
     write(path / ".vita/extensions.json", {"llm_providers": {case["provider"]: config}})
-    if "scenario" in case:
+    if "scenario" in case and "input_bundle" not in case:
         from scripts.benchmark.execution_comparison import prepare_inputs
         prepare_inputs(path, case)
 
@@ -316,7 +323,7 @@ def summarize(plan, results):
             "generation_operations": {"with_attempts": sum(bool(a) for a in attempts),
                 "first_attempt_valid": sum(bool(a) and a[0]["category"] == "valid" for a in attempts),
                 "recovered": sum(len(a) > 1 and a[-1]["category"] == "valid" for a in attempts)},
-            "quality": {"status": "unmeasured", "reason": "Requires paired human adjudication using corpus/oracle.json; unavailable providers are N/A, never zero-quality.",
+            "quality": {"status": "unmeasured", "reason": "Requires source-linked paired human adjudication; unavailable providers are N/A, never zero-quality.",
                         "billing": "unknown; usage is provider-reported, not independently audited"}}
 
 
@@ -472,7 +479,8 @@ def main(argv=None):
             if args.authorization is None:
                 raise ValueError("Live runs require a plan-bound --authorization file. No subscription/API billing assumptions.")
             authorization = validate_authorization(args.authorization, plan)
-        corpus = corpus_manifest()
+        bundles = {c["id"]: c["input_bundle"] for c in plan["cases"] if "input_bundle" in c}
+        corpus = {"revision": "case-pinned-bundles-v1", "bundles": bundles} if bundles else corpus_manifest()
         if args.resume and (args.mode != "live" or args.output):
             raise ValueError("--resume is live-only and replaces --output.")
         if not args.resume and args.output is None:
@@ -530,11 +538,11 @@ def main(argv=None):
             "# Standalone Vita CV benchmark\n\n" + f"Mode: {args.mode}. Serial execution. Corpus revision: {corpus['revision']}.\n\n"
             + "| Result | Cases |\n| --- | ---: |\n" + "\n".join(f"| {k} | {v} |" for k, v in summary["counts"].items())
             + f"\n\nReliability denominator: {summary['denominator']}; success rate: {summary['success_rate']:.2%}.\n\n"
-            + "Content quality: **unmeasured** pending consistent human adjudication against corpus/oracle.json. Unavailable providers: N/A for quality, retained in reliability.\n\n"
+            + "Content quality: **unmeasured** pending source-linked human adjudication under EVALUATION_PROTOCOL.md. Unavailable providers: N/A for quality, retained in reliability.\n\n"
             + "Analyze-to-Analyze fresh repeats and Analyze-to-Review fresh controls are separate in summary.json. Cached controls are not independent generations. Fixture PDF files are handoff markers unless --real-pdf was selected.\n\n"
             + "Provider-reported usage is recorded when available. Unknown usage and billing are not zero. See each command's record.json, transport.json, stdout/stderr, frozen outputs, and project execution journals.\n", encoding="utf-8")
         write(run_dir / "adjudication-template.json", {"plan_sha256": object_hash(plan), "corpus": corpus,
-            "rubric": read(CORPUS / "oracle.json"), "judge": None,
+            "rubric": {"protocol": "EVALUATION_PROTOCOL.md", "annotation_guide": "ANNOTATION_GUIDE.md", "source_reviews": "pending; no synthetic oracle applies to these public documents"} if bundles else read(CORPUS / "oracle.json"), "judge": None,
             "cases": [{"id": r["id"], "content_quality": None, "status": "unmeasured",
                        "reason": "Provider unavailable" if r["status"] == "unavailable" else "Awaiting human adjudication",
                        "output_refs": [str(p.relative_to(run_dir)) for p in sorted((run_dir / "cases" / r["id"] / "commands").glob("*/record.json"))]} for r in results]})

@@ -56,7 +56,7 @@ def validate_pairs(plan):
         if not {"A", "B"}.issubset(arms):
             raise ValueError("Full comparison plans require both A and B; filtering is fixture-only")
         a, b = arms["A"], arms["B"]
-        fields = ("provider", "model", "reasoning_effort", "extraction", "max_attempts", "target_language", "max_input_bytes", "faults")
+        fields = ("provider", "model", "reasoning_effort", "extraction", "max_attempts", "target_language", "max_input_bytes", "faults", "input_bundle")
         if a["execution_mode"] != "baseline" or b["execution_mode"] != "restricted" or any(a.get(k) != b.get(k) for k in fields):
             raise ValueError("A/B must preserve model, reasoning, inputs and attempt budget")
         if "C" in arms:
@@ -72,7 +72,8 @@ def validate_case(case):
         raise ValueError("Execution comparisons currently support only baseline/restricted Codex CLI")
     if type(case.get("agent_telemetry", False)) is not bool:
         raise ValueError("agent_telemetry must be boolean")
-    if case.get("scenario", "short") not in SCENARIOS or case.get("arm", "A") not in ("A", "B", "C"):
+    public = "input_bundle" in case and runner.NAME.fullmatch(case.get("scenario", ""))
+    if (not public and case.get("scenario", "short") not in SCENARIOS) or case.get("arm", "A") not in ("A", "B", "C"):
         raise ValueError("Unknown comparison scenario/arm")
     if type(case.get("repeat", 1)) is not int or not 1 <= case.get("repeat", 1) <= 20:
         raise ValueError("Repeat must be 1..20")
@@ -174,6 +175,10 @@ def report(root):
     root = Path(root)
     manifest, summary = runner.read(root / "manifest.json"), runner.read(root / "summary.json")
     planned = manifest["plan"]["cases"]
+    public_inputs = any("input_bundle" in c for c in planned)
+    families = {c.get("input_bundle", {}).get("candidate_id", "synthetic") for c in planned}
+    uncertainty = ("Public development pilot with shared jobs and repeated CVs; too few independent candidates/jobs for a reliable crossed-design interval. No interval or semantic equivalence claim."
+                   if public_inputs else "No naive binomial intervals for dependent repeats. All current variants share one synthetic candidate/job family: family-cluster speed intervals are unestimable, not invented from variant/repeat counts. Completed-output comparisons condition on both arms completing.")
     results = {r["id"]: r for r in summary["cases"]}
     stages, paired, terminal_pairs, rows, review_refs = {}, {}, {}, [], []
     for case in planned:
@@ -243,7 +248,7 @@ def report(root):
     comparisons = []
     for arm in ("B", "C"):
         clusters = []
-        for scenario in SCENARIOS:
+        for scenario in dict.fromkeys(c["scenario"] for c in planned):
             values = [1 - paired[(scenario, repeat, arm)] / baseline for (s, repeat, a), baseline in paired.items()
                       if s == scenario and a == "A" and baseline > 0 and (scenario, repeat, arm) in paired]
             if values:
@@ -251,7 +256,7 @@ def report(root):
         comparisons.append({"contrast": arm + " versus A", "complete_paired_repeats": sum(map(len, clusters)),
                             "time_change_definition": "1 - compared workflow seconds / baseline seconds; positive is less time, negative is more time (not reciprocal throughput).",
                             "scenario_clusters": len(clusters), "paired_fractional_speed_change": quantiles([v for c in clusters for v in c]),
-                            "independent_families": int(bool(clusters)),
+                            "independent_families": len(families) if clusters else 0,
                             "family_cluster_bootstrap95": paired_interval([[v for c in clusters for v in c]] if clusters else []),
                             "all_outcome_terminal_time_change": quantiles([1 - terminal_pairs[(scenario, repeat, arm)] / baseline for (scenario, repeat, a), baseline in terminal_pairs.items()
                                 if a == "A" and baseline > 0 and (scenario, repeat, arm) in terminal_pairs]),
@@ -289,14 +294,14 @@ def report(root):
              "execution_git_revision": manifest.get("git_revision"),
              "execution_source_versions": manifest.get("source_versions"),
              "analysis_source_sha256": runner.digest(Path(__file__).read_bytes()),
-             "split": "development_only", "ordering": "serial in exact listed plan order; reverse ordering requires a separately authorized reversed plan",
+             "split": "public_development_pilot_not_holdout" if public_inputs else "development_only", "ordering": "serial in exact listed plan order; reverse ordering requires a separately authorized reversed plan",
              "planned": len(planned), "not_run": sum(r["status"] == "not_run" for r in rows),
              "attempted": sum(r["status"] != "not_run" for r in rows), "cases": rows, "stages": stage_rows,
              "paired": comparisons, "proposed_thresholds": THRESHOLDS, "approval_waits": "unmeasured; not included in generation durations",
              "accuracy": {key: {"numerator": None, "denominator": 0, "status": "unmeasured_pending_independent_review"} for key in THRESHOLDS["maximum_regression_percentage_points"]},
              "source_reference_verification": {"criterion_observations": len(reference_states), "counts": {s: reference_states.count(s) for s in sorted(set(reference_states))},
                  "interpretation": "Mechanical quotation/source checks; includes dependent repeated report observations, not semantic accuracy."},
-             "uncertainty": "No naive binomial intervals for dependent repeats. All current variants share one synthetic candidate/job family: family-cluster speed intervals are unestimable, not invented from variant/repeat counts. Completed-output comparisons condition on both arms completing.",
+             "uncertainty": uncertainty,
              "practical_quality": {"correction_time": None, "blinded_preference": None, "layout_defects": None},
              "document_builds": {"attempted": sum(c["label"] == "build" for r in results.values() for c in r["commands"]),
                  "successful": sum(c["label"] == "build" and c["exit_status"] == 0 for r in results.values() for c in r["commands"]),
@@ -318,15 +323,15 @@ def report(root):
     runner.write(root / "execution-comparison.compact.json", compact)
     lines = ["# Agent execution comparison", "", "Decision: **inconclusive — retain baseline; gather more evidence**.", "",
              f"Mode: {value['mode']}; development only. Planned {value['planned']}, attempted {value['attempted']}, not run {value['not_run']}.", "",
-             "Fixture timings measure software mechanics, not real model latency, accuracy, OCR, translation or hiring outcomes.", "",
-             "Validated timing means existing host gates, not independent semantic correctness. Positive fixtures use explicitly synthetic approvals; human waiting is unmeasured.", "",
+             "Fixture timings measure software mechanics, not real model latency, accuracy, OCR, translation or hiring outcomes." if manifest["settings"]["mode"] == "fixture" else "Live timings include real provider generation. The small development pilot does not establish semantic accuracy or hiring outcomes.", "",
+             "Validated timing means existing host gates, not independent semantic correctness. " + ("Positive fixtures use explicitly synthetic approvals; human waiting is unmeasured." if manifest["settings"]["mode"] == "fixture" else "Live factual stops are retained; no synthetic approvals are used. Human waiting is unmeasured."), "",
              "| Configuration / stage | Fresh operations | First-attempt contract validity | Validated n | Median validated seconds | p95 |", "| --- | ---: | --- | ---: | ---: | ---: |"]
     for row in stage_rows:
         validity, speed = row["first_attempt_contract_validity"], row["time_to_validated_output_seconds"]
         median = f"{speed['median']:.3f}" if speed["median"] is not None else "unmeasured"
         tail = f"{speed['p95']:.3f}" if speed["p95"] is not None else "unmeasured"
         lines.append(f"| {row['model']} / {row['reasoning']} / {row['execution']} / {row['stage']} | {row['fresh_generation_operations']} | {validity['numerator']}/{validity['denominator']} | {speed['n']} | {median} | {tail} |")
-    lines.extend(["", "JSON contains terminal outcomes, paired timing counts, retries, effective settings, usage where observable, and all retained proposals including stopped Adapt/Cover output. Variants share one synthetic source family; independent-family uncertainty intervals are not estimable.", "",
+    lines.extend(["", "JSON contains terminal outcomes, paired timing counts, retries, effective settings, usage where observable, and all retained proposals including stopped Adapt/Cover output. " + uncertainty, "",
                   "Semantic accuracy, harmful omissions, unsupported additions, translation fidelity, human correction time and blinded preference are unmeasured. Source-reference validity and successful compilation are separate technical checks, not semantic correctness.", "",
                   "Proposed thresholds require a user decision before live comparisons. CLI invocations are capped by the existing authorization ledger; internal model requests and cost are not bounded by that invocation cap. Unknown telemetry is null, never zero."])
     (root / "execution-comparison.md").write_text("\n".join(lines) + "\n", encoding="utf-8")

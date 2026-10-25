@@ -200,7 +200,8 @@ def execute(spec):
                                   '{"type":"turn.completed","usage":{"input_tokens":11,"output_tokens":7}}\n') if "--json" in cmd else ""
                         result = subprocess.CompletedProcess(cmd, 0, stream, "")
                 else:
-                    kwargs["timeout"] = spec["timeout"]
+                    requested_timeout = kwargs.get("timeout")
+                    kwargs["timeout"] = min(spec["timeout"], requested_timeout) if requested_timeout is not None else spec["timeout"]
                     result = original_run(cmd, **kwargs)
                 row.update(status="response" if result.returncode == 0 else "cli_error", exit_status=result.returncode)
                 if "--json" in cmd:
