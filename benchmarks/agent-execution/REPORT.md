@@ -1,5 +1,7 @@
 # Restricted agent execution: engineering evaluation
 
+This is the frozen **fixture-only** checkpoint. Later, explicitly authorized testing with real public CVs and employer job posts is recorded separately in [the real CV report](LIVE_REPORT.md) and [live aggregates](live-results.json). Statements below about pending live work describe this earlier checkpoint; its original 40-case live proposal was not the later 16-case public-CV pilot.
+
 Decision: **inconclusive — retain baseline and gather more evidence**. No live model latency or semantic accuracy improvement has been demonstrated.
 
 ## What was tested
