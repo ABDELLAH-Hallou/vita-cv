@@ -5,6 +5,7 @@ import inspect
 import json
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 from vita.helpers import diagnostics as diagnostic
@@ -19,6 +20,17 @@ from vita.helpers.provider_errors import (
 from vita.helpers.structured import json_text, parse_json, validate, write_artifact
 
 MAX_ATTEMPTS = 3  # Default shared budget: transport, schema negotiation and format.
+
+
+@contextmanager
+def timed_phase(name, attempt):
+    started = time.monotonic()
+    try:
+        with diagnostic.span(name):
+            yield
+    finally:
+        phases = attempt.setdefault("phase_seconds", {})
+        phases[name] = phases.get(name, 0) + time.monotonic() - started
 
 
 class StructuredOutputError(RuntimeError):
@@ -82,6 +94,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
     record = {"schema_version": 1, "run_id": run_id, "step": step, "status": "running",
               "max_attempts": MAX_ATTEMPTS, "attempts": [], "error": None,
               "input_sha256": digest(system + "\n" + prompt)}
+    started_operation = time.monotonic()
     session = session if session is not None else {}
     native = schema is not None and accepts_keyword(generate, "response_schema")
     supports_session = accepts_keyword(generate, "session")
@@ -96,6 +109,11 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                     prompt_sha256=digest(system + "\n" + prompt), schema_sha256=digest(json_text(schema)) if schema else None)
 
     def persist():
+        record["duration_seconds"] = time.monotonic() - started_operation
+        if record["attempts"]:
+            for key in ("execution", "agent_telemetry"):
+                if key in session:
+                    record["attempts"][-1][key] = session[key]
         record["attempt_count"] = len(record["attempts"])
         write_artifact(path, json_text(record))
         write_artifact(latest, json_text(record))
@@ -139,7 +157,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                                generate_component={"module": getattr(generate, "__module__", None), "function": getattr(generate, "__qualname__", None)})
             diagnostic.emit("attempt", "provider_request", attempt=number, max_attempts=policy.max_attempts)
             session["request"] = {"attempt": number, "prompt_sha256": digest(original_prompt + repair)}
-            with diagnostic.span("provider_request", attempt=number):
+            with timed_phase("provider_request", attempt):
                 response = generate(system, original_prompt + repair, **kwargs)
         except UnsupportedSchema as exc:
             diagnostic.failure("provider_request", exc, http_status=exc.status, retryable=False)
@@ -199,7 +217,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
         try:
             if not isinstance(response, str) or not response.strip():
                 raise ValueError("Empty response")
-            with diagnostic.span("decoding"):
+            with timed_phase("decoding", attempt):
                 data = parse_json(response) if schema is not None else response
         except (ValueError, RecursionError) as exc:
             attempt["category"] = "invalid_json"
@@ -209,7 +227,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
         else:
             try:
                 if schema is not None:
-                    with diagnostic.span("validation"):
+                    with timed_phase("validation", attempt):
                         validate(data, schema)
             except (ValueError, TypeError, RecursionError) as exc:
                 attempt["category"] = "schema_error"
@@ -219,7 +237,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                     attempt["detail"] = diagnostic.validation_detail(exc)
             else:
                 try:
-                    with diagnostic.span("validation"):
+                    with timed_phase("validation", attempt):
                         value = finalize(data)
                 except (ValueError, TypeError, KeyError, RecursionError) as exc:
                     attempt["category"] = "validation_error"
@@ -228,9 +246,10 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                         attempt["detail"] = diagnostic.validation_detail(exc)
                 else:
                     attempt["category"] = "valid"
+                    record["time_to_contract_valid_seconds"] = time.monotonic() - started_operation
                     persist()
                     try:
-                        with diagnostic.span("persistence"):
+                        with timed_phase("persistence", attempt):
                             save(value)
                     except (OSError, ValueError, TypeError):
                         fail("artifact_error", "Validated output could not be saved. Check output-directory access "

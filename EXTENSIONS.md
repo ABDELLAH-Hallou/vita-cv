@@ -1,5 +1,9 @@
 # VITA Extensions — Customization Guide
 
+Codex supports an opt-in `execution_mode: "restricted"` alongside its existing
+model/reasoning settings. See [AGENT_EXECUTION.md](AGENT_EXECUTION.md) for exact
+controls, limitations, diagnostics, baseline selection and evaluation plans.
+
 VITA ships with built-in role aliases, language codes, and LLM provider support,
 but every CV project is different. The `.vita/extensions.json` file lets you
 extend or override these defaults **without touching the package source**.

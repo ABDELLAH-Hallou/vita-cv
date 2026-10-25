@@ -1,0 +1,14 @@
+{
+  "cli_version": "codex-cli 0.163.0-alpha.10.2",
+  "mcp_servers_disabled": 5,
+  "restrictions": [
+    "shell",
+    "web_search",
+    "subagents",
+    "plugins",
+    "configured_mcp"
+  ],
+  "capability_processes": 6,
+  "generation_access": "not_tested",
+  "capability_check_seconds": 0.75
+}

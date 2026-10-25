@@ -1,0 +1,26 @@
+{
+  "plan_sha256": "f591b4bb5f97e89b12f1b8f370ac397acbb7c4d8f1e269a445bdb6856b528596",
+  "maximum_host_generation_dispatches_including_retries": 960,
+  "maximum_internal_cli_model_requests": null,
+  "expected_tokens_and_cost": null,
+  "generation_access": "unverified; local CLI discovery is not successful generation",
+  "malformed_output_control": "Injected only in fixture mode. Live mode observes natural structured-output validity without forcing a provider error.",
+  "thresholds": {
+    "status": "proposed_requires_user_decision_before_live_comparison",
+    "minimum_paired_median_speed_improvement": 0.2,
+    "maximum_regression_percentage_points": {
+      "factual_error_documents": 0,
+      "unsupported_additions": 0,
+      "contradictions": 0,
+      "harmful_omissions": 0,
+      "requirement_classification": 0,
+      "requirement_satisfaction": 0,
+      "translation_fidelity": 0
+    },
+    "critical_factual_errors": 0,
+    "minimum_completion_rate": 0.95,
+    "minimum_delivered_document_build_success": 1.0,
+    "policy": "Engineering proposals, not approved quality-loss tolerances or measured findings."
+  },
+  "authorization": "Separate plan-bound artifact with billing acknowledgment, explicit max_requests and future expiry; no authorization created."
+}

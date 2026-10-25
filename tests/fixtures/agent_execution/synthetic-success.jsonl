@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"synthetic-only"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"r","type":"reasoning","text":"SYNTHETIC_HIDDEN_DO_NOT_KEEP"}}
+{"type":"item.completed","item":{"id":"m","type":"agent_message","text":"Intermediate commentary, not final output"}}
+{"type":"turn.completed","usage":{"input_tokens":120,"cached_input_tokens":80,"output_tokens":12}}

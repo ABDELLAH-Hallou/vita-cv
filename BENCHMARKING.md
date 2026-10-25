@@ -1,5 +1,12 @@
 # Standalone conformance and opt-in provider benchmarks
 
+The opt-in [restricted agent experiment](AGENT_EXECUTION.md) adds paired Codex
+baseline/restricted plans, separate optional lower-reasoning comparisons, complete
+snapshots and structured observations using this same runner, spending ledger and
+factual gates. Fixture success does not measure real model speed or accuracy.
+Prepared live plans are not spending authorization; CLI invocation caps do not
+bound internal model requests or billing.
+
 The separate [multilingual document suite](MULTILINGUAL_VALIDATION.md) covers
 synthetic English/Spanish/French/Arabic source units, long included history,
 context-limit controls and Unicode PDF geometry. It does not make live provider,

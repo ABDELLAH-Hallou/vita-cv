@@ -6,6 +6,10 @@
 
 VITA can generate targeted AI prompts or run an autonomous AI workflow to analyze job descriptions, adapt your CV, and write a matching cover letter. Customize each task with your own Markdown skills.
 
+Codex users can opt into [restricted generation](AGENT_EXECUTION.md), with complete
+inputs, checked tool controls and agent telemetry. Baseline remains the default;
+real speed and semantic quality improvements require authorized evaluation.
+
 ```sh
 uv tool install vita-cv
 ```

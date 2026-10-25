@@ -17,6 +17,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from vita.helpers import agent_execution
 from vita.helpers import diagnostics as diagnostic
 from vita.helpers.config import load_config
 from vita.helpers.env import load_env
@@ -119,6 +120,9 @@ def _generate_once(system_prompt, user_prompt, provider=None, model=None, *, res
         options["reasoning_effort"] = reasoning
 
     if provider_name == "codex":
+        execution = config.get("_agent_execution", {})
+        if execution.get("mode") == "restricted" or execution.get("telemetry"):
+            options.update(execution=execution, session=session)
         return _call_codex_cli(system_prompt, user_prompt, model, **options)
 
     key_env_var = f"{provider_name.upper()}_API_KEY"
@@ -207,13 +211,17 @@ def _resolve(provider: str | None, model: str | None, *, allow_prompt: bool = Tr
     model = model or config.get("model") or _DEFAULT_MODELS.get(provider_name, "gpt-4o")
     if config.get("structured_output", "auto") not in {"auto", "off"}:
         raise ValueError("structured_output must be auto or off")
+    config["_agent_execution"] = agent_execution.configuration(provider_name, config, env)
+    if config["_agent_execution"]["mode"] == "restricted" and (not model or config.get("reasoning_effort") is None):
+        raise ValueError("Restricted Codex requires an explicit model and reasoning_effort to avoid inherited, unreported settings")
     resolved = provider_name, model, config, dict(env)
     diagnostic.routing(provider, requested_model, resolved, origins)
     return resolved
 
 
 def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "", *,
-                    response_schema: dict | None = None, reasoning_effort: str | None = None) -> str:
+                    response_schema: dict | None = None, reasoning_effort: str | None = None,
+                    execution: dict | None = None, session: dict | None = None) -> str:
     """Run Codex CLI non-interactively using the user's local Codex login."""
     codex = _find_codex_cli()
     if not codex:
@@ -234,13 +242,17 @@ def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "", *,
             cmd.extend(["--model", model])
         if reasoning_effort is not None:
             cmd.extend(["--config", "model_reasoning_effort=" + json.dumps(reasoning_effort)])
-        cmd.append("-")
-        diagnostic.local_artifact("cli-request", {"argv": cmd, "stdin": prompt, "encoding": "utf-8",
-                                                  "schema": response_schema, "output_file": str(output_path)})
-        diagnostic.journal("cli.start", argv=cmd, working_directory=str(Path.cwd()), encoding="utf-8")
-        result = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8")
-        diagnostic.local_artifact("cli-result", {"argv": cmd, "returncode": result.returncode,
-                                                 "stdout": result.stdout, "stderr": result.stderr})
+        if execution is not None:
+            result = agent_execution.invoke(codex, cmd, prompt, execution, session if session is not None else {})
+        else:
+            cmd.append("-")
+            diagnostic.local_artifact("cli-request", {"argv": cmd, "stdin": prompt, "encoding": "utf-8",
+                                                      "schema": response_schema, "output_file": str(output_path)})
+            diagnostic.journal("cli.start", argv=cmd, working_directory=str(Path.cwd()), encoding="utf-8")
+            result = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8")
+            diagnostic.local_artifact("cli-result", {"argv": cmd, "returncode": result.returncode,
+                                                     "stdout": agent_execution.log_output(result.stdout),
+                                                     "stderr": agent_execution.log_output(result.stderr)})
         diagnostic.journal("cli.completed", returncode=result.returncode, output_file_exists=output_path.is_file())
         if result.returncode != 0:
             error = result.stderr.strip() or result.stdout.strip()

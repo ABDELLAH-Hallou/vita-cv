@@ -16,6 +16,7 @@ from vita.helpers.candidate_evidence import (
 from vita.helpers.context_builder import (
     build_system_context,
     current_date_instruction,
+    cv_source_files,
     multi_job_instruction,
 )
 from vita.helpers.diagnostics import emit, failure, journal, local_artifact, phase
@@ -64,7 +65,7 @@ class AssessmentRequest:
 
 def host_fingerprint() -> str:
     names = ("assessment", "evaluation", "candidate_evidence", "requirements", "structured", "llm",
-             "structured_output", "provider_errors", "assessment_narrative", "context_builder", "skills", "pipeline_config")
+             "structured_output", "provider_errors", "assessment_narrative", "context_builder", "skills", "pipeline_config", "agent_execution")
     return stable_hash({name: Path(__file__).with_name(name + ".py").read_text(encoding="utf-8") for name in names})
 
 
@@ -96,6 +97,8 @@ def prepare_assessment(job, *, route: dict | None = None, baseline: dict | None 
         route_source, reasoning_source = "external_unreported", "external_unreported"
     else:
         provider, model, config, _ = session["resolved"]
+        if config.get("_agent_execution", {}).get("mode") == "restricted":
+            cv_source_files(sources["entry"], strict=True)
         reasoning = config.get("reasoning_effort") if provider in ("openai", "openrouter", "codex") else None
         inherited = provider == "codex" and (not model or reasoning is None)
         route_source = "inherited_unreported" if inherited else "resolved"
@@ -119,7 +122,8 @@ def prepare_assessment(job, *, route: dict | None = None, baseline: dict | None 
         "requested_provider": provider, "requested_model": model or None, "requested_reasoning_effort": reasoning,
         "reasoning_source": reasoning_source, "route_source": route_source,
         "config_sha256": stable_hash({"provider": provider, "model": model, "reasoning": reasoning,
-                                      "structured_output": config.get("structured_output", "auto")}),
+                                      "structured_output": config.get("structured_output", "auto"),
+                                      "agent_execution": config.get("_agent_execution") if provider == "codex" else None}),
         "system_sha256": fingerprint(system), "prompt_sha256": fingerprint(prompt),
         "schema_sha256": stable_hash(EVALUATION_OUTPUT_SCHEMA),
         "generation_schema_sha256": stable_hash(generation_schema(EVALUATION_OUTPUT_SCHEMA)),

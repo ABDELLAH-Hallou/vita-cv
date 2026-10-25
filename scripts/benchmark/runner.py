@@ -70,6 +70,10 @@ def fixture_plan():
                          "shared-budget": ["503", "malformed"]}.items():
         cases.append({"id": name, "provider": "openai", "model": "fixture/custom-v1",
                       "reasoning_effort": None, "extraction": True, "faults": faults})
+    for enabled in (False, True):
+        cases.append({"id": f"codex-restricted-{str(enabled).lower()}", "provider": "codex",
+                      "model": "fixture/custom-agent-v1", "reasoning_effort": "low", "extraction": enabled,
+                      "execution_mode": "restricted", "agent_telemetry": True})
     return {"schema_version": VERSION, "cases": cases}
 
 
@@ -79,7 +83,8 @@ def validate_plan(plan, *, live):
     ids = set()
     for case in plan["cases"]:
         fields = {"id", "provider", "model", "extraction", "reasoning_effort"}
-        if not fields.issubset(case) or set(case) - (fields | ({"faults"} if not live else set())):
+        optional = {"execution_mode", "agent_telemetry", "scenario", "arm", "repeat", "max_input_bytes", "target_language", "max_attempts", "fixture_approvals"}
+        if not fields.issubset(case) or set(case) - (fields | optional | ({"faults"} if not live else set())):
             raise ValueError("Invalid case fields (credentials/endpoints are not accepted in plans).")
         if not isinstance(case["id"], str) or not NAME.fullmatch(case["id"]) or case["id"] in ids:
             raise ValueError("Case IDs must be unique simple directory names.")
@@ -88,6 +93,14 @@ def validate_plan(plan, *, live):
             raise ValueError("Unsupported provider, unsafe model ID, or nonboolean extraction setting.")
         if case["reasoning_effort"] is not None and (case["provider"] not in REASONING or case["reasoning_effort"] not in {"minimal", "low", "medium", "high", "xhigh"}):
             raise ValueError("Reasoning is supported only for openai/openrouter/codex; use an explicit effort.")
+        if optional.intersection(case):
+            from scripts.benchmark.execution_comparison import validate_case
+            validate_case(case)
+            if live and case.get("fixture_approvals"):
+                raise ValueError("Live comparisons cannot enable synthetic factual approvals")
+    if any("arm" in c for c in plan["cases"]):
+        from scripts.benchmark.execution_comparison import validate_pairs
+        validate_pairs(plan)
 
 
 def validate_authorization(path, plan):
@@ -119,6 +132,8 @@ def child_env(project, case, mode):
         env.update(VITA_PROVIDER_RETRY_BASE_SECONDS="0", VITA_PROVIDER_RETRY_MAX_SECONDS="0")
     for prefix in STAGE_PREFIXES.values():
         env[prefix + "_PROVIDER"], env[prefix + "_MODEL"] = case["provider"], case["model"]
+    if "max_attempts" in case:
+        env["VITA_PROVIDER_MAX_ATTEMPTS"] = str(case["max_attempts"])
     return env
 
 
@@ -133,7 +148,13 @@ def project_setup(path, case):
     config = {"model": case["model"]}
     if case["reasoning_effort"] is not None:
         config["reasoning_effort"] = case["reasoning_effort"]
+    for key in ("execution_mode", "agent_telemetry", "max_input_bytes"):
+        if key in case:
+            config[key] = case[key]
     write(path / ".vita/extensions.json", {"llm_providers": {case["provider"]: config}})
+    if "scenario" in case:
+        from scripts.benchmark.execution_comparison import prepare_inputs
+        prepare_inputs(path, case)
 
 
 def pending(project):
@@ -192,6 +213,8 @@ def invoke(run_dir, case, workspace, label, argv, settings, *, seed=False, injec
     record["outcomes"] = {p.name: read(p) for p in sorted((workspace / ".vita/results").glob("*.outcome.json"))}
     record["assessments"] = {p.stem: read(p) for p in (workspace / ".vita/results/analysis.json", workspace / ".vita/results/review.json") if p.exists()}
     record["job"] = read(workspace / ".vita/results/job.json") if (workspace / ".vita/results/job.json").exists() else None
+    snapshot_path = workspace / ".vita/benchmark-inputs/manifest.json"
+    record["input_snapshot"] = read(snapshot_path) if snapshot_path.is_file() else None
     write(command_dir / "record.json", record)
     return record
 
@@ -245,7 +268,8 @@ def execute_case(run_dir, case, settings, previous=None):
     if previous is None:
         for folder in ("workflow", "manual", "controls"):
             project_setup(base / folder, case)
-        record = invoke(run_dir, case, workflow, "pipeline", ["run", "--auto"], settings, inject=True)
+        language = ["--language", case["target_language"]] if case.get("target_language") else []
+        record = invoke(run_dir, case, workflow, "pipeline", ["run", "--auto", *language], settings, inject=True)
         records = [record]
     else:
         records = previous["commands"]
@@ -271,7 +295,9 @@ def execute_case(run_dir, case, settings, previous=None):
         return result
     if record["exit_status"] != 0:
         transports = [t for r in records for t in r["transport"]["requests"]]
-        result = {"id": case["id"], "status": "failed" if any(t["status"] == "response" for t in transports) else "unavailable",
+        host_input_failure = any((o.get("error") or {}).get("limit_kind") == "input_context" for o in record.get("outcomes", {}).values())
+        result = {"id": case["id"], "status": "failed" if host_input_failure or any(t["status"] == "response" for t in transports) else "unavailable",
+                  "failure_origin": "input_context" if host_input_failure else "generation_or_availability",
                   "commands": records, "controls": {}, "quality": {"status": "unmeasured", "value": None},
                   "build": "not_attempted", "stop_reason": "Pipeline failed; downstream commands were not run."}
         write(base / "result.json", result)
@@ -298,6 +324,14 @@ def execute_case(run_dir, case, settings, previous=None):
 def fixture_failures(case, result):
     """Conformance assertions are separate from provider reliability outcomes."""
     errors = []
+    if case.get("scenario") == "context_limit":
+        outcomes = result["commands"][0]["outcomes"]
+        return [] if result["status"] == "failed" and any((o.get("error") or {}).get("limit_kind") == "input_context" for o in outcomes.values()) else ["Context limit did not stop safely before generation"]
+    if case.get("scenario") in ("ambiguities", "missing_evidence") and case.get("fixture_approvals") is False:
+        command = result["commands"][0]
+        original = command["input_snapshot"]["files"]["main.tex"]
+        unchanged = any(o["path"] == "main.tex" and o["sha256"] == original for o in command["outputs"])
+        return [] if result["status"] == "confirmation_required" and unchanged else ["Unreviewed proposal changed the original or failed to stop"]
     failed = case.get("faults") in (["401"], ["invalid_model"], ["503"] * 3)
     if result["status"] != ("unavailable" if failed else "passed"):
         errors.append("Unexpected reliability outcome: " + result["status"])
@@ -388,7 +422,9 @@ def main(argv=None):
         run_dir = (args.resume or args.output).resolve()
         settings = {"mode": args.mode, "timeout": args.timeout, "real_pdf": args.real_pdf,
                     "authorization": str(args.authorization.resolve()) if args.authorization else None}
-        source_files = sorted((ROOT / "vita").rglob("*.py")) + sorted((ROOT / "vita/assets").rglob("*.md")) + sorted(HERE.glob("*.py"))
+        source_files = (sorted((ROOT / "vita").rglob("*.py")) + sorted((ROOT / "vita/assets").rglob("*.md")) + sorted(HERE.glob("*.py"))
+                        + sorted((ROOT / "scripts/evaluation").glob("*.py"))
+                        + [ROOT / name for name in ("EVALUATION_PROTOCOL.md", "ANNOTATION_GUIDE.md", "BENCHMARKING.md", "AGENT_EXECUTION.md") if (ROOT / name).is_file()])
         source_versions = {p.relative_to(ROOT).as_posix(): digest(p.read_bytes()) for p in source_files}
         if args.resume:
             old = read(run_dir / "manifest.json")

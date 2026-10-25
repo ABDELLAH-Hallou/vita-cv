@@ -6,6 +6,7 @@ include PIPELINE.md
 include FACTUAL_CHANGES.md
 include DIAGNOSTICS.md
 include BENCHMARKING.md
+include AGENT_EXECUTION.md
 include EVALUATION_PROTOCOL.md
 include ANNOTATION_GUIDE.md
 include MULTILINGUAL_VALIDATION.md

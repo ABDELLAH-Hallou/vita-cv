@@ -5,17 +5,18 @@ from vita.helpers.assessment import run_assessment
 from vita.helpers.config import load_config
 from vita.helpers.context_builder import (
     build_system_context,
+    complete_generation_context,
     current_date_instruction,
     cv_knowledge_instruction,
     multi_job_instruction,
 )
 from vita.helpers.diagnostics import diagnosed, failure, journal, local_artifact
-from vita.helpers.extensions import merged_language_map
+from vita.helpers.env import load_env
+from vita.helpers.extensions import get_llm_providers, merged_language_map
 from vita.helpers.factual_changes import capture, guard, instruction, stage
 from vita.helpers.job_extraction import extract, prepare_job
 from vita.helpers.llm import generate as llm_generate
 from vita.helpers.pipeline_config import load_pipeline_settings
-from vita.helpers.skills import skill_context
 from vita.helpers.structured import json_text, write_artifact
 from vita.helpers.structured_output import run_text
 
@@ -140,8 +141,35 @@ def run(
     prompt_text = prompt_text.replace("`main.tex`", f"`{resume_entry}`")
     prompt_text = prompt_text.replace("`cover-letter.tex`", f"`{cover_entry}`")
 
+    # Keep baseline generation behavior selectable. Restricted agents and manual
+    # assistants receive full inputs before answering, not filesystem homework.
+    providers = get_llm_providers()
+    selected = settings.route(step, provider).provider or next(iter(providers), "openai")
+    optimized = load_env().get("VITA_AGENT_EXECUTION", providers.get(selected, {}).get("execution_mode", "baseline")) == "restricted" and selected == "codex"
+    if optimized or not auto:
+        try:
+            prior_context = complete_generation_context(resume_entry)
+        except (ValueError, OSError) as exc:
+            failure("context", exc, category="validation_error")
+            print("Cannot prepare a complete generation input. Supply every CV/include file; dynamic or external includes require an explicit complete source.")
+            return False
+        if optimized:
+            prompt_text += "\n\n" + prior_context
+
     if not auto:
-        prompt_text = skill_context(step) + "\n\n==== TASK ====\n" + prompt_text
+        try:
+            factual_context = capture(step) if step in ("adapt", "cover") else None
+        except (ValueError, OSError) as exc:
+            failure("context", exc, category="validation_error")
+            return False
+        host = ("HOST OPERATIONS — outside generation: refresh current inputs before execution, capture factual sources "
+                "with vita.helpers.factual_changes.capture, generate from the supplied context only, then validate the complete LaTeX "
+                "and submit it through vita.helpers.factual_changes.stage. Never overwrite targets or bypass unresolved approvals. "
+                "Host capture/validation/saving commands may use tools; generation itself needs no exploration or file saving.\n\n")
+        system = build_system_context(prompt_text, step=step, resume_entry=resume_entry, include_job=False)
+        prompt_text = host + "==== GENERATION INPUTS ====\n" + system + "\n" + prior_context + "\n==== TASK ====\n" + prompt_text
+        if factual_context:
+            prompt_text += "\nCAPTURED FACTUAL SOURCES:\n" + json_text(factual_context["candidate_sources"])
         local_artifact("generated-prompt", prompt_text)
         print(f"\n{'='*60}")
         print(f"AI Prompt for '{step}'")

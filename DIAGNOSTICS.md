@@ -1,5 +1,11 @@
 # Execution journals and diagnostics
 
+The optional [restricted agent path](AGENT_EXECUTION.md) extends these journals
+and outcome records with requested/effective settings, local capability checks,
+CLI process timing, safe structured-event counts and available token usage.
+Internal model calls, costs and unreported activity remain unknown. Raw agent
+reasoning is suppressed; a completed turn is not counted as one model call.
+
 Use `vita extract --auto --debug` (or `run`, `analyze`, `adapt`, `review`,
 `cover`, or `build` with `--debug`) to retain a detailed **local developer
 journal** for that command. This overrides an existing `off` setting for that

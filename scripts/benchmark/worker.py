@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from vita.__main__ import main
-from vita.helpers import factual_changes, llm, requirements
+from vita.helpers import agent_execution, diagnostics, factual_changes, llm, requirements
 from vita.helpers.diagnostics import storage_lock
 from vita.helpers.provider_errors import ProviderError
 
@@ -105,6 +105,7 @@ def execute(spec):
                 save()
                 raise
         row = {"number": len(observed) + 1, "transport": kind, "provider": case["provider"],
+               "step": diagnostics.current().local_context().get("step") if diagnostics.current() else None,
                "started_at": datetime.now(timezone.utc).isoformat(),
                "requested_model": case["model"], "reasoning_effort": reasoning,
                "temperature": temperature, "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
@@ -167,6 +168,21 @@ def execute(spec):
 
     def process(cmd, **kwargs):
         if Path(str(cmd[0])).name.lower() in ("codex", "codex.exe", "fixture-codex") or "--output-last-message" in cmd:
+            if "--output-last-message" not in cmd:
+                # Local capability/configuration checks are not paid generations.
+                if not fixture:
+                    return original_run(cmd, **kwargs)
+                if "--version" in cmd:
+                    text = "codex-cli 0.163.0-fixture"
+                elif "--help" in cmd:
+                    text = "--ephemeral --json --config --output-last-message"
+                elif "features" in cmd:
+                    text = "\n".join(k + " stable " + ("false" if f"features.{k}=false" in cmd else "true") for k in agent_execution.FEATURES)
+                elif "mcp" in cmd:
+                    text = json.dumps([{"name": "fixture_server", "enabled": not any("mcp_servers.fixture_server=" in s for s in cmd), "transport": {"command": "fixture-never-executed"}}])
+                else:
+                    raise AssertionError("Unexpected Codex capability command")
+                return subprocess.CompletedProcess(cmd, 0, text, "")
             row, started = start("codex_cli", kwargs.get("input", ""), reasoning=case.get("reasoning_effort"))
             row["wire_model"] = cmd[cmd.index("--model") + 1] if "--model" in cmd else None
             row["schema_sha256"] = hashlib.sha256(Path(cmd[cmd.index("--output-schema") + 1]).read_bytes()).hexdigest() if "--output-schema" in cmd else None
@@ -180,11 +196,15 @@ def execute(spec):
                     else:
                         Path(cmd[cmd.index("--output-last-message") + 1]).write_text(
                             "{malformed" if failure else answer(kwargs["input"]), encoding="utf-8")
-                        result = subprocess.CompletedProcess(cmd, 0, "", "")
+                        stream = ('{"type":"thread.started"}\n{"type":"turn.started"}\n'
+                                  '{"type":"turn.completed","usage":{"input_tokens":11,"output_tokens":7}}\n') if "--json" in cmd else ""
+                        result = subprocess.CompletedProcess(cmd, 0, stream, "")
                 else:
                     kwargs["timeout"] = spec["timeout"]
                     result = original_run(cmd, **kwargs)
                 row.update(status="response" if result.returncode == 0 else "cli_error", exit_status=result.returncode)
+                if "--json" in cmd:
+                    row["agent"] = agent_execution.events(result.stdout)
                 return result
             finally:
                 finish(row, started)
@@ -202,6 +222,8 @@ def execute(spec):
     def approved(context, document):
         if stage(context, document):
             return True
+        if case.get("fixture_approvals") is False:
+            return False
         report = factual_changes.load(context["step"])
         approvals.append({"step": context["step"], "revision": report["revision"], "kind": "synthetic_fixture_only"})
         return factual_changes.decide(context["step"], report["revision"], True)["application_status"] == "applied"

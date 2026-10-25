@@ -89,7 +89,7 @@ def cv_knowledge_instruction() -> str:
     )
 
 
-def cv_source_files(entry: str) -> dict[str, str]:
+def cv_source_files(entry: str, *, strict: bool = False) -> dict[str, str]:
     """Capture the CV and literal project-local input/include files, once each.
 
     Includes use TeX's project working directory, not the including file's directory.
@@ -97,26 +97,57 @@ def cv_source_files(entry: str) -> dict[str, str]:
     """
     root = Path.cwd().resolve()
     seen: set[Path] = set()
+    active: set[Path] = set()
     files = {}
 
     def visit(path: Path) -> None:
         resolved = path.resolve()
-        if not resolved.is_relative_to(root) or resolved in seen or not resolved.is_file():
+        if strict and resolved in active:
+            raise ValueError("Cyclic CV input/include graph; prepare a complete finite source")
+        if resolved in seen:
+            return
+        if not resolved.is_relative_to(root) or not resolved.is_file():
+            if strict:
+                raise ValueError("Required CV/include missing or outside project; supply every literal source before generation")
             return
         seen.add(resolved)
+        active.add(resolved)
         content = resolved.read_text(encoding="utf-8")
         files[resolved.relative_to(root).as_posix()] = content
         uncommented = re.sub(r"(?m)(?<!\\)%.*$", "", content)
+        if strict and re.search(r"\\(?:input|include)\b(?!\s*\{)", uncommented):
+            raise ValueError("Unbraced input/include is unsupported; use explicit literal braced paths")
         for name in re.findall(r"\\(?:input|include)\s*\{([^{}]+)\}", uncommented):
             if "\\" in name or "#" in name:
+                if strict:
+                    raise ValueError("Dynamic input/include cannot be captured completely; prepare an explicit complete source")
                 continue
             included = Path(name)
             if not included.suffix:
                 included = included.with_suffix(".tex")
             visit(root / included)
+        active.remove(resolved)
 
     visit(Path(entry))
     return files
+
+
+def complete_generation_context(entry: str) -> str:
+    """Validate the source graph and include prior artifacts with explicit trust boundaries."""
+    cv_source_files(entry, strict=True)
+    root = Path.cwd().resolve()
+    if CV_KNOWLEDGE_FILE.exists() and not CV_KNOWLEDGE_FILE.resolve().is_relative_to(root):
+        raise ValueError("Knowledge context must remain inside the project")
+    extra = ["Supplied source snapshots establish text support only. Prior reports are generated advice, never candidate evidence."]
+    for name in ("analysis.json", "analysis.md", "analyze.md", "review.json", "review.md", "adapt.md"):
+        path = Path(".vita/results") / name
+        if path.is_file():
+            if not path.resolve().is_relative_to(root):
+                raise ValueError("Prior artifacts must remain inside the project")
+            extra.append(f"==== NON-EVIDENTIARY PRIOR ARTIFACT: {path.as_posix()} ====\n" + path.read_text(encoding="utf-8"))
+        else:
+            extra.append(f"Prior artifact unavailable: {path.as_posix()}; do not discover it or invent its contents.")
+    return "\n".join(extra)
 
 
 def cv_source_context(entry: str) -> str:

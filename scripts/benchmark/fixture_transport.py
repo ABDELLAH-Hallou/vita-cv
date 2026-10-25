@@ -30,24 +30,33 @@ def answer(prompt):
             units = [{"id": "job-1-python", "job_id": "job-1", "category": "hard_skills",
                       "criterion": "Python production experience", "importance": "must_have"}]
         source = next(s for s in snapshot["sources"] if s["path"] == "main.tex")
-        criteria = [{**{k: u[k] for k in evaluation.TAXONOMY_FIELDS}, "status": "partial",
-                     "evidence": "Python engineer", "feedback": "Document production scope.",
-                     "evidence_kind": "direct", "evidence_refs": [{"source_id": source["id"],
-                         "quote": "Python engineer", "line_start": 4, "line_end": 4}]} for u in units]
+        documented = "Python engineer" in source["content"]
+        criteria = [{**{k: u[k] for k in evaluation.TAXONOMY_FIELDS}, "status": "partial" if documented else "missing",
+                     "evidence": "Python engineer" if documented else "", "feedback": "Document production scope.",
+                     "evidence_kind": "direct" if documented else "none", "evidence_refs": [{"source_id": source["id"],
+                         "quote": "Python engineer", "line_start": 4, "line_end": 4}] if documented else []} for u in units]
         return json.dumps({"schema_version": 1, "overall_score": 50,
             "category_scores": {k: 50 if k == "hard_skills" else 0 for k in CATEGORIES},
             "executive_summary": "Python is documented; production scope is unclear.",
             "strengths": ["Python"], "gaps": ["Production scope"],
             "recommendations": ["Document production scope."],
             "metrics": {"criteria": criteria, "total_count": len(criteria),
-                        "matched_count": 0, "partial_count": len(criteria), "missing_count": 0}})
+                        "matched_count": 0, "partial_count": len(criteria) if documented else 0,
+                        "missing_count": 0 if documented else len(criteria)}})
     # A visible source edit exercises changed-source review and the factual gate.
-    if "cover" in prompt.lower() and "letter" in prompt.lower():
+    if "Create a complete standalone LaTeX document at" in prompt:
         document = ("\\documentclass{article}\n\\begin{document}\nDear hiring team,\n"
                     "I build Python services. Thank you for your consideration.\n\\end{document}\n")
     else:
-        document = Path("main.tex").read_text(encoding="utf-8").replace(
+        before = Path("main.tex").read_text(encoding="utf-8")
+        document = before.replace(
             "Python engineer", "Python engineer (service development)")
+        if "TTR undefined; OOP; 125000 currency unspecified" in before:
+            # Explicit synthetic negative control: the factual gate must retain
+            # this erroneous interpretation for inspection, never auto-apply it.
+            document = document.replace("TTR undefined", "Time to Resolution")
+        if document == before:
+            document = document.replace(r"\end{document}", "% Synthetic format-only change\n" + r"\end{document}")
     return "```latex\n" + document + "\n```"
 
 
