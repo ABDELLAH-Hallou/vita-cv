@@ -121,6 +121,15 @@ current biographies. Keep source documents and live outputs local; they are not 
 fixtures or independent holdout data. Public-document reports do not apply the
 synthetic corpus's factual oracle. Human semantic review remains pending.
 
+For a controlled comparison after job setup, `approved_job_criteria: true` loads
+the bundle's fixed job-only `requirements.json` through the same host approval path
+used by unchanged controls, before the primary workflow. All paired arms must use
+the same setting and byte-identical criteria. This is an explicit operator test
+contract, not an independent human annotation. Include employment conditions
+separately and unscored. Record the resulting revisions and any missing expert
+review. It never approves candidate-fact edits. Keep default, unapproved-workflow
+results as a separate setup condition; do not pool those with controlled timings.
+
 The live observer preserves a shorter adapter timeout even when the full workflow
 has a longer command limit. Spending, retries, approval gates and request-ledger
 rules below still apply. An input bundle does not authorize spending or factual edits.

@@ -232,7 +232,8 @@ def execute(spec):
     def no_network(*args, **kwargs):
         raise AssertionError("Fixture transport attempted network access")
 
-    # The seed is a source-reviewed synthetic contract, shared across all judges.
+    # Fixed operator test criteria, independent of the candidate; this is not
+    # candidate-fact approval or an independent human quality annotation.
     if spec.get("seed_controls"):
         raw = Path("job.md").read_text(encoding="utf-8")
         proposal = json.loads(Path("requirements.json").read_text(encoding="utf-8"))

@@ -56,7 +56,7 @@ def validate_pairs(plan):
         if not {"A", "B"}.issubset(arms):
             raise ValueError("Full comparison plans require both A and B; filtering is fixture-only")
         a, b = arms["A"], arms["B"]
-        fields = ("provider", "model", "reasoning_effort", "extraction", "max_attempts", "target_language", "max_input_bytes", "faults", "input_bundle")
+        fields = ("provider", "model", "reasoning_effort", "extraction", "max_attempts", "target_language", "max_input_bytes", "faults", "input_bundle", "approved_job_criteria")
         if a["execution_mode"] != "baseline" or b["execution_mode"] != "restricted" or any(a.get(k) != b.get(k) for k in fields):
             raise ValueError("A/B must preserve model, reasoning, inputs and attempt budget")
         if "C" in arms:
@@ -68,6 +68,8 @@ def validate_pairs(plan):
 
 
 def validate_case(case):
+    if "approved_job_criteria" in case and (type(case["approved_job_criteria"]) is not bool or "input_bundle" not in case):
+        raise ValueError("approved_job_criteria requires an explicit pinned input bundle and boolean")
     if case["provider"] != "codex" or case.get("execution_mode", "baseline") not in ("baseline", "restricted"):
         raise ValueError("Execution comparisons currently support only baseline/restricted Codex CLI")
     if type(case.get("agent_telemetry", False)) is not bool:

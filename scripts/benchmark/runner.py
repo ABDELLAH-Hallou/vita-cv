@@ -84,7 +84,7 @@ def validate_plan(plan, *, live):
     ids = set()
     for case in plan["cases"]:
         fields = {"id", "provider", "model", "extraction", "reasoning_effort"}
-        optional = {"execution_mode", "agent_telemetry", "scenario", "arm", "repeat", "max_input_bytes", "target_language", "max_attempts", "fixture_approvals", "input_bundle"}
+        optional = {"execution_mode", "agent_telemetry", "scenario", "arm", "repeat", "max_input_bytes", "target_language", "max_attempts", "fixture_approvals", "input_bundle", "approved_job_criteria"}
         if not fields.issubset(case) or set(case) - (fields | optional | ({"faults"} if not live else set())):
             raise ValueError("Invalid case fields (credentials/endpoints are not accepted in plans).")
         if not isinstance(case["id"], str) or not NAME.fullmatch(case["id"]) or case["id"] in ids:
@@ -334,7 +334,8 @@ def execute_case(run_dir, case, settings, previous=None):
         for folder in ("workflow", "manual", "controls"):
             project_setup(base / folder, case)
         language = ["--language", case["target_language"]] if case.get("target_language") else []
-        record = invoke(run_dir, case, workflow, "pipeline", ["run", "--auto", *language], settings, inject=True)
+        record = invoke(run_dir, case, workflow, "pipeline", ["run", "--auto", *language], settings,
+                        inject=True, seed=case.get("approved_job_criteria", False))
         records = [record]
     else:
         records = previous["commands"]

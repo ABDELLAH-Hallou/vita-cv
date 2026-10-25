@@ -85,3 +85,30 @@ def test_public_report_does_not_apply_synthetic_oracle_claims(tmp_path,monkeypat
     assert result['split']=='public_development_pilot_not_holdout'
     assert 'one synthetic source family' not in text and 'Positive fixtures' not in text
     assert result['not_run']==2 and result['model_calls'] is None
+
+
+def test_controlled_primary_uses_fixed_job_criteria_but_still_stops_on_failure(tmp_path,monkeypatch):
+    value=bundle(tmp_path,monkeypatch)
+    case={'id':'public-controlled','provider':'codex','model':'synthetic/model','extraction':True,
+          'reasoning_effort':'high','scenario':'public-pair','execution_mode':'baseline',
+          'input_bundle':value,'approved_job_criteria':True,'fixture_approvals':False}
+    calls=[]
+    def invoke(*args,**kwargs):
+        calls.append((args[3],kwargs))
+        return {'exit_status':1,'outcomes':{},'transport':{'requests':[]}}
+    monkeypatch.setattr(runner,'invoke',invoke)
+    result=runner.execute_case(tmp_path/'run',case,{'mode':'live'})
+    assert len(calls)==1 and calls[0][1]['seed'] is True
+    assert result['build']=='not_attempted' and result['status']=='unavailable'
+
+
+def test_job_setup_policy_is_explicit_and_identical_in_paired_arms(tmp_path,monkeypatch):
+    value=bundle(tmp_path,monkeypatch)
+    plan=execution_comparison.plan('synthetic/model','high',repeats=1)
+    plan['cases']=plan['cases'][:2]
+    for case in plan['cases']:
+        case.update(input_bundle=value,approved_job_criteria=True,fixture_approvals=False)
+    runner.validate_plan(plan,live=True)
+    plan['cases'][1]['approved_job_criteria']=False
+    with pytest.raises(ValueError,match='preserve'):
+        runner.validate_plan(plan,live=True)
