@@ -46,6 +46,11 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             "vita/helpers/agent_execution.py",
             "vita/helpers/execution_journal.py",
             "vita/commands/facts.py",
+            "vita/commands/ingest.py",
+            "vita/ingestion/contracts.py",
+            "vita/ingestion/extractors.py",
+            "vita/ingestion/pipeline.py",
+            "vita/ingestion/render.py",
             "vita/assets/prompts/assess.md",
             "vita/assets/skills/assessment-judge.md",
             "vita/assets/prompts/requirements.md",
@@ -84,7 +89,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             raise AssertionError(f"Unexpected version output: {version!r}")
 
         help_text = run([str(python), "-m", "vita", "--help"], cwd=project).stdout
-        for command in ("init", "new", "build", "extract", "requirements", "analyze", "adapt", "review", "cover", "run", "providers"):
+        for command in ("init", "new", "build", "extract", "ingest", "requirements", "analyze", "adapt", "review", "cover", "run", "providers"):
             if command not in help_text:
                 raise AssertionError(f"CLI help is missing command {command!r}")
 
@@ -156,6 +161,7 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
         run([str(python), str(Path(__file__).with_name("factual_changes.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("developer_journal.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("agent_execution.py").resolve())], cwd=project)
+        run([str(python), str(Path(__file__).with_name("ingestion.py").resolve())], cwd=project)
         diagnostics_help = run([str(python), "-m", "vita", "diagnostics", "--help"], cwd=project).stdout
         if not all(command in diagnostics_help for command in ("list", "inspect", "export")):
             raise AssertionError("Installed diagnostics inspection commands are missing")

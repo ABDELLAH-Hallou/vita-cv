@@ -15,6 +15,7 @@ from vita.commands import (
     diagnostics,
     diff,
     facts,
+    ingest,
     init,
     keys,
     lock,
@@ -51,6 +52,7 @@ def _main() -> None:
         epilog="""
 commands:
   init                     Initialize VITA in the current directory
+  ingest                   Capture, extract, review and convert existing documents locally
   new etp <company> <role> Create a new tailored CV branch
   build [both]             Compile the CV, cover letter, or both to PDF
   status                   Show all companies and branches
@@ -68,6 +70,31 @@ commands:
     parser.add_argument("--debug", action="store_true", help="Retain a detailed local execution journal (credentials redacted)")
 
     subparsers = parser.add_subparsers(dest="command", metavar="<command>")
+
+    ingest_p = subparsers.add_parser("ingest", help="Local staged PDF/DOCX/scan ingestion; no automatic uploads or approval")
+    ingest_sub = ingest_p.add_subparsers(dest="ingest_action", required=True)
+    capture_p = ingest_sub.add_parser("capture", help="Preserve original bytes in a private content-addressed store")
+    capture_p.add_argument("path")
+    import_extract_p = ingest_sub.add_parser("extract", help="Extract source-linked fragments; OCR only when explicitly selected")
+    import_extract_p.add_argument("document_id")
+    import_extract_p.add_argument("--ocr", action="store_true")
+    import_extract_p.add_argument("--ocr-language", help="Explicit installed Tesseract languages, e.g. eng+fra")
+    import_extract_p.add_argument("--ocr-all", action="store_true", help="OCR all PDF pages, including existing text layers; requires --ocr")
+    review_import_p = ingest_sub.add_parser("review", help="Create a blank review template for an extraction revision")
+    review_import_p.add_argument("revision")
+    review_import_p.add_argument("--output", required=True)
+    approve_import_p = ingest_sub.add_parser("approve", help="Validate an explicit complete source-checked human review")
+    approve_import_p.add_argument("revision")
+    approve_import_p.add_argument("--review", required=True)
+    latex_import_p = ingest_sub.add_parser("latex", help="Generate a new editable source from an approved revision only")
+    latex_import_p.add_argument("revision", help="Approval revision, not an extraction ID")
+    latex_import_p.add_argument("--output", required=True)
+    latex_import_p.add_argument("--language", choices=("en", "es", "fr", "ar"), required=True, help="Source language; this stage does not translate")
+    show_import_p = ingest_sub.add_parser("show", help="Inspect a stage record without marking downstream stages complete")
+    show_import_p.add_argument("revision")
+    show_import_p.add_argument("--kind", choices=("documents", "extractions", "approvals", "exports"), default="extractions")
+    for import_parser in (capture_p, import_extract_p, review_import_p, approve_import_p, latex_import_p, show_import_p):
+        import_parser.add_argument("--json", action="store_true", help="Show the local full record, which may contain private CV text")
 
     facts_p = subparsers.add_parser("facts", help="Inspect and explicitly decide source-linked Adapt/Cover proposals")
     facts_sub = facts_p.add_subparsers(dest="facts_action", required=True)
@@ -215,7 +242,13 @@ commands:
     if args.debug:
         os.environ["VITA_DIAGNOSTIC_CONTENT"] = "local"
 
-    if args.command == "facts":
+    if args.command == "ingest":
+        code = ingest.run(args.ingest_action, **{key: getattr(args, key) for key in
+            ("path", "document_id", "revision", "output", "review", "ocr", "ocr_language", "ocr_all", "language", "kind") if hasattr(args, key)}, as_json=args.json)
+        if code:
+            sys.exit(code)
+
+    elif args.command == "facts":
         if facts.run(args.facts_action, args.step, revision=getattr(args, "revision", None),
                      proposal=getattr(args, "proposal", None), as_json=getattr(args, "json", False)) is False:
             sys.exit(1)

@@ -10,6 +10,7 @@ include AGENT_EXECUTION.md
 include EVALUATION_PROTOCOL.md
 include ANNOTATION_GUIDE.md
 include MULTILINGUAL_VALIDATION.md
+include INGESTION.md
 include tests/conftest.py
 
 recursive-include vita/assets *.md
