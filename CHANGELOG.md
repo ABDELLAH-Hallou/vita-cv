@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.12.1](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.12.0...v2.12.1) (2026-10-30)
+
+
+### Bug Fixes
+
+* keep manual factual commands out of automatic generation ([#91](https://github.com/ABDELLAH-Hallou/vita-cv/issues/91)) ([1f5776b](https://github.com/ABDELLAH-Hallou/vita-cv/commit/1f5776ba5ddbef293443e562d94d342cdfc0ecfd))
+
 ## [2.12.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.11.0...v2.12.0) (2026-10-24)
 
 
