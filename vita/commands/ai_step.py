@@ -136,7 +136,7 @@ def run(
 
     prompt_text += current_date_instruction()
     if step in ("adapt", "cover"):
-        prompt_text += instruction(step)
+        prompt_text += instruction(step, auto=auto)
     prompt_text = prompt_text.replace("`main.tex`", f"`{resume_entry}`")
     prompt_text = prompt_text.replace("`cover-letter.tex`", f"`{cover_entry}`")
 

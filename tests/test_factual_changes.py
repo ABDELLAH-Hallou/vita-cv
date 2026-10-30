@@ -36,6 +36,42 @@ def project(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("step", ["adapt", "cover"])
+def test_auto_generation_leaves_capture_and_staging_to_host(project, monkeypatch, step):
+    events = []
+    capture, stage = ai_step.capture, ai_step.stage
+    source = Path("main.tex").read_bytes()
+    target = Path(fc.target_for(step))
+    before = target.read_bytes()
+
+    def host_capture(selected):
+        events.append("capture")
+        return capture(selected)
+
+    def generation(system_prompt, user_prompt, **options):
+        events.append("generate")
+        prompt = system_prompt + "\n" + user_prompt
+        assert "vita facts capture" not in prompt
+        assert "vita facts check" not in prompt
+        assert "AUTONOMOUS GENERATION" in prompt
+        assert "Do not run commands" in prompt
+        assert "FACTUAL PRESERVATION CONTRACT" in prompt
+        return "```latex\n" + LATEX % "Synthetic rewording needs review" + "\n```"
+
+    def host_stage(context, document):
+        events.append("stage")
+        return stage(context, document)
+
+    monkeypatch.setattr(ai_step, "capture", host_capture)
+    monkeypatch.setattr(ai_step, "stage", host_stage)
+    monkeypatch.setattr(ai_step, "llm_generate", generation)
+    assert not ai_step.run(step, auto=True)
+    assert events == ["capture", "generate", "stage"]
+    assert Path("main.tex").read_bytes() == source
+    assert target.read_bytes() == before
+    assert fc.load(step)["status"] == "confirmation_required"
+
+
+@pytest.mark.parametrize("step", ["adapt", "cover"])
 @pytest.mark.parametrize("original,interpretation,reason", CASES)
 def test_unsupported_specificity_is_source_linked_and_never_applied(
     project, monkeypatch, capsys, step, original, interpretation, reason

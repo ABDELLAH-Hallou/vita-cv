@@ -454,8 +454,8 @@ def guard(steps=STEPS):
     return True
 
 
-def instruction(step):
-    return (
+def instruction(step, *, auto=False):
+    preservation = (
         "\n\nFACTUAL PRESERVATION CONTRACT factual-changes/1 (takes precedence over tailoring and translation):\n"
         "Do not invent candidate facts or silently add specificity from the JD. Preserve ambiguous dates "
         "(including Sen 2017 and overlapping Present roles), undefined acronyms (OOP is not Object Oriented Design; "
@@ -466,6 +466,18 @@ def instruction(step):
         "job descriptions and analyses are never proof. Separate ordinary wording from semantic changes. "
         "Preserve original facts or stop for confirmation; never guess a repair. The host validates changes "
         "independently; model claims of equivalence or approval are not authorization.\n"
+    )
+    if auto:
+        return preservation + (
+            "AUTONOMOUS GENERATION: The host has already captured the factual sources supplied below. "
+            "Do not run commands, read files, write proposals, or approve changes. "
+            "Return the requested complete LaTeX document in the host's output format. "
+            "File-reading and saving instructions in task skills belong to the host in this mode. "
+            "After generation the host checks the returned document against those captured sources, "
+            "stages the proposal and requires explicit review of unresolved factual interpretations. "
+            "Do not treat your own approval or equivalence claims as authorization.\n"
+        )
+    return preservation + (
         "Generated-prompt execution: before generating run `vita facts capture " + step + "`. "
         "Write ONLY a proposed document to a separate project-local .tex file, never overwrite the target. "
         "Then run `vita facts check " + step + " --proposal <path>`. Stop on nonzero status; "
