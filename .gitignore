@@ -221,3 +221,7 @@ __marimo__/
 out/
 .vita/
 vita_cv-*
+
+# Local benchmark chart tooling and social image exports
+/tools/benchmark-graphs/
+/output/social/
