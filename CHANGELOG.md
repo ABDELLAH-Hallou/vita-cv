@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.13.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.12.1...v2.13.0) (2026-10-31)
+
+
+### Features
+
+* add Jobenu batch import with approval controls ([#94](https://github.com/ABDELLAH-Hallou/vita-cv/issues/94)) ([017acec](https://github.com/ABDELLAH-Hallou/vita-cv/commit/017acec4f4558694e18139d46267799f6b20ab7a))
+
 ## [2.12.1](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.12.0...v2.12.1) (2026-10-30)
 
 
