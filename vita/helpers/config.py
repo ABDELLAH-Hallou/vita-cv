@@ -28,6 +28,8 @@ DEFAULT_CONFIG: dict = {
     "build_mode": "auto",
     "latex_engine": "pdflatex",
     "default_base_branch": "master",
+    "default_language": "en",
+    "integrations": {},
     "strict_mode": False,
     "allow_multiple_per_company": True,
     "warn_on_duplicate": True,

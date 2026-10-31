@@ -371,7 +371,7 @@ def load(step):
         raise ValueError("Invalid factual-change report") from exc
 
 
-def stage(context, document):
+def stage(context, document, *, require_approval=False):
     if context["step"] == "cover" and not guard(("adapt",)):
         return False
     report = propose(context, document)
@@ -383,14 +383,18 @@ def stage(context, document):
         if previous["status"] == "rejected":
             print("This exact revision was rejected. Change the proposal before submitting again.")
             return False
+    if require_approval:
+        # Human batch mode also reviews host-verifiable/no-op changes. This
+        # cannot weaken the existing confirmation boundary in automatic mode.
+        report["status"] = "confirmation_required"
     # Persist the recoverable proposal BEFORE writing any candidate document.
     save(report)
     if report["status"] == "confirmation_required":
         failure("validation", category="confirmation_required")
         count = sum(c["verification"] == "confirmation_required" for c in report["changes"])
-        print(
-            f"Confirmation required: {count} source-linked change(s). Original document preserved."
-        )
+        print(f"Confirmation required: {count} source-linked change(s). Original document preserved.")
+        if require_approval:
+            print("Human approval mode: review this exact proposal before applying the document.")
         print(
             f"Inspect: vita facts show {report['step']} (or --json). Revision: {report['revision']}"
         )

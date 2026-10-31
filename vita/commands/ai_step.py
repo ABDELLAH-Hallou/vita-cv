@@ -41,7 +41,10 @@ def run(
     provider: str | None = None,
     reassess: bool = False,
     qualitative: bool = False,
+    approval: str = "auto",
 ) -> bool:
+    if approval not in ("auto", "human"):
+        raise ValueError("Approval must be auto or human")
     if step == "extract":
         return extract(auto=auto, provider=provider)
     try:
@@ -219,7 +222,9 @@ def run(
             print(f"⚠️ The AI did not return one valid LaTeX document. '{target}' was not updated.")
             return False
         try:
-            if not stage(factual_context, new_tex):
+            applied = (stage(factual_context, new_tex, require_approval=True)
+                       if approval == "human" else stage(factual_context, new_tex))
+            if not applied:
                 write_artifact(results_dir / f"{step}.md", "Document not applied: confirmation required. See " + f"{step}.facts.md and {step}.facts.json.\n")
                 return False
         except (ValueError, OSError) as exc:

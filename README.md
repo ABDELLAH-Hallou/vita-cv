@@ -6,6 +6,10 @@
 
 VITA can generate targeted AI prompts or run an autonomous AI workflow to analyze job descriptions, adapt your CV, and write a matching cover letter. Customize each task with your own Markdown skills.
 
+Import a Jobenu applications export with `vita import jobenu applications.json --dry-run`.
+Create isolated `etp-company-role` branches from a selected base and optionally run
+the saved AI workflow with explicit automatic/human approval. See [Jobenu batch imports](JOBENU_IMPORT.md).
+
 ```sh
 uv tool install vita-cv
 ```
