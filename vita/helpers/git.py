@@ -108,6 +108,42 @@ def branch_exists(branch: str) -> bool:
     return branch in all_branches()
 
 
+def repository_root() -> GitResult:
+    return _run("rev-parse", "--show-toplevel")
+
+
+def local_branch_commit(branch: str) -> GitResult:
+    if not branch or branch.startswith("-") or not _run("check-ref-format", "--branch", branch).ok:
+        return GitResult(False, "", "Invalid local branch name", 1)
+    return _run("rev-parse", "--verify", f"refs/heads/{branch}^{{commit}}")
+
+
+def author_configured() -> bool:
+    return _run("var", "GIT_AUTHOR_IDENT").ok and _run("var", "GIT_COMMITTER_IDENT").ok
+
+
+def add_worktree(path: str, branch: str, commit: str) -> GitResult:
+    return _run("worktree", "add", "-b", branch, path, commit)
+
+
+def worktree_branch(path: str) -> GitResult:
+    return _run("branch", "--show-current", cwd=path)
+
+
+def tracked(path: str, filename: str) -> bool:
+    return _run("ls-files", "--error-unmatch", "--", filename, cwd=path).ok
+
+
+def commit_paths(path: str, message: str, paths: list[str]) -> GitResult:
+    added = _run("add", "--", *paths, cwd=path)
+    if not added.ok:
+        return added
+    unchanged = _run("diff", "--cached", "--quiet", "--", *paths, cwd=path)
+    if unchanged.ok:
+        return GitResult(True, "Import already committed", "", 0)
+    return _run("commit", "--only", "-m", message, "--", *paths, cwd=path)
+
+
 # ── Inspection ────────────────────────────────────────────────────────────────
 
 def diff(base: str, target: str, paths: list[str] | None = None) -> GitResult:

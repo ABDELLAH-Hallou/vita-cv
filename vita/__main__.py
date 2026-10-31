@@ -15,6 +15,7 @@ from vita.commands import (
     diagnostics,
     diff,
     facts,
+    import_jobs,
     ingest,
     init,
     keys,
@@ -53,6 +54,7 @@ def _main() -> None:
 commands:
   init                     Initialize VITA in the current directory
   ingest                   Capture, extract, review and convert existing documents locally
+  import jobenu <file>     Import job exports into CV branches and optionally run the AI batch
   new etp <company> <role> Create a new tailored CV branch
   build [both]             Compile the CV, cover letter, or both to PDF
   status                   Show all companies and branches
@@ -70,6 +72,23 @@ commands:
     parser.add_argument("--debug", action="store_true", help="Retain a detailed local execution journal (credentials redacted)")
 
     subparsers = parser.add_subparsers(dest="command", metavar="<command>")
+
+    import_p = subparsers.add_parser("import", help="Import external job exports into isolated CV branches")
+    import_p.add_argument("source", choices=["jobenu"])
+    import_p.add_argument("path", help="Local Jobenu applications JSON export")
+    import_p.add_argument("--base-branch", help="Existing local base; integration setting, default_base_branch, then master")
+    import_p.add_argument("--dry-run", action="store_true", help="Preview the batch without writes or provider calls")
+    import_p.add_argument("--run", action="store_true", help="Run the configured AI pipeline in each imported worktree")
+    import_p.add_argument("--approval", choices=["human", "auto"], help="Required when importing; auto still preserves factual-confirmation gates")
+    import_p.add_argument("--approve-plan", action="store_true", help="Confirm a human-mode batch plan; never approves document changes")
+    import_p.add_argument("--plan-id", help="Require this exact previewed plan ID (useful for Vita Tree)")
+    import_p.add_argument("--status", action="append", dest="statuses", help="Jobenu status to include; repeatable, default SAVED; ALL includes every status")
+    import_p.add_argument("--include-demo", action="store_true", help="Include Jobenu demo records")
+    import_p.add_argument("--new-revision", action="store_true", help="Create separate branches for changed source records")
+    import_p.add_argument("--rerun", action="store_true", help="Explicitly reassess current worktree sources; requires --run")
+    import_p.add_argument("-l", "--language", help="Override the saved Jobenu/default language preference")
+    import_p.add_argument("-p", "--provider", help="Override the saved provider; otherwise keep per-stage routing")
+    import_p.add_argument("--json", action="store_true", help="Machine-readable plan/results and resumable approval state")
 
     ingest_p = subparsers.add_parser("ingest", help="Local staged PDF/DOCX/scan ingestion; no automatic uploads or approval")
     ingest_sub = ingest_p.add_subparsers(dest="ingest_action", required=True)
@@ -257,6 +276,14 @@ commands:
         if diagnostics.run(args.diagnostics_action, trace_id=getattr(args, "trace_id", None),
                            output=getattr(args, "output", None), as_json=getattr(args, "json", False)) is False:
             sys.exit(1)
+
+    elif args.command == "import":
+        sys.exit(import_jobs.run(args.source, args.path, base_branch=args.base_branch,
+                                dry_run=args.dry_run, run_pipeline=args.run, approval=args.approval,
+                                approve_plan=args.approve_plan, plan_id=args.plan_id,
+                                statuses=args.statuses, include_demo=args.include_demo,
+                                new_revision=args.new_revision, rerun=args.rerun,
+                                language=args.language, provider=args.provider, as_json=args.json))
 
     elif args.command == "init":
         init.run(args.force)
