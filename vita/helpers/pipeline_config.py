@@ -77,6 +77,4 @@ def load_pipeline_settings() -> PipelineSettings:
                     provider_source=provider_source, model_source=model_source,
                     provider_variable=f"{prefix}_PROVIDER", model_variable=f"{prefix}_MODEL",
                     explanation="Extraction has its own built-in Gemini model when EXTRACTION_MODEL is unset. This explicit stage model overrides extensions.json later." if model_source == "built_in_extraction_default" else "Stage settings are passed explicitly to the provider resolver.")
-    from vita.helpers.fallback import configured
-    configured()  # Validate configured chains before any generation begins.
     return PipelineSettings(toggle in {"true", "1", "yes", "on"}, routes)
