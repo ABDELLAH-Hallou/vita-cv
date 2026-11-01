@@ -76,6 +76,13 @@ VITA_PROVIDER_MAX_ATTEMPTS=3
 # Capped exponential backoff; Retry-After longer than the cap stops the run.
 VITA_PROVIDER_RETRY_BASE_SECONDS=1
 VITA_PROVIDER_RETRY_MAX_SECONDS=30
+# Optional single backup; operation retries and fallback share the same budget.
+VITA_FALLBACK_ENABLED=false
+# VITA_FALLBACK_PROVIDER=codex
+# VITA_FALLBACK_MODEL=gpt-6.1-sol
+# VITA_FALLBACK_REASONING_EFFORT=high
+# VITA_FALLBACK_CATEGORIES=overloaded,rate_limit,server_error,timeout,connection
+# Stage overrides use EXTRACTION/ANALYSIS/ADAPT/REVIEW/COVER_FALLBACK_*.
 # Local journals retain prompts/responses; credentials are redacted.
 # off = technical metadata only; sanitized = source structure only.
 VITA_DIAGNOSTIC_CONTENT=local

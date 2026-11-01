@@ -90,6 +90,22 @@ commands:
     import_p.add_argument("-p", "--provider", help="Override the saved provider; otherwise keep per-stage routing")
     import_p.add_argument("--json", action="store_true", help="Machine-readable plan/results and resumable approval state")
 
+    fallback_p = subparsers.add_parser("fallback", help="Inspect capabilities or amend only a failed step's backup route")
+    fallback_sub = fallback_p.add_subparsers(dest="fallback_action", required=True)
+    fallback_caps = fallback_sub.add_parser("capabilities")
+    fallback_caps.add_argument("--json", action="store_true")
+    amend_p = fallback_sub.add_parser("amend")
+    amend_p.add_argument("step", choices=["extract", "requirements", "analyze", "adapt", "review", "cover"])
+    amend_p.add_argument("--provider", required=True)
+    amend_p.add_argument("--model", required=True)
+    amend_p.add_argument("--reasoning-effort")
+    amend_p.add_argument("--categories", help="Comma-separated eligible provider error categories")
+    amend_choice = amend_p.add_mutually_exclusive_group()
+    amend_choice.add_argument("--dry-run", action="store_true", help="Review only; default")
+    amend_choice.add_argument("--apply", action="store_true", help="Require the exact reviewed --plan-id")
+    amend_p.add_argument("--plan-id")
+    amend_p.add_argument("--json", action="store_true")
+
     ingest_p = subparsers.add_parser("ingest", help="Local staged PDF/DOCX/scan ingestion; no automatic uploads or approval")
     ingest_sub = ingest_p.add_subparsers(dest="ingest_action", required=True)
     capture_p = ingest_sub.add_parser("capture", help="Preserve original bytes in a private content-addressed store")
@@ -272,7 +288,19 @@ commands:
     if args.debug:
         os.environ["VITA_DIAGNOSTIC_CONTENT"] = "local"
 
-    if args.command == "ingest":
+    if args.command == "fallback":
+        if args.fallback_action == "capabilities":
+            import json
+
+            from vita.helpers.fallback import capabilities
+            print(json.dumps(capabilities(), indent=2))
+        else:
+            from vita.commands import fallback
+            sys.exit(fallback.run(args.step, provider=args.provider, model=args.model,
+                                  reasoning_effort=args.reasoning_effort, categories=args.categories,
+                                  apply=args.apply, plan_id=args.plan_id, as_json=args.json))
+
+    elif args.command == "ingest":
         code = ingest.run(args.ingest_action, **{key: getattr(args, key) for key in
             ("path", "document_id", "revision", "output", "review", "ocr", "ocr_language", "ocr_all", "language", "kind") if hasattr(args, key)}, as_json=args.json)
         if code:

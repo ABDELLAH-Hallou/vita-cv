@@ -513,3 +513,75 @@ def test_unattended_policy_is_bound_to_plan_and_checkpoint(project, monkeypatch,
     state = result(capsys)["results"][0]
     assert "policy changed" in state["error"]
     assert "authorization" not in state
+
+
+def test_fallback_batch_mixes_completion_failure_and_pending_review(project, monkeypatch, capsys, evaluation_report):
+    from vita.helpers.provider_errors import ProviderError
+
+    monkeypatch.setenv("VITA_DIAGNOSTIC_CONTENT", "off")
+    with Path(".vita/.env").open("a", encoding="utf-8") as handle:
+        handle.write("VITA_FALLBACK_ENABLED=true\nVITA_FALLBACK_PROVIDER=codex\nVITA_FALLBACK_MODEL=gpt-6.1-sol\nVITA_PROVIDER_RETRY_BASE_SECONDS=0\nVITA_PROVIDER_RETRY_MAX_SECONDS=0\n")
+    calls = []
+    def generate(system, prompt, **kwargs):
+        job = Path("job.md").read_text(encoding="utf-8")
+        company = "Gamma" if "— Gamma" in job else "Beta" if "— Beta" in job else "Acme"
+        calls.append((company, kwargs["provider"]))
+        kwargs["session"]["route"] = {"provider": kwargs["provider"], "model": kwargs.get("model"), "reasoning_effort": kwargs.get("reasoning_effort")}
+        if company == "Gamma" or (company == "Acme" and kwargs["provider"] != "codex" and "You MUST output" not in prompt):
+            raise ProviderError(code="overloaded")
+        if "You MUST output" in prompt:
+            text = Path("main.tex").read_text(encoding="utf-8") if company == "Beta" else LATEX % "Semantic wording needs human review"
+            return "```latex\n" + text + "\n```"
+        return json.dumps(evaluation_report())
+    monkeypatch.setattr(ai_step, "llm_generate", generate)
+    file = export_file(project, [application(), application("two", "Beta"), application("three", "Gamma")])
+    assert import_jobs.run("jobenu", file, approval="auto", run_pipeline=True, as_json=True) == 1
+    data = result(capsys)
+    assert [r["status"] for r in data["results"]] == ["awaiting_approval", "complete", "failed"]
+    acme, beta, gamma = data["results"]
+    assert acme["pending"]["step"] == "adapt"
+    assert acme["operation_outcomes"]["analyze"]["routing"]["effective"]["provider"] == "codex"
+    assert beta["completed_steps"] == ["analyze", "adapt", "review", "cover"]
+    assert gamma["completed_steps"] == []
+    assert [p for c, p in calls if c == "Gamma"] == ["openai", "codex", "codex"]
+    assert git("branch", "--show-current") == "master"
+
+
+def test_legacy_jobenu_failed_cover_accepts_exact_amendment(project, monkeypatch, capsys):
+    from vita.commands import fallback as amendment
+    from vita.helpers import fallback
+    from vita.helpers.provider_errors import ProviderError
+    from vita.helpers.structured_output import run_text
+
+    file = export_file(project)
+    assert import_jobs.run("jobenu", file, approval="auto", as_json=True) == 0
+    original = result(capsys)["results"][0]
+    workspace = Path(original["workspace"])
+    with batch_import.project(workspace):
+        # Reproduce a 2.14.0 index with no fallback fields or invented hashes.
+        snapshot = batch_import._checkpoint()
+        with pytest.raises(RuntimeError):
+            run_text(step="cover", generate=Mock(side_effect=ProviderError(code="authentication")),
+                     system="S", prompt="P", route={"provider": "openai", "model": "custom-model-999"})
+    index_path = project / ".vita/imports/jobenu/index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    state = index["applications"][original["key"]]["versions"][original["fingerprint"]]
+    state.update(status="failed", current_step="cover", completed_steps=["analyze", "adapt", "review"],
+                 steps=["analyze", "adapt", "review", "cover"], checkpoint=snapshot,
+                 execution_options={"language": "en", "provider": None})
+    index_path.write_text(json.dumps(index), encoding="utf-8")
+    capsys.readouterr()
+    with batch_import.project(workspace):
+        assert amendment.run("cover", provider="codex", model="gpt-6.1-sol", categories="authentication", as_json=True) == 0
+        plan = json.loads(capsys.readouterr().out)
+        assert amendment.run("cover", provider="codex", model="gpt-6.1-sol", categories="authentication",
+                             apply=True, plan_id=plan["plan_id"], as_json=True) == 0
+        capsys.readouterr()
+    def step(name, **kwargs):
+        assert name == "cover" and fallback.load_policy("cover")["backup"]["model"] == "gpt-6.1-sol"
+        return True
+    monkeypatch.setattr(ai_step, "run", step)
+    assert import_jobs.run("jobenu", file, approval="auto", run_pipeline=True, as_json=True) == 0
+    resumed = result(capsys)["results"][0]
+    assert resumed["status"] == "complete"
+    assert resumed["routing_amendments"][0]["checkpoint"] == snapshot

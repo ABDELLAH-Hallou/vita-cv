@@ -12,7 +12,7 @@ ACTIONS = {
     "response_decode": "The provider success response could not be decoded. Inspect response diagnostics and endpoint compatibility.",
     "authentication": "Provider authentication failed. Check the configured credential for this provider.",
     "permission": "The provider denied access. Check account permissions and model access.",
-    "invalid_model": "The requested model is invalid or unavailable to this account. Check its exact ID and access; no fallback was used.",
+    "invalid_model": "The requested model is invalid or unavailable to this account. Check its exact ID and access; inspect the operation routing record for any explicitly authorized fallback.",
     "quota_exceeded": "The provider quota is exhausted. Check account limits or billing before retrying.",
     "invalid_request": "The provider rejected the request. Check model capabilities and request configuration.",
     "not_found": "The provider endpoint or resource was not found. Check endpoint and model configuration.",

@@ -38,7 +38,7 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _scope():
+def _scope(fallback_policies=None):
     # Only hashes leave this helper. Credentials and personal source text never
     # belong in approval provenance. Source snapshots bind the exact CV later.
     files = [Path("job.md"), *(Path(".vita") / name for name in
@@ -50,22 +50,24 @@ def _scope():
     settings = load_pipeline_settings()
     values["routing"] = {step: route.kwargs() for step, route in settings.routes.items()}
     values["extraction"] = settings.extraction_enabled
+    if fallback_policies:
+        values["fallback"] = fallback_policies
     for path in sorted(Path(".vita/skills").rglob("*")):
         if path.is_file():
             values[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
     return hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()
 
 
-def capture(mode, previous=None):
+def capture(mode, previous=None, fallback_policies=None):
     """Called only after an explicit CLI/API mode selection, once per attempt."""
     selected = policy(mode)
     if previous is not None:
-        assert_authorized(previous, mode)
+        assert_authorized(previous, mode, fallback_policies=fallback_policies)
     now = _now()
     return {"policy": selected, "run_id": previous["run_id"] if previous else uuid.uuid4().hex,
             "attempt_id": uuid.uuid4().hex,
             "authorized_at": previous["authorized_at"] if previous else now,
-            "attempt_at": now, "scope_sha256": _scope()}
+            "attempt_at": now, "scope_sha256": _scope(fallback_policies=fallback_policies)}
 
 
 def validate_authorization(value):
@@ -78,18 +80,18 @@ def validate_authorization(value):
             raise ValueError("Approval timestamps must include a timezone")
 
 
-def assert_authorized(value, mode="unattended"):
+def assert_authorized(value, mode="unattended", fallback_policies=None):
     validate_authorization(value)
-    if value["policy"] != policy(mode) or value["scope_sha256"] != _scope():
+    if value["policy"] != policy(mode) or value["scope_sha256"] != _scope(fallback_policies=fallback_policies):
         raise ValueError("Approval policy or captured job/settings changed; start a new authorized run")
 
 
-def decision(revision, authorization=None):
+def decision(revision, authorization=None, fallback_policies=None):
     if authorization is None:
-        authorization = capture("human")
+        authorization = capture("human", fallback_policies=fallback_policies)
         source = "explicit_human_review"
     else:
-        assert_authorized(authorization)
+        assert_authorized(authorization, fallback_policies=fallback_policies)
         source = "unattended_run_policy"
     return {"policy": authorization["policy"], "revision": revision, "source": source,
             **{k: authorization[k] for k in

@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 
 from vita.helpers import diagnostics as diagnostic
+from vita.helpers import fallback
 from vita.helpers.provider_errors import (
     ProviderError,
     RetryPolicy,
@@ -115,7 +116,58 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                                                attempts=0, max_attempts=0)
         fail("provider_error", error["action"], error)
     record["max_attempts"] = policy.max_attempts
+    initial_native = native
+    requested_route = dict(route)
+    selected_index = 0
+    cause = None
+    next_kind = "initial"
+    parent_attempt = None
+    try:
+        prior_operation = session.get("operation")
+        if prior_operation:
+            session.clear()
+            from vita.helpers import llm
+            if generate is llm.generate:
+                session.update(llm.prepare_session(**route))
+        routing_policy = fallback.load_policy(step)
+        backup_session = {}
+        if routing_policy["enabled"]:
+            from vita.helpers import llm
+            if generate is llm.generate:
+                # Resolve both configured routes without requests, prompts, or
+                # registry writes. Each adapter receives a separate frozen session.
+                primary = session if "resolved" in session else llm.prepare_session(**route)
+                session.update(primary)
+                backup_session = llm.prepare_session(**routing_policy["backup"])
+                for prepared in (session, backup_session):
+                    name, _, _, environment = prepared["resolved"]
+                    key = environment.get(name.upper() + "_API_KEY")
+                    if name == "google":
+                        key = key or environment.get("GEMINI_API_KEY")
+                    if name != "codex" and not key:
+                        raise ValueError("A configured API route is missing its credential")
+            for frozen in (session, backup_session):
+                if "resolved" in frozen:
+                    provider_name, model_name, config, _ = frozen["resolved"]
+                    frozen["route"] = {"provider": provider_name, "model": model_name or None,
+                                       "reasoning_effort": config.get("reasoning_effort") if provider_name in ("codex", "openai", "openrouter") else None}
+            chain = [safe_route(route, session), safe_route(routing_policy["backup"], backup_session)]
+            if backup_session.get("route", {}).get("reasoning_effort") not in (None, *fallback.REASONING):
+                raise ValueError("Unsupported inherited backup reasoning setting")
+            if chain[0] == chain[1]:
+                raise ValueError("Primary and backup routes must differ")
+            guard = fallback.input_fingerprint(step)
+            record.update(routing={"version": fallback.VERSION, "policy": routing_policy,
+                                   "requested": safe_route(requested_route), "chain": chain, "effective": None},
+                          parent_run_id=fallback.parent_run_id())
+            persist()
+    except (ValueError, TypeError, OSError, ProviderError):
+        error = ProviderError(code="configuration").contract(step=step, route=safe_route(route, session),
+                                                             attempts=0, max_attempts=policy.max_attempts)
+        fail("provider_error", error["action"], error)
     for number in range(1, policy.max_attempts + 1):
+        if routing_policy["enabled"] and fallback.input_fingerprint(step) != guard:
+            fail("source_conflict", "Captured sources or configuration changed; preserve drafts and regenerate this step.")
         kwargs = dict(route)
         session["mode"] = "schema_requested" if native else "validated_prompt"
         if native:
@@ -124,6 +176,13 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
             kwargs["session"] = session
         attempt = {"number": number, "category": "started", "mode": session["mode"],
                    "route": safe_route(route, session)}
+        if routing_policy["enabled"]:
+            attempt.update(attempt_id=uuid.uuid4().hex, parent_attempt_id=parent_attempt,
+                           kind=next_kind, route_index=selected_index,
+                           requested=safe_route(requested_route), fallback_reason=cause)
+            parent_attempt = attempt["attempt_id"]
+            session["operation"] = {"run_id": run_id, "routing": record["routing"]}
+            next_kind = "retry"
         record["attempts"].append(attempt)
         persist()
         try:
@@ -131,7 +190,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
             if trace:
                 trace.failure = None
                 trace.response_exists = None
-                trace.attempt_id = uuid.uuid4().hex
+                trace.attempt_id = attempt.get("attempt_id") or uuid.uuid4().hex
             diagnostic.capture("request", [("system", system), ("user", original_prompt + repair)], exists=True)
             diagnostic.journal("generation.attempt", number=number, max_attempts=policy.max_attempts,
                                mode=session["mode"], route=route,
@@ -163,10 +222,36 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                 diagnostic.current().response_exists = False if error.status is not None else None
                 diagnostic.capture("response", exists=diagnostic.current().response_exists)
             attempt.update(category=error.code, mode=session["mode"], route=safe_route(route, session))
+            if routing_policy["enabled"]:
+                record["routing"]["effective"] = safe_route(route, session)
             attempt["error"] = error.contract(step=step, route=attempt["route"], attempts=number,
                                                max_attempts=policy.max_attempts, exhausted=number == policy.max_attempts)
             if error.status is not None:
                 attempt["http_status"] = error.status
+            if (routing_policy["enabled"] and selected_index == 0
+                    and error.code in routing_policy["categories"] and number < policy.max_attempts):
+                if routing_policy["backup"]["provider"] == attempt["route"]["provider"] and error.retry_after is not None:
+                    delay = policy.delay(error, number)
+                    if delay is None:
+                        attempt["error"]["retry_stopped"] = "retry_after_exceeds_delay_cap"
+                        fail("provider_error", attempt["error"]["action"], attempt["error"])
+                    attempt["retry_delay_seconds"] = delay
+                    persist()
+                    time.sleep(delay)
+                attempt["fallback_selected"] = True
+                diagnostic.journal("routing.fallback_selected", reason=error.code,
+                                   primary=attempt["route"], backup=safe_route(routing_policy["backup"], backup_session),
+                                   remaining_attempts=policy.max_attempts - number)
+                cause = error.code
+                route = dict(routing_policy["backup"])
+                selected_index = 1
+                # No primary credentials, resolved routing, partial response, or
+                # primary format-repair instructions contaminate the backup.
+                session.clear()
+                session.update(backup_session)
+                native, repair, next_kind = initial_native, "", "fallback"
+                persist()
+                continue
             if error.retryable and number < policy.max_attempts:
                 delay = policy.delay(error, number)
                 if delay is not None:
@@ -185,6 +270,9 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                 attempt["error"]["action"] += " Retry-After exceeds the configured wait cap; rerun after that interval."
             fail("provider_error", attempt["error"]["action"], attempt["error"])
         attempt.update(mode=session["mode"], route=safe_route(route, session))
+        if routing_policy["enabled"]:
+            record["routing"]["effective"] = safe_route(route, session)
+            session["operation"] = {"run_id": run_id, "routing": record["routing"]}
         if diagnostic.current():
             diagnostic.current().response_exists = True
         diagnostic.capture("response", response, exists=True)
@@ -227,6 +315,8 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                     if type(exc) is ValueError:
                         attempt["detail"] = diagnostic.validation_detail(exc)
                 else:
+                    if routing_policy["enabled"] and fallback.input_fingerprint(step) != guard:
+                        fail("source_conflict", "Sources/configuration changed during generation; nothing was published.")
                     attempt["category"] = "valid"
                     persist()
                     try:
