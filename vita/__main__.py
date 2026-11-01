@@ -79,7 +79,7 @@ commands:
     import_p.add_argument("--base-branch", help="Existing local base; integration setting, default_base_branch, then master")
     import_p.add_argument("--dry-run", action="store_true", help="Preview the batch without writes or provider calls")
     import_p.add_argument("--run", action="store_true", help="Run the configured AI pipeline in each imported worktree")
-    import_p.add_argument("--approval", choices=["human", "auto"], help="Required when importing; auto still preserves factual-confirmation gates")
+    import_p.add_argument("--approval", choices=["human", "auto", "unattended"], help="Required when importing; unattended explicitly accepts unverified AI proposals")
     import_p.add_argument("--approve-plan", action="store_true", help="Confirm a human-mode batch plan; never approves document changes")
     import_p.add_argument("--plan-id", help="Require this exact previewed plan ID (useful for Vita Tree)")
     import_p.add_argument("--status", action="append", dest="statuses", help="Jobenu status to include; repeatable, default SAVED; ALL includes every status")
@@ -122,6 +122,8 @@ commands:
         action_p.add_argument("step", choices=("adapt", "cover"))
         if action == "check":
             action_p.add_argument("--proposal", required=True, help="Separate project-local proposed .tex file")
+            action_p.add_argument("--approval", choices=["auto", "human"], default="auto",
+                                  help="Deferred proposals support host verification or explicit review only")
         if action in ("approve", "reject"):
             action_p.add_argument("revision", help="Exact revision after reviewing all confirmation items")
         if action == "show":
@@ -244,6 +246,15 @@ commands:
     cover_p.add_argument("-a", "--auto", action="store_true", help="Run autonomously using configured LLM")
     cover_p.add_argument("-p", "--provider", help="LLM provider to use for --auto")
 
+    for approval_parser in (run_p, analyze_p, adapt_p, review_p, cover_p, draft_p):
+        approval_parser.add_argument("--approval", choices=["human", "auto", "unattended"],
+                                     help="Unattended accepts AI proposals without human review; may introduce inaccurate wording")
+    for outcome_parser in (run_p, analyze_p, adapt_p, review_p, cover_p):
+        outcome_parser.add_argument("--json", action="store_true", help="Machine-readable host execution outcome")
+    run_p.add_argument("--resume", action="store_true", help="Resume the exact durable workflow; repeat its approval policy explicitly")
+    policies_p = subparsers.add_parser("approval-policies", help="Discover supported host approval policies")
+    policies_p.add_argument("--json", action="store_true", help="Machine-readable approval capabilities")
+
     # ── save ──────────────────────────────────────────────────────────────────
     save_p = subparsers.add_parser("save", help="Save and push CV changes")
     save_p.add_argument("-m", "--message", help="Commit message")
@@ -269,7 +280,8 @@ commands:
 
     elif args.command == "facts":
         if facts.run(args.facts_action, args.step, revision=getattr(args, "revision", None),
-                     proposal=getattr(args, "proposal", None), as_json=getattr(args, "json", False)) is False:
+                     proposal=getattr(args, "proposal", None), as_json=getattr(args, "json", False),
+                     approval=getattr(args, "approval", "auto")) is False:
             sys.exit(1)
 
     elif args.command == "diagnostics":
@@ -325,14 +337,22 @@ commands:
         if providers.run(provider=args.provider, model=args.model, generate=args.generate, as_json=args.json) is False:
             sys.exit(1)
 
+    elif args.command == "approval-policies":
+        import json
+
+        from vita.commands.execution import capabilities
+        print(json.dumps(capabilities(), indent=2))
+
     elif args.command == "run":
-        if run.run(auto=args.auto, language=args.language, provider=args.provider) is False:
+        from vita.commands.execution import invoke
+        if invoke(run.run, "run", auto=args.auto, language=args.language, provider=args.provider,
+                  approval=args.approval or "auto", resume=args.resume, as_json=args.json) is False:
             sys.exit(1)
 
     elif args.command == "requirements":
         if requirements.run(args.requirements_action, auto=getattr(args, "auto", False),
                             provider=getattr(args, "provider", None), revision=getattr(args, "revision", None),
-                            path=getattr(args, "path", None)) is False:
+                            path=getattr(args, "path", None), approval=getattr(args, "approval", None) or "auto") is False:
             sys.exit(1)
 
     elif args.command in ["extract", "analyze", "adapt", "review", "cover"]:
@@ -340,7 +360,19 @@ commands:
         auto = getattr(args, "auto", False)
         provider = getattr(args, "provider", None)
         options = {key: True for key in ("reassess", "qualitative") if getattr(args, key, False)}
-        if ai_step.run(args.command, language=lang, auto=auto, provider=provider, **options) is False:
+        selected_approval = getattr(args, "approval", None)
+        if selected_approval:
+            options["approval"] = selected_approval
+        if args.command == "extract":
+            success = ai_step.run(args.command, language=lang, auto=auto, provider=provider, **options)
+        else:
+            from functools import partial
+
+            from vita.commands.execution import invoke
+            success = invoke(partial(ai_step.run, args.command), args.command,
+                             language=lang, auto=auto, provider=provider,
+                             as_json=args.json, **options)
+        if success is False:
             sys.exit(1)
 
     elif args.command == "save":

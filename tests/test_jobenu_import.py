@@ -453,3 +453,63 @@ def test_stopped_import_commit_has_private_log_and_can_resume(project, monkeypat
     assert import_jobs.run("jobenu", file, approval="auto", as_json=True) == 0
     restored = result(capsys)["results"][0]
     assert restored["workspace"] == state["workspace"] and restored["import_ready"]
+
+
+def test_unattended_batch_finishes_multiple_applications(project, monkeypatch, capsys, evaluation_report):
+    from vita.commands import requirements as command
+    from vita.helpers import approval, evaluation
+
+    monkeypatch.setenv("VITA_DIAGNOSTIC_CONTENT", "off")
+    monkeypatch.setattr(command, "generate", lambda *a, **k: json.dumps(requirement_proposal(Path("job.md").read_text(encoding="utf-8"))))
+    cover_sources = []
+    def generation(system, prompt, **kwargs):
+        if "You MUST output the complete" in prompt:
+            cover = "You MUST output the complete cover-letter.tex" in prompt
+            if cover:
+                cover_sources.append(Path("main.tex").read_text(encoding="utf-8"))
+            return "```latex\n" + LATEX % ("Letter for Python" if cover else "Adapted Python CV; revenue $1M") + "\n```"
+        data = requirements.active_requirements(Path("job.md").read_text(encoding="utf-8"))
+        report = evaluation_report("missing")
+        report["metrics"]["criteria"] = [
+            {**{k: unit[k] for k in evaluation.TAXONOMY_FIELDS}, "status": "missing",
+             "evidence": "", "feedback": "Clarify evidence."} for unit in data["requirements"]]
+        return json.dumps(report)
+    provider = Mock(side_effect=generation)
+    monkeypatch.setattr(ai_step, "llm_generate", provider)
+    file = export_file(project, [application(), application("two", "Beta")])
+    assert import_jobs.run("jobenu", file, approval="unattended", run_pipeline=True, as_json=True) == 0
+    data = result(capsys)
+    assert data["approval_policy"] == approval.policy("unattended")
+    assert [s["status"] for s in data["results"]] == ["complete", "complete"]
+    assert len(cover_sources) == 2 and all("Adapted Python CV" in s for s in cover_sources)
+    ids = []
+    for item in data["results"]:
+        assert "pending" not in item
+        with batch_import.project(Path(item["workspace"])):
+            report = factual_changes.load("adapt")
+            assert report["approval"]["source"] == "unattended_run_policy"
+            assert report["changes"][0]["verification"] == "confirmation_required"
+            ids.append(report["approval"]["run_id"])
+    assert len(set(ids)) == 2  # No authority leaks between application worktrees.
+    provider.reset_mock()
+    assert import_jobs.run("jobenu", file, approval="unattended", run_pipeline=True, as_json=True) == 0
+    result(capsys)
+    provider.assert_not_called()
+
+
+def test_unattended_policy_is_bound_to_plan_and_checkpoint(project, monkeypatch, capsys):
+    file = export_file(project)
+    assert import_jobs.run("jobenu", file, approval="auto", dry_run=True, as_json=True) == 0
+    automatic = result(capsys)
+    assert import_jobs.run("jobenu", file, approval="unattended", dry_run=True, as_json=True) == 0
+    unattended = result(capsys)
+    assert automatic["plan_id"] != unattended["plan_id"]
+    assert import_jobs.run("jobenu", file, approval="unattended", plan_id=automatic["plan_id"], as_json=True) == 1
+    assert "plan changed" in result(capsys)["error"]
+    monkeypatch.setattr(ai_step, "run", Mock(return_value=True))
+    assert import_jobs.run("jobenu", file, approval="auto", run_pipeline=True, as_json=True) == 0
+    result(capsys)
+    assert import_jobs.run("jobenu", file, approval="unattended", run_pipeline=True, as_json=True) == 1
+    state = result(capsys)["results"][0]
+    assert "policy changed" in state["error"]
+    assert "authorization" not in state

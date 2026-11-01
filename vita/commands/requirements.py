@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from vita.helpers import approval as approval_policy
 from vita.helpers.diagnostics import diagnosed
 from vita.helpers.job_extraction import read_job
 from vita.helpers.llm import generate
@@ -24,8 +25,17 @@ from vita.helpers.structured_output import run_structured
 
 @diagnosed(name="requirements")
 def run(action: str, *, auto: bool = False, provider: str | None = None,
-        revision: str | None = None, path: str | None = None) -> bool:
+        revision: str | None = None, path: str | None = None,
+        approval: str = "auto", authorization=None) -> bool:
     try:
+        approval_policy.policy(approval)
+        if approval == "unattended":
+            if action != "draft" or (not auto and not path):
+                raise ValueError("Unattended requirements need draft --auto or draft --input")
+            authorization = authorization or approval_policy.capture(approval)
+            approval_policy.assert_authorized(authorization)
+        elif authorization is not None:
+            raise ValueError("Authorization requires explicit unattended policy")
         raw = read_job()
         if action == "approve":
             data = approve_revision(revision, raw)
@@ -51,7 +61,10 @@ def run(action: str, *, auto: bool = False, provider: str | None = None,
         elif action == "draft":
             if path:
                 data = save_revision(compile_revision(parse_json(Path(path).read_text(encoding="utf-8")), raw))
-                print(f"Draft requirement revision (not approved): {data['revision']}")
+                if approval == "unattended":
+                    approve_revision(data["revision"], raw, authorization=authorization)
+                label = "Policy-approved requirement revision" if approval == "unattended" else "Draft requirement revision (not approved)"
+                print(f"{label}: {data['revision']}")
                 return True
             template = (Path(__file__).parent.parent / "assets/prompts/requirements.md").read_text(encoding="utf-8")
             numbered = "\n".join(f"{index}: {line}" for index, line in enumerate(raw.splitlines(), 1))
@@ -70,6 +83,10 @@ def run(action: str, *, auto: bool = False, provider: str | None = None,
                 prompt=prompt, route=load_pipeline_settings().route("extract", provider).kwargs(),
                 schema=PROPOSAL_SCHEMA, finalize=lambda value: compile_revision(value, raw), save=save_revision,
             )
+            if approval == "unattended":
+                approve_revision(data["revision"], raw, authorization=authorization)
+                print(f"Policy-approved requirement revision: {data['revision']}")
+                return True
             print(f"Draft requirement revision (not approved): {data['revision']}")
             print("Run `vita requirements show` to review, then approve its full revision ID.")
         else:
@@ -78,3 +95,27 @@ def run(action: str, *, auto: bool = False, provider: str | None = None,
     except (ValueError, OSError, RuntimeError, KeyError, TypeError):
         print("Requirements failed. See execution diagnostics for the failed phase.")
         return False
+
+
+def ensure_unattended(authorization):
+    """Resolve only validated JD revisions under this explicit run policy."""
+    from vita.helpers.requirements import active_requirements
+
+    approval_policy.assert_authorized(authorization)
+    raw = read_job()
+    try:
+        current = active_requirements(raw)
+    except ValueError as exc:
+        if not str(exc).startswith("Canonical requirements need approval"):
+            raise
+        current = None
+    if current is not None:
+        return current
+    if STATE.exists():
+        state = parse_json(STATE.read_text(encoding="utf-8"))
+        data = read_revision(state["revision"])
+        if data["source_text"] == raw and data["state"] == "draft":
+            return approve_revision(data["revision"], raw, authorization=authorization)
+    if not run("draft", auto=True, approval="unattended", authorization=authorization):
+        raise ValueError("Canonical requirement generation/validation failed; sources preserved")
+    return active_requirements(read_job())

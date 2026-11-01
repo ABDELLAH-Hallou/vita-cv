@@ -5,6 +5,7 @@ import json
 import re
 from pathlib import Path
 
+from vita.helpers import approval
 from vita.helpers.context_builder import JOB_HEADER_RE
 from vita.helpers.env import load_env
 from vita.helpers.structured import (
@@ -52,6 +53,7 @@ HEX = re.compile(r"[0-9a-f]{64}")
 APPROVAL_SCHEMA = object_schema({
     "schema_version": {"type": "integer", "const": 1}, "source_sha256": TEXT, "revision": TEXT,
 })
+APPROVAL_SCHEMA["properties"]["approval"] = approval.DECISION_SCHEMA
 
 
 def digest(text: str) -> str:
@@ -249,7 +251,13 @@ def read_revision(revision: str) -> dict:
     return data
 
 
-def approve_revision(revision: str, raw: str) -> dict:
+def approve_revision(revision: str, raw: str, *, authorization=None, imported_approval=None) -> dict:
+    if imported_approval is not None and authorization is not None:
+        raise ValueError("Cannot mix transported approval and a new unattended decision")
+    if authorization is not None:
+        approval.assert_authorized(authorization)
+        if Path("job.md").read_text(encoding="utf-8") != raw:
+            raise ValueError("Job changed during requirements generation")
     data = read_revision(revision)
     if data["source_sha256"] != digest(raw):
         raise ValueError("Cannot approve a revision for different job.md content")
@@ -258,9 +266,17 @@ def approve_revision(revision: str, raw: str) -> dict:
     if set(source_jobs(raw)) - {""} != {item["job_id"] for item in data["requirements"]}:
         raise ValueError("Approved requirements must cover every job section")
     save_revision(data)
-    write_artifact(store_dir() / "approved" / f"{digest(raw)}.json", json_text({
+    record = {
         "schema_version": 1, "source_sha256": digest(raw), "revision": revision,
-    }))
+    }
+    provenance = approval.decision(revision, authorization) if imported_approval is None else imported_approval
+    if provenance:
+        approval.validate_decision(provenance, revision)
+        record["approval"] = provenance
+        # Immutable audit history survives later explicit re-approval.
+        write_artifact(store_dir() / "decisions" / revision /
+                       f"{provenance['attempt_id']}.json", json_text(record))
+    write_artifact(store_dir() / "approved" / f"{digest(raw)}.json", json_text(record))
     return data
 
 
@@ -268,11 +284,13 @@ def approved_revision(raw: str) -> dict | None:
     path = store_dir() / "approved" / f"{digest(raw)}.json"
     if not path.exists():
         return None
-    approval = parse_json(path.read_text(encoding="utf-8"))
-    validate(approval, APPROVAL_SCHEMA)
-    if approval["source_sha256"] != digest(raw):
+    record = parse_json(path.read_text(encoding="utf-8"))
+    validate(record, APPROVAL_SCHEMA)
+    if "approval" in record:
+        approval.validate_decision(record["approval"], record["revision"])
+    if record["source_sha256"] != digest(raw):
         raise ValueError("Invalid requirement approval record")
-    data = read_revision(approval["revision"])
+    data = read_revision(record["revision"])
     if data["source_text"] != raw or data["state"] != "draft" or not data["requirements"]:
         raise ValueError("Approved requirement revision does not match the current job")
     return data
@@ -311,16 +329,26 @@ def export_revision(path: Path, raw: str) -> None:
     data = approved_revision(raw)
     if data is None:
         raise ValueError("No approved requirements are available to export")
-    write_artifact(path, json_text({"schema_version": 1, "approved_revision": data}))
+    record = parse_json((store_dir() / "approved" / f"{digest(raw)}.json").read_text(encoding="utf-8"))
+    envelope = {"schema_version": 1, "approved_revision": data}
+    if "approval" in record:
+        envelope["approval"] = record["approval"]
+    write_artifact(path, json_text(envelope))
 
 
 def import_revision(path: Path, raw: str) -> dict:
     envelope = parse_json(path.read_text(encoding="utf-8"))
-    if set(envelope) != {"schema_version", "approved_revision"} or envelope["schema_version"] != 1:
+    if (not {"schema_version", "approved_revision"} <= set(envelope)
+            or set(envelope) - {"schema_version", "approved_revision", "approval"}
+            or envelope["schema_version"] != 1):
         raise ValueError("Expected an exported approved requirement revision")
     data = envelope["approved_revision"]
     validate_revision(data)
     if data["source_text"] != raw:
         raise ValueError("Imported requirements do not match job.md")
+    if "approval" in envelope:
+        approval.validate_decision(envelope["approval"], data["revision"])
     save_revision(data)
-    return approve_revision(data["revision"], raw)
+    # Import transports an existing decision; it does not manufacture a new
+    # human review or grant unattended consent to subsequent candidate edits.
+    return approve_revision(data["revision"], raw, imported_approval=envelope.get("approval", {}))

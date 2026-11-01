@@ -8,6 +8,7 @@ Usage:
 from pathlib import Path
 
 from vita.commands.ai_step import run as ai_step_run
+from vita.helpers import approval as approval_policy
 from vita.helpers.diagnostics import diagnosed, failure
 from vita.helpers.job_extraction import read_job
 from vita.helpers.pipeline_config import load_pipeline_settings
@@ -17,9 +18,17 @@ STEPS = ["analyze", "adapt", "review", "cover"]
 
 
 @diagnosed("workflow")
-def run(auto: bool = False, language: str = "en", provider: str | None = None) -> bool:
+def run(auto: bool = False, language: str = "en", provider: str | None = None,
+        approval: str = "auto", resume: bool = False, authorization=None) -> bool:
     """Execute analyze → adapt → review → cover in sequence."""
     try:
+        approval_policy.policy(approval)
+        if approval == "unattended" or resume or (approval == "human" and auto):
+            if not auto:
+                raise ValueError("Unattended/resume requires --auto")
+            return _durable_run(language, provider, approval, resume, authorization)
+        if authorization is not None:
+            raise ValueError("Authorization requires explicit unattended policy")
         settings = load_pipeline_settings()
         approved = active_requirements(read_job()) if settings.extraction_enabled and Path("job.md").is_file() else None
     except (ValueError, OSError) as exc:
@@ -37,7 +46,8 @@ def run(auto: bool = False, language: str = "en", provider: str | None = None) -
         print(f"{'─'*40}")
         lang = language if step in ("adapt", "cover") else None
         selected_provider = None if step == "extract" else provider
-        if ai_step_run(step, language=lang, auto=auto, provider=selected_provider) is False:
+        options = {"approval": approval} if approval != "auto" else {}
+        if ai_step_run(step, language=lang, auto=auto, provider=selected_provider, **options) is False:
             print(f"Pipeline stopped: {step} failed. Later steps were not run.")
             return False
         
@@ -63,3 +73,32 @@ def run(auto: bool = False, language: str = "en", provider: str | None = None) -
         print("   → .vita/prompts/           — individual task prompts with custom skills")
     print(f"{'='*60}\n")
     return True
+
+
+def _durable_run(language, provider, approval, resume, authorization):
+    """Use the same checkpoint/approval engine as isolated Jobenu workspaces."""
+    from vita.helpers import batch_import
+
+    path = Path(".vita/workflow.json")
+    with batch_import.locked(Path.cwd()):
+        state = batch_import._read(path) if resume else None
+        if resume and state is None:
+            raise ValueError("No workflow checkpoint to resume")
+        if state is None:
+            previous = batch_import._read(path)
+            if previous:
+                import uuid
+                batch_import._save(Path(".vita/workflows") / (uuid.uuid4().hex + ".json"), previous)
+            state = {"workspace": str(Path.cwd()), "status": "imported", "completed_steps": []}
+            if authorization is not None:
+                state["authorization"] = authorization
+                state["approval_policy"] = approval_policy.policy(approval)
+        options = {"language": language, "provider": provider, "approval": approval}
+        try:
+            batch_import.execute(state, options, lambda: batch_import._save(path, state))
+        except (ValueError, OSError, RuntimeError):
+            state["status"] = "failed"
+            batch_import._save(path, state)
+            raise
+        print(f"Workflow: {state['status']}. Checkpoint: {path}")
+        return state["status"] == "complete"

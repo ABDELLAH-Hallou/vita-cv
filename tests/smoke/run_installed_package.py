@@ -48,6 +48,8 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             "vita/commands/ingest.py",
             "vita/commands/import_jobs.py",
             "vita/helpers/batch_import.py",
+            "vita/helpers/approval.py",
+            "vita/commands/execution.py",
             "vita/integrations/jobenu.py",
             "vita/ingestion/contracts.py",
             "vita/ingestion/extractors.py",
@@ -164,6 +166,10 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
         run([str(python), str(Path(__file__).with_name("developer_journal.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("ingestion.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("jobenu_import.py").resolve())], cwd=project)
+        run([str(python), str(Path(__file__).with_name("unattended_approval.py").resolve())], cwd=project)
+        policies = json.loads(run([str(python), "-m", "vita", "approval-policies", "--json"], cwd=project).stdout)
+        if "unattended" not in [mode["id"] for mode in policies["modes"]]:
+            raise AssertionError("Installed CLI lacks explicit unattended approval")
         diagnostics_help = run([str(python), "-m", "vita", "diagnostics", "--help"], cwd=project).stdout
         if not all(command in diagnostics_help for command in ("list", "inspect", "export")):
             raise AssertionError("Installed diagnostics inspection commands are missing")

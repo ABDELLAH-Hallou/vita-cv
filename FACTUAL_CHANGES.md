@@ -14,7 +14,7 @@ official name's translation is accurate. Overlapping `Present` dates are preserv
 JD terminology is never candidate evidence. Keep official names in the original
 language; a translated gloss may accompany them, subject to confirmation.
 
-The current conservative implementation automatically applies an identical source
+The default conservative `auto` policy automatically applies an identical source
 document (allowing outer whitespace changes). Other edits require confirmation,
 including plausible rewordings, ordinary translations, omissions, and a newly
 written cover letter. It intentionally favors false positives over silently
@@ -39,8 +39,11 @@ vita facts reject adapt fc-<full-revision-hash>
 ```
 
 Approval is an explicit human assertion about **all** edits in that exact revision.
-Neither unattended execution nor an assistant should invoke it on the user's
-behalf without that review and authorization. Rejected revisions cannot be
+This human command must not be invoked by an assistant claiming review that did
+not occur. The separate, explicitly selected [`unattended` policy](UNATTENDED_APPROVAL.md)
+authorizes host approval without human review and records `unattended_run_policy`
+provenance. It can apply inaccurate wording; unverified changes remain unverified.
+Rejected revisions cannot be
 approved; regenerate a new proposal instead. Approval requires unchanged CV,
 included files, verified knowledge/approval, job content, configured target, and
 previous target content. A failed document write after approval leaves
