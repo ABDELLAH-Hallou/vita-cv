@@ -64,7 +64,7 @@ class AssessmentRequest:
 
 def host_fingerprint() -> str:
     names = ("assessment", "evaluation", "candidate_evidence", "requirements", "structured", "llm",
-             "structured_output", "provider_errors", "assessment_narrative", "context_builder", "skills", "pipeline_config")
+             "structured_output", "provider_errors", "assessment_narrative", "context_builder", "skills", "pipeline_config", "fallback")
     return stable_hash({name: Path(__file__).with_name(name + ".py").read_text(encoding="utf-8") for name in names})
 
 
@@ -80,7 +80,7 @@ def rekey(provenance: dict) -> dict:
 
 @phase("prompt")
 def prepare_assessment(job, *, route: dict | None = None, baseline: dict | None = None,
-                       sources: dict | None = None, external: bool = False) -> AssessmentRequest:
+                       sources: dict | None = None, external: bool = False, stage="analyze") -> AssessmentRequest:
     """Freeze a shared payload. External-assistant identity is explicitly unreported.
 
     The returned session is private (it contains credentials). Only provenance
@@ -126,6 +126,11 @@ def prepare_assessment(job, *, route: dict | None = None, baseline: dict | None 
         "host_sha256": host_fingerprint(), "judge_sha256": fingerprint(template + "\n" + judge),
         "as_of_date": date.today().isoformat(),
     })
+    if not external:
+        from vita.helpers.fallback import load_policy
+        policy = load_policy(stage)
+        if policy["enabled"]:
+            provenance = rekey({**provenance, "routing_policy_sha256": stable_hash(policy)})
     cacheable = units is not None and route_source == "resolved" and any(s["kind"] == "cv" for s in sources["sources"])
     return AssessmentRequest(system, prompt, provenance, sources, session, route, cacheable)
 
@@ -133,10 +138,13 @@ def prepare_assessment(job, *, route: dict | None = None, baseline: dict | None 
 def new_execution(mode: str, *, origin: str | None = None, session: dict | None = None) -> dict:
     session = session or {}
     request = session.get("request", {})
-    return {"id": uuid.uuid4().hex, "mode": mode, "origin_id": origin,
+    result = {"id": uuid.uuid4().hex, "mode": mode, "origin_id": origin,
             "created_at": datetime.now(timezone.utc).isoformat(), "attempts": request.get("attempt", 0),
             "request_sha256": request.get("prompt_sha256"),
             "output_mode": "cache" if mode == "reused" else session.get("mode", "external_unreported")}
+    if "operation" in session:
+        result["operation_run_id"] = session["operation"]["run_id"]
+    return result
 
 
 def reusable(report: dict, request: AssessmentRequest, job) -> bool:
@@ -220,7 +228,7 @@ def run_assessment(step: str, job, *, settings, resume_entry: str, generate, aut
         if not auto and settings.extraction_enabled and job.requirements is None:
             preview_job = replace(job, text="At execution time, read .vita/results/job.json and job.toon if their job hash matches; otherwise use raw job.md. Regenerate this judge payload with the current prepared context before execution.")
         request = prepare_assessment(preview_job, route=settings.route(step, provider).kwargs(), baseline=baseline,
-                                     sources=capture_candidate_sources(resume_entry), external=not auto)
+                                     sources=capture_candidate_sources(resume_entry), external=not auto, stage=step)
         if not auto:
             host = (
                 f"HOST EXECUTION INSTRUCTIONS (outside the shared judge payload): stage={step}.\n"
@@ -276,9 +284,14 @@ def run_assessment(step: str, job, *, settings, resume_entry: str, generate, aut
                 expected = {"provider": description["provider"], "model": description["model"],
                             "reasoning_effort": description["reasoning_effort"]}
                 if actual != expected:
-                    description["route_source"] = "external_unreported"
+                    description["route_source"] = "resolved" if request.session.get("operation") else "external_unreported"
                     request.cacheable = False
                     description.update({key: (actual or {}).get(key) for key in expected})
+                    if request.session.get("operation"):
+                        description["config_sha256"] = stable_hash({"primary": description["config_sha256"], "effective": actual})
+                        description["reasoning_source"] = "cli_inherited_unreported" if actual.get("provider") == "codex" and actual.get("reasoning_effort") is None else "configured" if actual.get("reasoning_effort") is not None else "provider_default"
+                if request.session.get("operation"):
+                    description["routing_policy_sha256"] = stable_hash(request.session["operation"]["routing"]["policy"])
                 description = rekey(description)
                 return finalize(json_text(data), job, baseline if step == "review" else None, step=step,
                                 sources=request.sources, assessment=description,

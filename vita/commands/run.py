@@ -23,7 +23,8 @@ def run(auto: bool = False, language: str = "en", provider: str | None = None,
     """Execute analyze → adapt → review → cover in sequence."""
     try:
         approval_policy.policy(approval)
-        if approval == "unattended" or resume or (approval == "human" and auto):
+        from vita.helpers.fallback import configured
+        if approval == "unattended" or resume or (auto and (approval == "human" or configured())):
             if not auto:
                 raise ValueError("Unattended/resume requires --auto")
             return _durable_run(language, provider, approval, resume, authorization)
@@ -89,7 +90,8 @@ def _durable_run(language, provider, approval, resume, authorization):
             if previous:
                 import uuid
                 batch_import._save(Path(".vita/workflows") / (uuid.uuid4().hex + ".json"), previous)
-            state = {"workspace": str(Path.cwd()), "status": "imported", "completed_steps": []}
+            state = {"workspace": str(Path.cwd()), "status": "imported", "completed_steps": [],
+                     "job_sha256": batch_import.digest(read_job())}
             if authorization is not None:
                 state["authorization"] = authorization
                 state["approval_policy"] = approval_policy.policy(approval)

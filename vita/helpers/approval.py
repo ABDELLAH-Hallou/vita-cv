@@ -50,6 +50,9 @@ def _scope():
     settings = load_pipeline_settings()
     values["routing"] = {step: route.kwargs() for step, route in settings.routes.items()}
     values["extraction"] = settings.extraction_enabled
+    from vita.helpers.fallback import configured
+    if policies := configured():
+        values["fallback"] = policies
     for path in sorted(Path(".vita/skills").rglob("*")):
         if path.is_file():
             values[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
