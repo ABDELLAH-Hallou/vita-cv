@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.14.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.13.0...v2.14.0) (2026-11-01)
+
+
+### Features
+
+* add explicit unattended approval policy ([#97](https://github.com/ABDELLAH-Hallou/vita-cv/issues/97)) ([2d77c2a](https://github.com/ABDELLAH-Hallou/vita-cv/commit/2d77c2a196dfc60f60cf0f2d793533ef8af6d148))
+
 ## [2.13.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.12.1...v2.13.0) (2026-10-31)
 
 
