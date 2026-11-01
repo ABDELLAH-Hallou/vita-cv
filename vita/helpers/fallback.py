@@ -150,9 +150,8 @@ def input_fingerprint(step):
     import hashlib
     from pathlib import Path
 
-    from vita.helpers.approval import _scope
     from vita.helpers.candidate_evidence import capture_candidate_sources, stable_hash
-    value = {"scope": _scope()}
+    value = {}
     if step not in ("extract", "requirements"):
         value["sources"] = capture_candidate_sources()["sha256"]
     if step == "cover":
