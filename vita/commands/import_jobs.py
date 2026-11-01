@@ -45,7 +45,7 @@ def run(source, path, *, base_branch=None, dry_run=False, run_pipeline=False, ap
         return 1
     try:
         if not dry_run and approval is None:
-            raise ValueError("Select --approval human or --approval auto (not required for --dry-run).")
+            raise ValueError("Select --approval human, auto, or unattended (not required for --dry-run).")
         if rerun and not run_pipeline:
             raise ValueError("--rerun requires --run.")
         path = Path(path).resolve()

@@ -104,6 +104,11 @@ Modes control Vita host approval, not the AI CLI's sandbox permissions:
   **not** approve unsupported factual or semantic interpretations.
 - **human:** confirms the plan and stages every Adapt/Cover proposal for explicit,
   revision-bound approval, including unchanged/host-verifiable proposals.
+- **unattended:** explicitly authorizes host approval of valid exact-revision
+  proposals and canonical requirements for this run, including unverified changes.
+  It can introduce inaccurate wording into the local CV. Verification labels stay
+  unchanged. See [Unattended approval](UNATTENDED_APPROVAL.md) for commands,
+  provenance, checkpoint compatibility, warnings and Vita Tree's JSON contract.
 
 Pending results contain the workspace, step and exact proposal revision. In that
 workspace, inspect and decide:
@@ -115,14 +120,15 @@ vita facts approve adapt fc-EXACT_REVISION
 ```
 
 Rerun the import command to continue after approval. Completed stages are skipped.
-Changing to automatic mode never approves a pending proposal. Rejections stop that
+Changing to `auto` never approves a pending proposal. Rejections stop that
 application; other applications continue independently.
 
 Opted-in canonical projects pause with `awaiting_requirements_approval` for a new
 JD. In its workspace run `vita requirements draft --auto`, inspect
 `vita requirements show`, and approve the exact revision. The shared requirements
-store reuses an approved identical JD across CV bases. Neither mode fabricates
-requirement approval.
+store reuses an approved identical JD across CV bases. Human and auto modes do not
+grant requirement approval. Unattended generates/validates and policy-approves the
+exact canonical revision automatically.
 
 Reimports of unchanged records/base commits are idempotent. Changed records need
 `--new-revision`, which creates separate branches and preserves old work. A new base

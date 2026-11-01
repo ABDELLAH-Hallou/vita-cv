@@ -10,6 +10,7 @@ import json
 import re
 from pathlib import Path
 
+from vita.helpers import approval
 from vita.helpers.candidate_evidence import (
     capture_candidate_sources,
     digest,
@@ -46,6 +47,7 @@ CONTEXT_SCHEMA = object_schema(
         "target_before": {"type": ["string", "null"]},
     }
 )
+CONTEXT_SCHEMA["properties"]["requirements_revision"] = TEXT
 FACTUAL_CHANGE_SCHEMA = object_schema(
     {
         **CONTEXT_SCHEMA["properties"],
@@ -93,6 +95,8 @@ FACTUAL_CHANGE_SCHEMA = object_schema(
         "application_status": {"type": "string", "enum": ["not_applied", "applied"]},
     }
 )
+FACTUAL_CHANGE_SCHEMA["properties"]["approval"] = approval.DECISION_SCHEMA
+FACTUAL_CHANGE_SCHEMA["required"].remove("requirements_revision")
 
 
 def target_for(step):
@@ -145,7 +149,7 @@ def capture(step):
         Path(source["path"]).resolve() == Path(target).resolve() for source in snapshot["sources"]
     ):
         raise ValueError("Cover target must not overwrite a captured candidate source")
-    return {
+    context = {
         "contract_version": VERSION,
         "step": step,
         "target": target,
@@ -153,6 +157,11 @@ def capture(step):
         "job_sha256": _job_hash(),
         "target_before": _read_target(target),
     }
+    from vita.helpers.requirements import approved_revision
+    requirements = approved_revision(Path("job.md").read_text(encoding="utf-8"))
+    if requirements is not None:
+        context["requirements_revision"] = requirements["revision"]
+    return context
 
 
 def _save(path, value):
@@ -283,6 +292,7 @@ def propose(context, document):
 def _current(report):
     if report["contract_version"] != VERSION or report["target"] != target_for(report["step"]):
         raise ValueError("Factual-change contract or configured target changed; recapture")
+    _requirements_current(report)
     if (
         capture_candidate_sources()["sha256"] != report["candidate_sources"]["sha256"]
         or _job_hash() != report["job_sha256"]
@@ -294,7 +304,7 @@ def _current(report):
 
 
 def _context(report):
-    return {
+    context = {
         key: report[key]
         for key in (
             "contract_version",
@@ -305,10 +315,23 @@ def _context(report):
             "target_before",
         )
     }
+    if "requirements_revision" in report:
+        context["requirements_revision"] = report["requirements_revision"]
+    return context
+
+
+def _requirements_current(report):
+    if "requirements_revision" in report:
+        from vita.helpers.requirements import approved_revision
+        current = approved_revision(Path("job.md").read_text(encoding="utf-8"))
+        if current is None or current["revision"] != report["requirements_revision"]:
+            raise ValueError("Canonical requirement revision changed; regenerate the proposal")
 
 
 def validate_report(report):
     validate(report, FACTUAL_CHANGE_SCHEMA)
+    if "approval" in report:
+        approval.validate_decision(report["approval"], report["revision"])
     expected = propose(_context(report), report["document"])
     if any(
         report.get(key) != value
@@ -342,6 +365,12 @@ def save(report):
         "Source text support is not proof of factual truth or semantic equivalence.",
         "",
     ]
+    if "approval" in report:
+        lines += [f"Approval: {report['approval']['source']} ({report['approval']['policy']['mode']})",
+                  f"Run: {report['approval']['run_id']}; attempt: {report['approval']['attempt_id']}",
+                  f"Decision time: {report['approval']['timestamp']}", ""]
+        if report["approval"]["source"] == "unattended_run_policy":
+            lines += [approval.WARNING, "Unverified changes below remain unverified.", ""]
     for item in report["changes"]:
         lines += [
             f"- {item['id']}: {item['verification']} ({item['reason']})",
@@ -371,7 +400,11 @@ def load(step):
         raise ValueError("Invalid factual-change report") from exc
 
 
-def stage(context, document, *, require_approval=False):
+def stage(context, document, *, require_approval=False, authorization=None):
+    if authorization is not None:
+        approval.assert_authorized(authorization)
+        if require_approval:
+            raise ValueError("Conflicting human and unattended approval policies")
     if context["step"] == "cover" and not guard(("adapt",)):
         return False
     report = propose(context, document)
@@ -381,14 +414,32 @@ def stage(context, document, *, require_approval=False):
         previous = parse_json(archived.read_text(encoding="utf-8"))
         validate_report(previous)
         if previous["status"] == "rejected":
+            save(previous)
             print("This exact revision was rejected. Change the proposal before submitting again.")
             return False
-    if require_approval:
+    if authorization is not None:
+        # A new canonical context or policy does not undo a human rejection of
+        # the same proposal from the same captured candidate/job sources.
+        for path in (ROOT / report["step"]).glob("fc-*.json"):
+            previous = parse_json(path.read_text(encoding="utf-8"))
+            validate_report(previous)
+            if (previous["status"] == "rejected"
+                    and all(previous[k] == report[k] for k in
+                            ("document_sha256", "job_sha256", "target", "target_before"))
+                    and previous["candidate_sources"]["sha256"] == report["candidate_sources"]["sha256"]):
+                save(previous)
+                print("This proposal was explicitly rejected under the same sources; it remains rejected.")
+                return False
+    if require_approval or authorization is not None:
         # Human batch mode also reviews host-verifiable/no-op changes. This
         # cannot weaken the existing confirmation boundary in automatic mode.
         report["status"] = "confirmation_required"
     # Persist the recoverable proposal BEFORE writing any candidate document.
     save(report)
+    if authorization is not None:
+        _validate_tex(document)
+        return decide(report["step"], report["revision"], True,
+                      authorization=authorization)["application_status"] == "applied"
     if report["status"] == "confirmation_required":
         failure("validation", category="confirmation_required")
         count = sum(c["verification"] == "confirmation_required" for c in report["changes"])
@@ -407,10 +458,16 @@ def stage(context, document, *, require_approval=False):
     return True
 
 
-def decide(step, revision, approve):
+def decide(step, revision, approve, *, authorization=None):
+    if authorization is not None:
+        approval.assert_authorized(authorization)
+        if not approve:
+            raise ValueError("Unattended policy does not issue human rejections")
     if step == "cover" and not guard(("adapt",)):
         raise ValueError("Resolve Adapt before deciding a downstream Cover proposal")
     report = load(step)
+    if authorization is not None:
+        _validate_tex(report["document"])
     resumable = (
         approve and report["status"] == "approved" and report["application_status"] == "not_applied"
     )
@@ -422,8 +479,13 @@ def decide(step, revision, approve):
     # Record the explicit human decision first; a persistence failure must never
     # leave an applied document with only a rejected/unresolved decision on disk.
     report["status"] = "approved" if approve else "rejected"
+    report["approval"] = approval.decision(revision, authorization)
+    _save(ROOT / step / "decisions" / revision /
+          (report["approval"]["attempt_id"] + ".json"), report["approval"])
     save(report)
     if approve:
+        if authorization is not None:
+            approval.assert_authorized(authorization)
         _current(report)
         write_artifact(Path(report["target"]), report["document"])
         report["application_status"] = "applied"
@@ -433,6 +495,88 @@ def decide(step, revision, approve):
         f"Factual-change revision {report['revision']}: {report['status']}, {report['application_status']}. See {step}.facts.md.\n",
     )
     return report
+
+
+def resume_unattended(step, authorization):
+    """Recover an exact policy-approved draft, never a human/rejected proposal.
+
+    Returns None when generation should proceed. No settings file or model
+    output can turn an ordinary invocation into an unattended invocation.
+    """
+    approval.assert_authorized(authorization)
+    if not (RESULTS / (step + ".facts.json")).exists():
+        return None
+    report = load(step)
+    provenance = report.get("approval", {})
+    if provenance.get("source") != "unattended_run_policy":
+        return None
+    if report["status"] == "approved" and report["application_status"] == "not_applied":
+        if provenance["run_id"] != authorization["run_id"]:
+            raise ValueError("An approved draft belongs to a previous run; explicitly resolve it first")
+        if _read_target(report["target"]) == report["document"]:
+            assert_applied_current(report)
+            report["application_status"] = "applied"
+            save(report)
+            return report
+        return decide(step, report["revision"], True, authorization=authorization)
+    return None
+
+
+def assert_applied_current(report):
+    """Validate a publication interrupted before its final checkpoint write."""
+    validate_report(report)
+    _requirements_current(report)
+    if (report["status"] not in ("approved", "applied")
+            or _read_target(report["target"]) != report["document"]
+            or report["target"] != target_for(report["step"])
+            or _job_hash() != report["job_sha256"]):
+        raise ValueError("Applied proposal target/job changed; reassess current sources")
+    old = {s["path"]: s for s in report["candidate_sources"]["sources"]}
+    current = capture_candidate_sources()
+    for source in current["sources"]:
+        if Path(source["path"]).resolve() == Path(report["target"]).resolve():
+            continue
+        if source != old.get(source["path"]):
+            raise ValueError("Candidate source graph changed after publication")
+    for source in old.values():
+        if Path(source["path"]).resolve() == Path(report["target"]).resolve():
+            continue
+        if _read_target(source["path"]) != source["content"]:
+            raise ValueError("Captured candidate source changed after publication")
+        if source["kind"] == "verified_knowledge" and source not in current["sources"]:
+            raise ValueError("Knowledge verification changed after publication")
+
+
+def _validate_tex(document):
+    """Non-expanding structural checks, not a replacement for restricted build.
+
+    TeX is a programming language; package/font/undefined-command errors still
+    require the existing explicit PDF build. Never run generated shell commands.
+    """
+    text = re.sub(r"(?m)(?<!\\)%.*$", "", document)
+    text = re.sub(r"\\begin\{(verbatim\*?|lstlisting)\}.*?\\end\{\1\}", "", text, flags=re.S)
+    text = re.sub(r"\\verb\*?([^\w\s]).*?\1", "", text)
+    groups, environments = 0, []
+    for token in re.finditer(r"\\(?:begin|end)\{([^{}]+)\}|\\.|[{}]", text):
+        value = token.group()
+        if value.startswith(r"\begin{"):
+            environments.append(token.group(1))
+        elif value.startswith(r"\end{"):
+            if not environments or environments.pop() != token.group(1):
+                raise ValueError("Mismatched LaTeX environments; draft not applied")
+        elif value == "{":
+            groups += 1
+        elif value == "}":
+            groups -= 1
+            if groups < 0:
+                raise ValueError("Unbalanced LaTeX groups; draft not applied")
+    if groups or environments:
+        raise ValueError("Incomplete LaTeX groups/environments; draft not applied")
+    for name in re.findall(r"\\(?:input|include)\s*\{([^{}]+)\}", text):
+        path = Path(name)
+        path = path if path.suffix else path.with_suffix(".tex")
+        if "\\" in name or not path.resolve().is_relative_to(Path.cwd().resolve()) or not path.is_file():
+            raise ValueError("Missing/unsupported project-local LaTeX include; draft not applied")
 
 
 def guard(steps=STEPS):
@@ -458,7 +602,7 @@ def guard(steps=STEPS):
     return True
 
 
-def instruction(step, *, auto=False):
+def instruction(step, *, auto=False, approval_mode="auto"):
     preservation = (
         "\n\nFACTUAL PRESERVATION CONTRACT factual-changes/1 (takes precedence over tailoring and translation):\n"
         "Do not invent candidate facts or silently add specificity from the JD. Preserve ambiguous dates "
@@ -472,19 +616,30 @@ def instruction(step, *, auto=False):
         "independently; model claims of equivalence or approval are not authorization.\n"
     )
     if auto:
+        review_policy = "stages the proposal and requires explicit review of unresolved factual interpretations. "
+        if approval_mode == "unattended":
+            preservation = preservation.replace(
+                "Preserve original facts or stop for confirmation; never guess a repair.",
+                "Preserve original facts; never guess a repair. Return a complete proposal rather than requesting human review.",
+            )
+            review_policy = (
+                "stages the proposal and approves its exact valid revision under the user's explicit unattended run policy. "
+                "That policy accepts unverified changes without human review; it does not establish factual correctness. "
+            )
         return preservation + (
             "AUTONOMOUS GENERATION: The host has already captured the factual sources supplied below. "
             "Do not run commands, read files, write proposals, or approve changes. "
             "Return the requested complete LaTeX document in the host's output format. "
             "File-reading and saving instructions in task skills belong to the host in this mode. "
             "After generation the host checks the returned document against those captured sources, "
-            "stages the proposal and requires explicit review of unresolved factual interpretations. "
+            + review_policy +
             "Do not treat your own approval or equivalence claims as authorization.\n"
         )
     return preservation + (
         "Generated-prompt execution: before generating run `vita facts capture " + step + "`. "
         "Write ONLY a proposed document to a separate project-local .tex file, never overwrite the target. "
-        "Then run `vita facts check " + step + " --proposal <path>`. Stop on nonzero status; "
+        "Then run `vita facts check " + step + " --proposal <path>"
+        + (" --approval human" if approval_mode == "human" else "") + "`. Stop on nonzero status; "
         "show the source-linked confirmation items. Only the host check/explicit human approval may apply it. "
         "Recapture at execution time, so sequential tasks use current sources."
         " Read the resulting .vita/factual-changes/"

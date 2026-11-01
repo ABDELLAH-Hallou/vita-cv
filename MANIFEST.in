@@ -11,6 +11,7 @@ include ANNOTATION_GUIDE.md
 include MULTILINGUAL_VALIDATION.md
 include INGESTION.md
 include JOBENU_IMPORT.md
+include UNATTENDED_APPROVAL.md
 include tests/conftest.py
 
 recursive-include vita/assets *.md

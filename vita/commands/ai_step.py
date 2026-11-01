@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 
+from vita.helpers import approval as approval_policy
 from vita.helpers.assessment import run_assessment
 from vita.helpers.config import load_config
 from vita.helpers.context_builder import (
@@ -11,7 +12,7 @@ from vita.helpers.context_builder import (
 )
 from vita.helpers.diagnostics import diagnosed, failure, journal, local_artifact
 from vita.helpers.extensions import merged_language_map
-from vita.helpers.factual_changes import capture, guard, instruction, stage
+from vita.helpers.factual_changes import capture, guard, instruction, resume_unattended, stage
 from vita.helpers.job_extraction import extract, prepare_job
 from vita.helpers.llm import generate as llm_generate
 from vita.helpers.pipeline_config import load_pipeline_settings
@@ -42,12 +43,29 @@ def run(
     reassess: bool = False,
     qualitative: bool = False,
     approval: str = "auto",
+    authorization=None,
 ) -> bool:
-    if approval not in ("auto", "human"):
-        raise ValueError("Approval must be auto or human")
+    approval_policy.policy(approval)
     if step == "extract":
         return extract(auto=auto, provider=provider)
     try:
+        if approval == "unattended":
+            if not auto:
+                raise ValueError("--approval unattended requires --auto; generated prompts cannot carry consent")
+            authorization = authorization or approval_policy.capture(approval)
+            approval_policy.assert_authorized(authorization)
+            from vita.commands.requirements import ensure_unattended
+            ensure_unattended(authorization)
+            if step == "cover":
+                from vita.helpers.factual_changes import RESULTS, assert_applied_current, load
+                if (RESULTS / "adapt.facts.json").exists():
+                    report = load("adapt")
+                    if report["status"] in ("approved", "applied"):
+                        assert_applied_current(report)
+            if step in ("adapt", "cover") and resume_unattended(step, authorization):
+                return True
+        elif authorization is not None:
+            raise ValueError("Authorization requires explicit unattended policy")
         settings = load_pipeline_settings()
         job = prepare_job(settings, auto=auto)
     except (ValueError, OSError, RuntimeError) as exc:
@@ -139,7 +157,7 @@ def run(
 
     prompt_text += current_date_instruction()
     if step in ("adapt", "cover"):
-        prompt_text += instruction(step, auto=auto)
+        prompt_text += instruction(step, auto=auto, approval_mode=approval)
     prompt_text = prompt_text.replace("`main.tex`", f"`{resume_entry}`")
     prompt_text = prompt_text.replace("`cover-letter.tex`", f"`{cover_entry}`")
 
@@ -222,8 +240,11 @@ def run(
             print(f"⚠️ The AI did not return one valid LaTeX document. '{target}' was not updated.")
             return False
         try:
-            applied = (stage(factual_context, new_tex, require_approval=True)
-                       if approval == "human" else stage(factual_context, new_tex))
+            if approval == "unattended":
+                applied = stage(factual_context, new_tex, authorization=authorization)
+            else:
+                applied = (stage(factual_context, new_tex, require_approval=True)
+                           if approval == "human" else stage(factual_context, new_tex))
             if not applied:
                 write_artifact(results_dir / f"{step}.md", "Document not applied: confirmation required. See " + f"{step}.facts.md and {step}.facts.json.\n")
                 return False
@@ -233,6 +254,10 @@ def run(
             return False
         print(f"✅ Successfully updated {target}!")
         summary = re.sub(pattern, "", response, flags=re.DOTALL).strip()
+        if approval == "unattended":
+            summary = (approval_policy.WARNING + "\n\nApproval source: unattended_run_policy. "
+                       "See the exact revision and unverified changes in " + f"{step}.facts.md.\n\n"
+                       + summary)
 
         summary_file = results_dir / f"{step}.md"
         write_artifact(summary_file, summary)

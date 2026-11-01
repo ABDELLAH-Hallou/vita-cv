@@ -7,7 +7,7 @@ from vita.helpers import factual_changes as facts
 from vita.helpers.structured import parse_json
 
 
-def run(action, step, *, revision=None, proposal=None, as_json=False):
+def run(action, step, *, revision=None, proposal=None, as_json=False, approval="auto"):
     try:
         if action == "capture":
             if not facts.guard(("adapt",) if step == "cover" else ()):
@@ -26,7 +26,10 @@ def run(action, step, *, revision=None, proposal=None, as_json=False):
                 raise ValueError("Mismatched captured step")
             if not Path(proposal).resolve().is_relative_to(Path.cwd().resolve()):
                 raise ValueError("Proposal must be inside the project")
-            return facts.stage(context, Path(proposal).read_text(encoding="utf-8"))
+            if approval not in ("human", "auto"):
+                raise ValueError("Deferred prompts cannot carry unattended authorization")
+            options = {"require_approval": True} if approval == "human" else {}
+            return facts.stage(context, Path(proposal).read_text(encoding="utf-8"), **options)
         if action in ("approve", "reject"):
             report = facts.decide(step, revision, action == "approve")
         else:

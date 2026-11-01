@@ -12,6 +12,7 @@ from pathlib import Path
 
 from vita.commands import ai_step
 from vita.commands.run import STEPS
+from vita.helpers import approval as approval_policy
 from vita.helpers import factual_changes, git, requirements
 from vita.helpers.candidate_evidence import capture_candidate_sources
 from vita.helpers.config import DEFAULT_CONFIG
@@ -149,6 +150,8 @@ def project(path):
 
 def plan(path, *, base_branch=None, statuses=None, include_demo=False, new_revision=False,
          language=None, provider=None, run=False, approval=None, rerun=False):
+    if approval is not None:
+        approval_policy.policy(approval)
     result = git.repository_root()
     if not result.ok:
         raise ValueError("Run the importer inside an existing Git CV project.")
@@ -218,6 +221,8 @@ def plan(path, *, base_branch=None, statuses=None, include_demo=False, new_revis
                    "source_file": str(source_path), "base_branch": base, "base_commit": resolved.stdout,
                    "language": selected_language, "provider": selected_provider, "run_pipeline": run,
                    "approval": approval, "rerun": rerun, "skipped": export.skipped, "entries": entries}
+        payload["approval_policy"] = approval_policy.policy(approval) if approval else None
+        payload["approval_warning"] = approval_policy.WARNING if approval == "unattended" else None
         payload["preferences_sha256"] = _settings_hash(root)
         settings = load_pipeline_settings()
         payload["routing_sha256"] = digest({"extract": settings.extraction_enabled,
@@ -312,7 +317,7 @@ def _owned_workspace(root, state):
     return workspace
 
 
-def _pending_decision(state):
+def _pending_decision(state, authorization=None):
     pending = state.get("pending")
     if not pending:
         return True
@@ -322,11 +327,15 @@ def _pending_decision(state):
     if report["status"] == "rejected":
         state["status"] = "rejected"
         return False
+    if (authorization is not None and report["status"] == "approved"
+            and report["application_status"] == "not_applied"):
+        report = factual_changes.resume_unattended(pending["step"], authorization) or report
     if report["status"] not in ("approved", "applied") or report["application_status"] != "applied":
         state["status"] = "awaiting_approval"
         return False
     if Path(report["target"]).read_text(encoding="utf-8") != report["document"]:
         raise BatchError("Approved output was edited; use --rerun to reassess current sources.")
+    factual_changes.assert_applied_current(report)
     state["completed_steps"].append(pending["step"])
     state.pop("pending")
     return True
@@ -343,7 +352,9 @@ def _checkpoint():
     settings = load_pipeline_settings()
     effective = {"extract": settings.extraction_enabled,
                  "routes": {step: route.kwargs() for step, route in settings.routes.items()}}
+    canonical = requirements.approved_revision(Path("job.md").read_text(encoding="utf-8"))
     return {"candidate": snapshot["sha256"], "settings": digest([_settings_hash(Path.cwd()), effective]),
+            "requirements_revision": canonical["revision"] if canonical else None,
             "cover": digest(cover.read_text(encoding="utf-8")) if cover.exists() else None}
 
 
@@ -351,6 +362,12 @@ def execute(state, options, persist):
     """Existing pipeline stages, with durable checkpoints and no approval bypass."""
     workspace = Path(state["workspace"])
     with project(workspace):
+        selected = approval_policy.policy(options["approval"])
+        previous_policy = state.get("approval_policy", approval_policy.policy("auto"))
+        if (previous_policy != selected and "unattended" in
+                (previous_policy["mode"], selected["mode"]) and not options.get("rerun")
+                and (state.get("execution_options") or state.get("authorization"))):
+            raise BatchError("Approval policy changed. Preview a new plan and use --rerun for fresh consent.")
         if state["status"] == "complete" and not options.get("rerun"):
             routing = {k: options[k] for k in ("language", "provider")}
             if state.get("checkpoint") != _checkpoint() or state.get("execution_options") != routing:
@@ -362,12 +379,35 @@ def execute(state, options, persist):
             state["status"] = "imported"
             state.pop("checkpoint", None)
             state.pop("execution_options", None)
+            state.pop("authorization", None)
+        routing = {k: options[k] for k in ("language", "provider")}
+        if state.get("execution_options", routing) != routing:
+            raise BatchError("Language/provider override changed. Use --rerun for the new routing.")
+        state["approval_policy"] = selected
+        authorization = None
+        if options["approval"] == "unattended":
+            authorization = approval_policy.capture("unattended", state.get("authorization"))
+            state["authorization"] = authorization
+            persist()
+            step = state.get("current_step")
+            if not state.get("pending") and step in ("adapt", "cover") and Path(f".vita/results/{step}.facts.json").exists():
+                report = factual_changes.load(step)
+                if (report.get("approval", {}).get("run_id") == authorization["run_id"]
+                        and report["status"] == "approved"):
+                    state["pending"] = {"step": step, "revision": report["revision"]}
         had_pending = bool(state.get("pending"))
-        if not _pending_decision(state):
+        if not _pending_decision(state, authorization):
             persist()
             return
         try:
-            approved = requirements.active_requirements(Path("job.md").read_text(encoding="utf-8"))
+            if authorization is not None:
+                from vita.commands.requirements import ensure_unattended
+                log = workspace / ".vita/imports/execution.log"
+                log.parent.mkdir(parents=True, exist_ok=True)
+                with log.open("a", encoding="utf-8") as handle, contextlib.redirect_stdout(handle), contextlib.redirect_stderr(handle):
+                    approved = ensure_unattended(authorization)
+            else:
+                approved = requirements.active_requirements(Path("job.md").read_text(encoding="utf-8"))
         except ValueError as exc:
             if not str(exc).startswith("Canonical requirements need approval"):
                 raise
@@ -378,7 +418,9 @@ def execute(state, options, persist):
         state.pop("pending_requirements", None)
         current = _checkpoint()
         previous = state.get("checkpoint")
-        if previous and (previous["settings"] != current["settings"] or (not had_pending and previous != current)):
+        if previous and (previous["settings"] != current["settings"]
+                         or previous.get("requirements_revision") != current["requirements_revision"]
+                         or (not had_pending and previous != current)):
             raise BatchError("CV or saved settings changed since the pipeline checkpoint. Use --rerun to reassess current inputs.")
         routing = {k: options[k] for k in ("language", "provider")}
         if state.get("execution_options", routing) != routing:
@@ -401,14 +443,20 @@ def execute(state, options, persist):
                           "provider": options["provider"] if step != "extract" else None}
                 if step in ("adapt", "cover") and options["approval"] == "human":
                     kwargs["approval"] = "human"
+                if authorization is not None:
+                    kwargs.update(approval="unattended", authorization=authorization)
                 success = ai_step.run(step, **kwargs)
             if success is False:
                 state["status"] = "failed"
                 if step in ("adapt", "cover") and Path(f".vita/results/{step}.facts.json").exists():
                     report = factual_changes.load(step)
-                    if report["status"] == "confirmation_required":
+                    if report["status"] == "confirmation_required" and authorization is None:
                         state["pending"] = {"step": step, "revision": report["revision"]}
                         state["status"] = "awaiting_approval"
+                    elif report["status"] == "rejected":
+                        state["status"] = "rejected"
+                    elif report["status"] == "approved" and report["application_status"] != "applied":
+                        state["pending"] = {"step": step, "revision": report["revision"]}
                 persist()
                 return
             state["completed_steps"].append(step)

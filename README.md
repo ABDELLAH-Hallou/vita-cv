@@ -8,7 +8,9 @@ VITA can generate targeted AI prompts or run an autonomous AI workflow to analyz
 
 Import a Jobenu applications export with `vita import jobenu applications.json --dry-run`.
 Create isolated `etp-company-role` branches from a selected base and optionally run
-the saved AI workflow with explicit automatic/human approval. See [Jobenu batch imports](JOBENU_IMPORT.md).
+the saved AI workflow with explicit approval controls. See [Jobenu batch imports](JOBENU_IMPORT.md).
+For a fully authorized run without review pauses, use `--approval unattended`.
+This can accept inaccurate AI wording; see [Unattended approval](UNATTENDED_APPROVAL.md).
 
 ```sh
 uv tool install vita-cv
@@ -672,7 +674,7 @@ explicitly unvalidated.
 
 Adapt/Cover proposals now require explicit confirmation for unverified factual or
 wording changes. See [source-linked factual changes](FACTUAL_CHANGES.md) for
-`vita facts`, structured outputs, and the conservative unattended behavior.
+`vita facts`, structured outputs, and the conservative default automatic behavior.
 
 - **Warn, don't block** — duplicate CVs trigger a warning, not a hard stop (`--force` overrides, `locked: true` blocks permanently)
 - **CLI enforces naming** — roles are normalized automatically (`data engineer` → `de`, `machine learning engineer` → `ml`)
