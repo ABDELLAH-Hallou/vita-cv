@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.15.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.14.0...v2.15.0) (2026-11-02)
+
+
+### Features
+
+* add bounded provider fallback and failed-step recovery ([#100](https://github.com/ABDELLAH-Hallou/vita-cv/issues/100)) ([5198b28](https://github.com/ABDELLAH-Hallou/vita-cv/commit/5198b282ebe92b4b9fe3b4fd722a072deeed1092))
+
 ## [2.14.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.13.0...v2.14.0) (2026-11-01)
 
 
