@@ -49,6 +49,8 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
             "vita/commands/import_jobs.py",
             "vita/helpers/batch_import.py",
             "vita/helpers/approval.py",
+            "vita/helpers/fallback.py",
+            "vita/commands/fallback.py",
             "vita/commands/execution.py",
             "vita/integrations/jobenu.py",
             "vita/ingestion/contracts.py",
@@ -167,6 +169,10 @@ def smoke_test(distribution_directory: Path, expected_version: str | None = None
         run([str(python), str(Path(__file__).with_name("ingestion.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("jobenu_import.py").resolve())], cwd=project)
         run([str(python), str(Path(__file__).with_name("unattended_approval.py").resolve())], cwd=project)
+        run([str(python), str(Path(__file__).with_name("provider_fallback.py").resolve())], cwd=project)
+        fallback_caps = json.loads(run([str(python), "-m", "vita", "fallback", "capabilities", "--json"], cwd=project).stdout)
+        if fallback_caps["version"] != "provider-fallback/1" or fallback_caps["default_enabled"]:
+            raise AssertionError("Installed fallback capability/default is incorrect")
         policies = json.loads(run([str(python), "-m", "vita", "approval-policies", "--json"], cwd=project).stdout)
         if "unattended" not in [mode["id"] for mode in policies["modes"]]:
             raise AssertionError("Installed CLI lacks explicit unattended approval")

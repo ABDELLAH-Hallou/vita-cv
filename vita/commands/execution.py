@@ -6,16 +6,19 @@ import json
 from pathlib import Path
 
 from vita.helpers import approval
+from vita.helpers.fallback import configured, outcome_view
 from vita.helpers.structured import write_artifact
 
 
 def invoke(function, step, *, as_json=False, **options):
     mode = options.get("approval", "auto")
     authorization = None
+    prior_operation = None
     result = {"schema_version": 1, "step": step, "approval_policy": approval.policy(mode),
               "status": "failed", "authorization": None,
               "warning": approval.WARNING if mode == "unattended" else None}
     try:
+        prior_operation = outcome_view(step) if step in ("analyze", "adapt", "review", "cover") else None
         if mode == "unattended" and step != "run":
             authorization = approval.capture(mode)
             options["authorization"] = authorization
@@ -24,18 +27,26 @@ def invoke(function, step, *, as_json=False, **options):
         with contextlib.redirect_stdout(io.StringIO()) if as_json else contextlib.nullcontext():
             success = function(**options)
         result["status"] = "complete" if success else "failed"
-        if step == "run" and Path(".vita/workflow.json").exists() and (mode != "auto" or options.get("resume")):
+        if step == "run" and Path(".vita/workflow.json").exists() and (mode != "auto" or options.get("resume") or configured()):
             state = json.loads(Path(".vita/workflow.json").read_text(encoding="utf-8"))
             if state.get("approval_policy") == approval.policy(mode):
                 status = state["status"]
                 result["status"] = status if success or status in ("failed", "rejected", "awaiting_approval", "awaiting_requirements_approval") else "failed"
                 authorization = state.get("authorization")
+                result["operation_outcomes"] = state.get("operation_outcomes", {})
         result["authorization"] = authorization
     except (ValueError, OSError, RuntimeError):
         success = False
     if not success:
         result["action"] = "Inspect the project diagnostics, checkpoint, and exact factual/requirement revision before retrying."
     result["exit_code"] = 0 if success else 1
+    if step in ("analyze", "adapt", "review", "cover"):
+        try:
+            current_operation = outcome_view(step)
+        except ValueError:
+            current_operation = None
+        result["operation"] = current_operation if current_operation and (
+            prior_operation is None or current_operation["run_id"] != prior_operation["run_id"]) else None
     write_artifact(Path(f".vita/results/{step}.execution.json"), json.dumps(result, indent=2) + "\n")
     if as_json:
         print(json.dumps(result, indent=2))
@@ -43,6 +54,7 @@ def invoke(function, step, *, as_json=False, **options):
 
 
 def capabilities():
+    from vita.helpers.fallback import capabilities as routing_capabilities
     return {"schema_version": 1, "policy_version": approval.VERSION,
             "modes": [
                 {"id": "human", "description": "Explicit review before applying proposals"},
@@ -50,4 +62,4 @@ def capabilities():
                 {"id": "unattended", "description": approval.WARNING}],
             "requires_explicit_selection": ["unattended"],
             "unattended_requires_auto": ["run", "analyze", "adapt", "review", "cover"],
-            "generated_prompt_consent": False}
+            "generated_prompt_consent": False, "provider_fallback": routing_capabilities()}

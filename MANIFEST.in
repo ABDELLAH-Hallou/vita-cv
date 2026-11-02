@@ -12,6 +12,7 @@ include MULTILINGUAL_VALIDATION.md
 include INGESTION.md
 include JOBENU_IMPORT.md
 include UNATTENDED_APPROVAL.md
+include PROVIDER_FALLBACK.md
 include tests/conftest.py
 
 recursive-include vita/assets *.md

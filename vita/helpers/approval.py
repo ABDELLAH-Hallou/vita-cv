@@ -1,11 +1,9 @@
 """Host-only, explicit run authorization. Never read consent from env or models."""
 
-import hashlib
-import json
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
+from vita.helpers.operation_scope import scope_sha256 as _scope
 from vita.helpers.structured import TEXT, object_schema, validate
 
 MODES = ("human", "auto", "unattended")
@@ -36,24 +34,6 @@ def policy(mode):
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
-
-
-def _scope():
-    # Only hashes leave this helper. Credentials and personal source text never
-    # belong in approval provenance. Source snapshots bind the exact CV later.
-    files = [Path("job.md"), *(Path(".vita") / name for name in
-              ("config.json", "extensions.json", ".env"))]
-    values = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
-              for p in files}
-    values["project"] = str(Path.cwd().resolve())
-    from vita.helpers.pipeline_config import load_pipeline_settings
-    settings = load_pipeline_settings()
-    values["routing"] = {step: route.kwargs() for step, route in settings.routes.items()}
-    values["extraction"] = settings.extraction_enabled
-    for path in sorted(Path(".vita/skills").rglob("*")):
-        if path.is_file():
-            values[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
-    return hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()
 
 
 def capture(mode, previous=None):

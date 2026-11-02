@@ -66,6 +66,8 @@ ASSESSMENT_EXECUTION_SCHEMA = object_schema({
     "origin_id": {"type": ["string", "null"]}, "created_at": TEXT,
     "attempts": COUNT, "request_sha256": {"type": ["string", "null"]}, "output_mode": STRING,
 })
+ASSESSMENT_SCHEMA["properties"]["routing_policy_sha256"] = TEXT
+ASSESSMENT_EXECUTION_SCHEMA["properties"]["operation_run_id"] = TEXT
 ASSESSMENT_COMPARISON_SCHEMA = object_schema({
     "kind": TEXT, "cv_sources": {"type": "string", "enum": ["changed", "unchanged", "not_recorded"]},
     "candidate_evidence": {"type": "string", "enum": ["changed", "unchanged", "not_recorded"]},

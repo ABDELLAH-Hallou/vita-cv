@@ -61,6 +61,8 @@ def safe_route(route: dict, session: dict | None = None) -> dict:
 
 
 def http_category(status: int | None, body: str = "") -> str:
+    if status == 402:
+        return "quota_exceeded"
     if status == 401:
         return "authentication"
     if status == 403:

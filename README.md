@@ -11,6 +11,8 @@ Create isolated `etp-company-role` branches from a selected base and optionally 
 the saved AI workflow with explicit approval controls. See [Jobenu batch imports](JOBENU_IMPORT.md).
 For a fully authorized run without review pauses, use `--approval unattended`.
 This can accept inaccurate AI wording; see [Unattended approval](UNATTENDED_APPROVAL.md).
+Optional [provider fallback](PROVIDER_FALLBACK.md) can use an explicitly configured
+backup model for temporary provider failures, including resumable Jobenu batches.
 
 ```sh
 uv tool install vita-cv

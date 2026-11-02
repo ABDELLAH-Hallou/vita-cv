@@ -68,11 +68,12 @@ def generate(
     system_prompt: str, user_prompt: str, provider: str | None = None,
     model: str | None = None, *, response_schema: dict | None = None,
     session: dict | None = None,
+    reasoning_effort: str | None = None,
 ) -> str:
     """One adapter attempt. The operation runner owns the shared retry budget."""
     try:
         return _generate_once(system_prompt, user_prompt, provider, model,
-                              response_schema=response_schema, session=session)
+                              response_schema=response_schema, session=session, reasoning_effort=reasoning_effort)
     except ProviderError:
         raise
     except (TimeoutError, subprocess.TimeoutExpired) as exc:
@@ -86,7 +87,7 @@ def generate(
         raise ProviderError(code="provider_error") from None
 
 
-def _generate_once(system_prompt, user_prompt, provider=None, model=None, *, response_schema=None, session=None):
+def _generate_once(system_prompt, user_prompt, provider=None, model=None, *, response_schema=None, session=None, reasoning_effort=None):
     """Resolve exactly one route and call it without a fallback or hidden retry."""
     # A structured operation reuses this private snapshot across attempts. It
     # contains credentials and must never be serialized into outcome records.
@@ -104,6 +105,8 @@ def _generate_once(system_prompt, user_prompt, provider=None, model=None, *, res
         if session is not None:
             session["resolved"] = resolved
     provider_name, model, config, env = resolved
+    if reasoning_effort is not None:
+        config = {**config, "reasoning_effort": reasoning_effort}
     diagnostic.routing(provider, requested_model, resolved)
     native = response_schema is not None and provider_name in {"codex", "openai", "openrouter", "gemini", "google"}
     native = native and config.get("structured_output", "auto") != "off"
@@ -146,14 +149,18 @@ def _generate_once(system_prompt, user_prompt, provider=None, model=None, *, res
     raise ValueError(f"Unknown provider '{provider_name}'")
 
 
-def prepare_session(provider: str | None = None, model: str | None = None) -> dict:
+def prepare_session(provider: str | None = None, model: str | None = None,
+                    reasoning_effort: str | None = None) -> dict:
     """Freeze routing before cache lookup. This private object contains credentials.
 
     Explicit Codex assessment routing can use its CLI without modifying the
     provider registry or asking an interactive question during preparation.
     """
     try:
-        return {"resolved": _resolve(provider, model, allow_prompt=False)}
+        resolved = _resolve(provider, model, allow_prompt=False)
+        if reasoning_effort is not None:
+            resolved = (*resolved[:2], {**resolved[2], "reasoning_effort": reasoning_effort}, resolved[3])
+        return {"resolved": resolved}
     except (ValueError, OSError) as exc:
         diagnostic.failure("configuration", exc, category="configuration")
         raise ProviderError(code="configuration") from None
@@ -173,7 +180,7 @@ def _resolve(provider: str | None, model: str | None, *, allow_prompt: bool = Tr
     if provider_name not in providers:
         if provider_name == "codex":
             auto_add = load_config().get("auto_add_codex_provider", False)
-            if auto_add:
+            if auto_add and allow_prompt:
                 add_llm_provider("codex", {"model": ""})
                 providers["codex"] = {"model": ""}
                 print("Added Codex to .vita/extensions.json automatically.")
@@ -248,7 +255,7 @@ def _call_codex_cli(system_prompt: str, user_prompt: str, model: str = "", *,
                 raise UnsupportedSchema()
             # CLI diagnostics have no stable JSON error envelope. Only recognize
             # explicit status/model markers; never publish stderr or retry a guess.
-            status = re.search(r"\b(?:HTTP(?: status)?|status(?: code)?)[: =]+(401|403|408|429|500|502|503|504|529)\b", error, re.IGNORECASE)
+            status = re.search(r"\b(?:HTTP(?: status)?|status(?: code)?)[: =]+(401|402|403|408|429|500|502|503|504|529)\b", error, re.IGNORECASE)
             code = http_category(int(status[1]), error) if status else (
                 "invalid_model" if re.search(r"model_not_found|invalid_model|model[^\n]{0,120}(?:does not exist|not supported)", error, re.IGNORECASE)
                 else "provider_error")

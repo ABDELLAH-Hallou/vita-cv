@@ -13,7 +13,7 @@ from pathlib import Path
 from vita.commands import ai_step
 from vita.commands.run import STEPS
 from vita.helpers import approval as approval_policy
-from vita.helpers import factual_changes, git, requirements
+from vita.helpers import factual_changes, fallback, git, requirements
 from vita.helpers.candidate_evidence import capture_candidate_sources
 from vita.helpers.config import DEFAULT_CONFIG
 from vita.helpers.extensions import merged_role_aliases
@@ -197,6 +197,8 @@ def plan(path, *, base_branch=None, statuses=None, include_demo=False, new_revis
             if known:
                 entry["branch"] = known["branch"]
                 entry["base_commit"] = known["base_commit"]
+                if known.get("routing_amendments"):
+                    entry["routing_amendments_sha256"] = digest(known["routing_amendments"])
             locked = registry.get(company, {}).get("locked", False)
             if locked and not known:
                 entry["action"] = "locked"
@@ -227,6 +229,7 @@ def plan(path, *, base_branch=None, statuses=None, include_demo=False, new_revis
         settings = load_pipeline_settings()
         payload["routing_sha256"] = digest({"extract": settings.extraction_enabled,
                                            "routes": {s: r.kwargs() for s, r in settings.routes.items()}})
+        payload["fallback_policies"] = fallback.configured()
         payload["plan_id"] = digest(payload)
         return payload, records, export
 
@@ -352,6 +355,8 @@ def _checkpoint():
     settings = load_pipeline_settings()
     effective = {"extract": settings.extraction_enabled,
                  "routes": {step: route.kwargs() for step, route in settings.routes.items()}}
+    if policies := fallback.configured():
+        effective["fallback"] = policies
     canonical = requirements.approved_revision(Path("job.md").read_text(encoding="utf-8"))
     return {"candidate": snapshot["sha256"], "settings": digest([_settings_hash(Path.cwd()), effective]),
             "requirements_revision": canonical["revision"] if canonical else None,
@@ -362,6 +367,8 @@ def execute(state, options, persist):
     """Existing pipeline stages, with durable checkpoints and no approval bypass."""
     workspace = Path(state["workspace"])
     with project(workspace):
+        if state.get("job_sha256") and state["job_sha256"] != digest(Path("job.md").read_text(encoding="utf-8")):
+            raise BatchError("Job content changed since the captured workflow. Preserve the edit and start a new job revision.")
         selected = approval_policy.policy(options["approval"])
         previous_policy = state.get("approval_policy", approval_policy.policy("auto"))
         if (previous_policy != selected and "unattended" in
@@ -399,13 +406,19 @@ def execute(state, options, persist):
         if not _pending_decision(state, authorization):
             persist()
             return
+        if state.get("fallback_overrides") and not had_pending and state.get("checkpoint") != _checkpoint():
+            raise BatchError("Amended routing cannot reuse stale inputs/settings. Restore the captured dependencies before resuming.")
         try:
             if authorization is not None:
                 from vita.commands.requirements import ensure_unattended
                 log = workspace / ".vita/imports/execution.log"
                 log.parent.mkdir(parents=True, exist_ok=True)
                 with log.open("a", encoding="utf-8") as handle, contextlib.redirect_stdout(handle), contextlib.redirect_stderr(handle):
-                    approved = ensure_unattended(authorization)
+                    state["current_step"] = "requirements"
+                    persist()
+                    with fallback.operation_policy("requirements", state.get("fallback_overrides", {}).get("requirements")):
+                        approved = ensure_unattended(authorization)
+                    state.pop("current_step", None)
             else:
                 approved = requirements.active_requirements(Path("job.md").read_text(encoding="utf-8"))
         except ValueError as exc:
@@ -445,7 +458,13 @@ def execute(state, options, persist):
                     kwargs["approval"] = "human"
                 if authorization is not None:
                     kwargs.update(approval="unattended", authorization=authorization)
-                success = ai_step.run(step, **kwargs)
+                prior = fallback.outcome_view(step)
+                parent = prior["run_id"] if prior else None
+                with fallback.operation_policy(step, state.get("fallback_overrides", {}).get(step), parent):
+                    success = ai_step.run(step, **kwargs)
+            outcome = fallback.outcome_view(step)
+            if outcome:
+                state.setdefault("operation_outcomes", {})[step] = outcome
             if success is False:
                 state["status"] = "failed"
                 if step in ("adapt", "cover") and Path(f".vita/results/{step}.facts.json").exists():
