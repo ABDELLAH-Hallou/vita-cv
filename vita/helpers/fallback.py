@@ -146,21 +146,6 @@ def _outcome_view(step):
     return result
 
 
-def input_fingerprint(step):
-    import hashlib
-    from pathlib import Path
-
-    from vita.helpers.candidate_evidence import capture_candidate_sources, stable_hash
-    value = {}
-    if step not in ("extract", "requirements"):
-        value["sources"] = capture_candidate_sources()["sha256"]
-    if step == "cover":
-        from vita.helpers.config import load_config
-        target = Path(load_config().get("cover_tex_entry", "cover-letter.tex"))
-        value["target"] = hashlib.sha256(target.read_bytes()).hexdigest() if target.exists() else None
-    return stable_hash(value)
-
-
 def capabilities():
     return {"schema_version": 1, "version": VERSION, "default_enabled": False, "max_backups": 1,
             "budget": "shared VITA_PROVIDER_MAX_ATTEMPTS (1..5)",

@@ -11,7 +11,7 @@ import pytest
 from vita.__main__ import main
 from vita.commands import ai_step, providers, run
 from vita.commands import fallback as amend
-from vita.helpers import evaluation, fallback, llm, requirements
+from vita.helpers import approval, evaluation, fallback, job_extraction, llm, requirements
 from vita.helpers import factual_changes as facts
 from vita.helpers.provider_errors import ProviderError
 from vita.helpers.structured_output import StructuredOutputError, run_structured, run_text
@@ -50,6 +50,93 @@ def enable(monkeypatch, **extra):
 
 def outcome(step="adapt"):
     return json.loads(Path(f".vita/results/{step}.outcome.json").read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("step", list(fallback.PREFIXES))
+@pytest.mark.parametrize("edit_during", ["primary", "backup"])
+@pytest.mark.parametrize("changed_input", ["job", "skill", "settings"])
+def test_captured_scope_edits_stop_fallback_publication(project, monkeypatch, step, edit_during, changed_input):
+    enable(monkeypatch)
+    save = Mock()
+    generate = Mock()
+    def fake(*args, **kwargs):
+        is_primary = kwargs["provider"] == "gemini"
+        if is_primary == (edit_during == "primary"):
+            if changed_input == "job":
+                Path("job.md").write_text("A different job requiring Rust", encoding="utf-8")
+            elif changed_input == "skill":
+                path = Path(".vita/skills/adapt/custom.md")
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("Changed task instructions", encoding="utf-8")
+            else:
+                monkeypatch.setenv("ADAPT_FALLBACK_MODEL", "different-backup")
+        if is_primary:
+            raise ProviderError(code="overloaded")
+        return "valid output for the originally captured job"
+    generate.side_effect = fake
+    with pytest.raises(StructuredOutputError) as error:
+        run_structured(step=step, generate=generate, system="S", prompt=JD, route=PRIMARY,
+                       schema=None, finalize=lambda value: value, save=save)
+    assert error.value.code == "source_conflict"
+    assert generate.call_count == (1 if edit_during == "primary" else 2)
+    save.assert_not_called()
+
+
+@pytest.mark.parametrize("key,value", [
+    ("VITA_FALLBACK_MODEL", "different-backup"),
+    ("ADAPT_FALLBACK_MODEL", "different-stage-backup"),
+    ("VITA_FALLBACK_ENABLED", "false"),
+    ("VITA_FALLBACK_REASONING_EFFORT", "high"),
+    ("VITA_FALLBACK_CATEGORIES", "connection"),
+])
+def test_changed_environment_policy_invalidates_unattended_authorization(project, monkeypatch, key, value):
+    enable(monkeypatch)
+    captured = approval.capture("unattended")
+    approval.assert_authorized(captured)
+    monkeypatch.setenv(key, value)
+    with pytest.raises(ValueError, match="changed"):
+        approval.assert_authorized(captured)
+    with pytest.raises(ValueError, match="changed"):
+        approval.capture("unattended", captured)
+    with pytest.raises(ValueError, match="changed"):
+        approval.decision("synthetic-revision", captured)
+
+
+def test_disabled_policy_keeps_legacy_authorization_scope(project, monkeypatch):
+    captured = approval.capture("unattended")
+    monkeypatch.setenv("VITA_FALLBACK_MODEL", "inactive-backup")
+    monkeypatch.setenv("VITA_FALLBACK_REASONING_EFFORT", "high")
+    approval.assert_authorized(captured)
+    assert approval.capture("unattended", captured)["scope_sha256"] == captured["scope_sha256"]
+
+
+def test_extraction_does_not_save_stale_job_after_backup(project, monkeypatch):
+    enable(monkeypatch)
+    raw = Path("job.md").read_text(encoding="utf-8")
+    response = {"schema_version": 1, "source_sha256": job_extraction.fingerprint(raw),
+                "jobs": [{"id": "job-1", "title": "Engineer", "company": None,
+                          "location": None, "date_posted": None, "hard_skills": ["Python"],
+                          "soft_skills": [], "requirements": {"must_have": ["Python"], "nice_to_have": []},
+                          "responsibilities": [], "summary": "Python engineer"}]}
+    def fake(*args, **kwargs):
+        if kwargs["provider"] != "codex":
+            raise ProviderError(code="overloaded")
+        Path("job.md").write_text("A different job requiring Rust", encoding="utf-8")
+        return json.dumps(response)
+    generate = Mock(side_effect=fake)
+    monkeypatch.setattr(job_extraction, "generate", generate)
+    assert not job_extraction.extract(auto=True)
+    assert generate.call_count == 2
+    assert not Path(".vita/results/job.json").exists()
+    assert not Path(".vita/results/job.toon").exists()
+    assert outcome("extract")["error"]["code"] == "source_conflict"
+
+
+def test_pipeline_rejects_invalid_other_stage_before_generation(project, monkeypatch):
+    from vita.helpers.pipeline_config import load_pipeline_settings
+    enable(monkeypatch, COVER_FALLBACK_MODEL="")
+    with pytest.raises(ValueError, match="exact supported provider"):
+        load_pipeline_settings()
 
 
 @pytest.mark.parametrize("error", [None, "overloaded", "timeout", "rate_limit", "connection", "server_error"])

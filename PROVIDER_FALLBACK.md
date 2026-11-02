@@ -102,8 +102,14 @@ same-provider retry/switch. An explicit new invocation has a new bounded budget.
 
 ## Add a backup to an existing failed run
 
-Editing `.env` on a stopped workflow can invalidate its captured settings and
-consent. Instead, use an exact-plan amendment scoped to **that failed step**.
+Fallback operations check the captured job, project settings, task skills, and
+effective backup policies before each attempt and before saving results. Candidate
+sources and the Cover target retain their additional checks. A concurrent change
+stops the operation rather than saving a result based on stale inputs.
+
+Changing effective backup settings, including process-environment overrides, can
+invalidate captured settings and unattended consent. Instead, use an exact-plan
+amendment scoped to **that failed step**.
 Run this in the returned Jobenu worktree, or the standalone durable workflow
 project, after the failing process has stopped:
 

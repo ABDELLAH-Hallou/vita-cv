@@ -9,6 +9,7 @@ from pathlib import Path
 
 from vita.helpers import diagnostics as diagnostic
 from vita.helpers import fallback
+from vita.helpers.operation_scope import input_fingerprint
 from vita.helpers.provider_errors import (
     ProviderError,
     RetryPolicy,
@@ -156,7 +157,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                 raise ValueError("Unsupported inherited backup reasoning setting")
             if chain[0] == chain[1]:
                 raise ValueError("Primary and backup routes must differ")
-            guard = fallback.input_fingerprint(step)
+            guard = input_fingerprint(step)
             record.update(routing={"version": fallback.VERSION, "policy": routing_policy,
                                    "requested": safe_route(requested_route), "chain": chain, "effective": None},
                           parent_run_id=fallback.parent_run_id())
@@ -166,7 +167,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                                                              attempts=0, max_attempts=policy.max_attempts)
         fail("provider_error", error["action"], error)
     for number in range(1, policy.max_attempts + 1):
-        if routing_policy["enabled"] and fallback.input_fingerprint(step) != guard:
+        if routing_policy["enabled"] and input_fingerprint(step) != guard:
             fail("source_conflict", "Captured sources or configuration changed; preserve drafts and regenerate this step.")
         kwargs = dict(route)
         session["mode"] = "schema_requested" if native else "validated_prompt"
@@ -315,7 +316,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                     if type(exc) is ValueError:
                         attempt["detail"] = diagnostic.validation_detail(exc)
                 else:
-                    if routing_policy["enabled"] and fallback.input_fingerprint(step) != guard:
+                    if routing_policy["enabled"] and input_fingerprint(step) != guard:
                         fail("source_conflict", "Sources/configuration changed during generation; nothing was published.")
                     attempt["category"] = "valid"
                     persist()
