@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -414,6 +415,53 @@ def test_lock_and_filtered_empty_batch(project, capsys):
     assert "already running" in result(capsys)["error"]
 
 
+def test_independent_import_can_finish_while_another_is_running(project, monkeypatch, capsys):
+    first = export_file(project).rename(project / "first.json")
+    second = export_file(project, [application("two", "Example")])
+    ready = project / "provider-started"
+    worker = """
+import sys
+from pathlib import Path
+from vita.commands import ai_step, import_jobs
+
+def generate(*args, **kwargs):
+    Path(sys.argv[2]).touch()
+    sys.stdin.read()
+
+ai_step.run = generate
+raise SystemExit(import_jobs.run("jobenu", sys.argv[1], approval="auto", run_pipeline=True, as_json=True))
+"""
+    env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1]), "PYTHONUTF8": "1"}
+    with subprocess.Popen([sys._base_executable, "-c", worker, str(first), str(ready)],
+                          env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, text=True, encoding="utf-8") as child:
+        try:
+            deadline = time.monotonic() + 60
+            while not ready.exists() and child.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.02)
+            if child.poll() is not None:
+                pytest.fail(f"First import exited early: {child.communicate()}")
+            assert ready.exists(), "The first process did not reach its synthetic provider"
+            assert import_jobs.run("jobenu", first, dry_run=True, as_json=True) == 0
+            assert result(capsys)["entries"][0]["action"] == "existing"
+            assert import_jobs.run("jobenu", first, approval="auto", as_json=True) == 1
+            assert "already running" in result(capsys)["error"]
+            monkeypatch.setattr(ai_step, "run", Mock(return_value=True))
+            assert import_jobs.run("jobenu", second, approval="auto", run_pipeline=True, as_json=True) == 0
+            independent = result(capsys)["results"][0]
+            assert independent["status"] == "complete" and child.poll() is None
+            assert "review" in independent["completed_steps"]
+            assert "Example" in (Path(independent["workspace"]) / "job.md").read_text(encoding="utf-8")
+        finally:
+            child.kill()
+            child.communicate(timeout=10)
+    assert import_jobs.run("jobenu", first, approval="auto", run_pipeline=True, as_json=True) == 0
+    resumed = result(capsys)["results"][0]
+    assert resumed["branch"] != independent["branch"] and resumed["status"] == "complete"
+    assert len(batch_import._index(project)["applications"]) == 2
+    assert set(json.loads((project / ".vita/companies.json").read_text())) == {"acme", "example"}
+
+
 def test_json_and_errors_never_include_credentials(project, monkeypatch, capsys):
     monkeypatch.setenv("OPENAI_API_KEY", "fixture-secret-never-print")
     monkeypatch.setattr(ai_step, "run", Mock(side_effect=RuntimeError("fixture-secret-never-print")))
@@ -571,7 +619,8 @@ def test_legacy_jobenu_failed_cover_accepts_exact_amendment(project, monkeypatch
                  execution_options={"language": "en", "provider": None})
     index_path.write_text(json.dumps(index), encoding="utf-8")
     capsys.readouterr()
-    with batch_import.project(workspace):
+    other = {"branch": "etp-example-dev", "key": batch_import.digest("another-application")}
+    with batch_import.reserve(project, [other]), batch_import.project(workspace):
         assert amendment.run("cover", provider="codex", model="gpt-6.1-sol", categories="authentication", as_json=True) == 0
         plan = json.loads(capsys.readouterr().out)
         assert amendment.run("cover", provider="codex", model="gpt-6.1-sol", categories="authentication",
@@ -581,7 +630,8 @@ def test_legacy_jobenu_failed_cover_accepts_exact_amendment(project, monkeypatch
         assert name == "cover" and fallback.load_policy("cover")["backup"]["model"] == "gpt-6.1-sol"
         return True
     monkeypatch.setattr(ai_step, "run", step)
-    assert import_jobs.run("jobenu", file, approval="auto", run_pipeline=True, as_json=True) == 0
+    with batch_import.reserve(project, [other]):
+        assert import_jobs.run("jobenu", file, approval="auto", run_pipeline=True, as_json=True) == 0
     resumed = result(capsys)["results"][0]
     assert resumed["status"] == "complete"
     assert resumed["routing_amendments"][0]["checkpoint"] == snapshot

@@ -147,7 +147,9 @@ vita import jobenu applications.json --base-branch gen-ml --run --approval human
 ```
 
 Plans expose schema version, plan ID, base/commit, source IDs, roles, branch names
-and create/existing/conflict actions. IDs bind the source, base, preferences and
+and create/existing/conflict actions. The optional `execution_concurrency` object
+reports the supported concurrency model. Clients using an older backend should
+assume it allows a single active import in the parent project. IDs bind the source, base, preferences and
 current import state. Re-preview on changes. `--approve-plan` confirms only the
 batch plan. In noninteractive human mode without it, exit 2 returns
 `awaiting_plan_approval` without writes.
@@ -159,7 +161,15 @@ actual visual batch selector belongs in Vita Tree and is not part of this reposi
 Exit **0**: planned/imported/completed/empty. Exit **1**: invalid/conflicting/failed/
 rejected. Exit **2**: waiting for plan, document or canonical-criteria approval.
 Inspect per-entry results: execution is not all-or-nothing once creation starts.
-State and `last-batch.json` are private under `.vita/imports/jobenu/`. A lock prevents
-concurrent importers. After a crash inspect a stale `import.lock` before removing it.
+State and `last-batch.json` are private under `.vita/imports/jobenu/`. Each import
+reserves its selected branches and source application IDs. Separate CLI processes
+can run disjoint batches concurrently. Jobs within one import still run in order.
+A conflicting start or routing amendment fails immediately. Preview remains
+read-only and shared index writes are synchronized. `last-batch.json` records
+the most recently finished import.
+
+The OS releases branch and application reservations when the CLI process exits.
+If a legacy `import.lock` exists, confirm the old importer has stopped before
+removing it. Concurrent imports require all clients to use this contract.
 Worktrees containing user work are never automatically deleted. Resume from the
 owning parent project.
