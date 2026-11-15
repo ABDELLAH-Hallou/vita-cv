@@ -254,6 +254,7 @@ def _private_folder(root):
         with (private / ".gitignore").open("x", encoding="utf-8") as ignore:
             ignore.write("*\n")
     except FileExistsError:
+        # The ignore file is created once; if it already exists, keep it as-is.
         pass
     return store(root)
 
