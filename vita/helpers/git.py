@@ -112,6 +112,10 @@ def repository_root() -> GitResult:
     return _run("rev-parse", "--show-toplevel")
 
 
+def common_directory(path: str) -> GitResult:
+    return _run("-C", path, "rev-parse", "--path-format=absolute", "--git-common-dir")
+
+
 def local_branch_commit(branch: str) -> GitResult:
     if not branch or branch.startswith("-") or not _run("check-ref-format", "--branch", branch).ok:
         return GitResult(False, "", "Invalid local branch name", 1)

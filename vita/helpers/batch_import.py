@@ -6,8 +6,10 @@ import json
 import os
 import re
 import shutil
+import time
 import unicodedata
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 
 from vita.commands import ai_step
@@ -18,6 +20,7 @@ from vita.helpers.candidate_evidence import capture_candidate_sources
 from vita.helpers.config import DEFAULT_CONFIG
 from vita.helpers.extensions import merged_role_aliases
 from vita.helpers.pipeline_config import load_pipeline_settings
+from vita.helpers.process_lock import LockBusy, exclusive
 from vita.helpers.registry import ROLE_ALIASES
 from vita.integrations import read_export
 
@@ -55,7 +58,15 @@ def _text(path, text):
 def _save(path, value):
     temporary = path.with_suffix(".tmp")
     _text(temporary, json.dumps(value, ensure_ascii=False, indent=2) + "\n")
-    temporary.replace(path)
+    for attempt in range(50):
+        try:
+            temporary.replace(path)
+            return
+        except PermissionError:
+            # Windows can deny replacement while a concurrent preview reads.
+            if os.name != "nt" or attempt == 49:
+                raise
+            time.sleep(0.01)
 
 
 def store(root):
@@ -223,6 +234,8 @@ def plan(path, *, base_branch=None, statuses=None, include_demo=False, new_revis
                    "source_file": str(source_path), "base_branch": base, "base_commit": resolved.stdout,
                    "language": selected_language, "provider": selected_provider, "run_pipeline": run,
                    "approval": approval, "rerun": rerun, "skipped": export.skipped, "entries": entries}
+        payload["execution_concurrency"] = {"between_batches": "disjoint_applications_and_branches",
+                                            "within_batch": "serial"}
         payload["approval_policy"] = approval_policy.policy(approval) if approval else None
         payload["approval_warning"] = approval_policy.WARNING if approval == "unattended" else None
         payload["preferences_sha256"] = _settings_hash(root)
@@ -234,13 +247,21 @@ def plan(path, *, base_branch=None, statuses=None, include_demo=False, new_revis
         return payload, records, export
 
 
-@contextlib.contextmanager
-def locked(root):
+def _private_folder(root):
     private = root / ".vita/imports"
     private.mkdir(parents=True, exist_ok=True)
-    if not (private / ".gitignore").exists():
-        _text(private / ".gitignore", "*\n")
-    folder = store(root)
+    try:
+        with (private / ".gitignore").open("x", encoding="utf-8") as ignore:
+            ignore.write("*\n")
+    except FileExistsError:
+        # The ignore file is created once; if it already exists, keep it as-is.
+        pass
+    return store(root)
+
+
+@contextlib.contextmanager
+def locked(root):
+    folder = _private_folder(root)
     folder.mkdir(parents=True, exist_ok=True)
     lock = folder / "import.lock"
     try:
@@ -252,6 +273,37 @@ def locked(root):
         yield
     finally:
         lock.unlink()
+
+
+def metadata_lock(root):
+    return exclusive(store(root) / "metadata.lock", attempts=500)
+
+
+def save_application(root, state):
+    with metadata_lock(root):
+        index = _index(root)
+        application = index["applications"].setdefault(state["key"], {"versions": {}})
+        application["versions"][state["fingerprint"]] = state
+        _save(store(root) / "index.json", index)
+
+
+@contextlib.contextmanager
+def reserve(root, entries):
+    folder = _private_folder(root)
+    if (folder / "import.lock").exists():
+        raise BatchError("A legacy Jobenu import is already running (import.lock). Inspect the lock if that process has stopped.")
+    common = git.common_directory(str(root))
+    if not common.ok:
+        raise BatchError("Cannot find the Git common directory for branch reservations.")
+    locks = Path(common.stdout) / "vita/jobenu-locks"
+    with contextlib.ExitStack() as held:
+        for entry in entries:
+            try:
+                held.enter_context(exclusive(locks / "branches" / digest(entry["branch"])))
+                held.enter_context(exclusive(locks / "applications" / entry["key"]))
+            except LockBusy:
+                raise BatchError(f"A Jobenu operation is already running for {entry['branch']} or its application.") from None
+        yield
 
 
 def _preferences(root, workspace):
@@ -492,10 +544,9 @@ def apply(planned, applications, export, *, rerun=False):
         raise ValueError("Project preferences changed after planning. Preview and approve a new plan.")
     if not git.author_configured():
         raise ValueError("Configure git user.name and user.email before creating import commits.")
-    index = _index(root)
     results = []
     for entry in planned["entries"]:
-        versions = index["applications"].setdefault(entry["key"], {"versions": {}})["versions"]
+        versions = _index(root)["applications"].get(entry["key"], {}).get("versions", {})
         state = versions.get(entry["fingerprint"])
         if state is None:
             workspace = store(root) / "worktrees" / (entry["key"][:16] + "-" + entry["fingerprint"][:12])
@@ -505,9 +556,9 @@ def apply(planned, applications, export, *, rerun=False):
             workspace.parent.mkdir(parents=True, exist_ok=True)
             added = git.add_worktree(str(workspace), entry["branch"], planned["base_commit"])
             if not added.ok:
-                log = store(root) / "git.log"
+                log = store(root) / "logs" / (entry["key"] + ".log")
                 _git_error(log, "worktree.add", added)
-                results.append({**entry, "status": "failed", "error": "Could not create worktree; inspect the private git.log.", "execution_log": str(log)})
+                results.append({**entry, "status": "failed", "error": "Could not create worktree; inspect the private Git log.", "execution_log": str(log)})
                 continue
             app = applications[entry["key"]]
             job = job_markdown(app)
@@ -516,10 +567,8 @@ def apply(planned, applications, export, *, rerun=False):
                      "completed_steps": [], "exported_at": export.exported_at, "import_ready": False,
                      "initial_job_sha256": digest((workspace / "job.md").read_text(encoding="utf-8"))
                      if (workspace / "job.md").exists() else None}
-            versions[entry["fingerprint"]] = state
-            _save(store(root) / "index.json", index)
-        def persist():
-            _save(store(root) / "index.json", index)
+            save_application(root, state)
+        persist = partial(save_application, root, state)
         state["action"] = entry["action"]
         try:
             if not state["import_ready"]:
@@ -542,7 +591,8 @@ def apply(planned, applications, export, *, rerun=False):
                 state["import_ready"] = True
                 persist()
             _owned_workspace(root, state)
-            _registry(root, state)
+            with metadata_lock(root):
+                _registry(root, state)
             if planned["run_pipeline"]:
                 execute(state, {**planned, "rerun": rerun}, persist)
             state.pop("error", None)
