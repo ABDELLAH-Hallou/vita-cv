@@ -184,7 +184,11 @@ def run(
     # ── Auto Execution ────────────────────────────────────────────────────────
     print(f"🚀 Running '{step}' autonomously...")
     try:
-        factual_context = capture(step) if step in ("adapt", "cover") else None
+        factual_context = None
+        if step == "cover":
+            factual_context = capture(step, language=language or "en")
+        elif step == "adapt":
+            factual_context = capture(step)
     except (ValueError, OSError) as exc:
         failure("context", exc, category="validation_error")
         print("Cannot capture factual sources. Check the CV, included files, and document configuration.")

@@ -9,6 +9,12 @@ from vita.helpers.factual_changes import guard
 from vita.helpers.logging import log
 
 
+def cover_pdf_name(config):
+    return config.get("cover_output_filename", "cover-letter-{author}.pdf").format(
+        author=config.get("author", "cv")
+    )
+
+
 @diagnosed(name="build")
 def run(target: str = "resume") -> bool:
     if not guard(("adapt", "cover") if target in ("cover", "both") else ("adapt",)):
@@ -28,7 +34,7 @@ def run(target: str = "resume") -> bool:
         ),
         "cover": (
             config.get("cover_tex_entry", "cover-letter.tex"),
-            config.get("cover_output_filename", "cover-letter-{author}.pdf").format(author=author),
+            cover_pdf_name(config),
             "cover letter",
         ),
     }

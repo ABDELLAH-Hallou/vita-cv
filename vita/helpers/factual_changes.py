@@ -48,6 +48,7 @@ CONTEXT_SCHEMA = object_schema(
     }
 )
 CONTEXT_SCHEMA["properties"]["requirements_revision"] = TEXT
+CONTEXT_SCHEMA["properties"]["language"] = TEXT
 FACTUAL_CHANGE_SCHEMA = object_schema(
     {
         **CONTEXT_SCHEMA["properties"],
@@ -97,6 +98,7 @@ FACTUAL_CHANGE_SCHEMA = object_schema(
 )
 FACTUAL_CHANGE_SCHEMA["properties"]["approval"] = approval.DECISION_SCHEMA
 FACTUAL_CHANGE_SCHEMA["required"].remove("requirements_revision")
+FACTUAL_CHANGE_SCHEMA["required"].remove("language")
 
 
 def target_for(step):
@@ -126,7 +128,7 @@ def _job_hash():
     return digest(Path("job.md").read_text(encoding="utf-8"))
 
 
-def capture(step):
+def capture(step, *, language=None):
     """Capture before generation, including supported includes and verified KB."""
     target = target_for(step)
     # Do not recapture a known rejected/unresolved output as new source evidence.
@@ -161,6 +163,10 @@ def capture(step):
     requirements = approved_revision(Path("job.md").read_text(encoding="utf-8"))
     if requirements is not None:
         context["requirements_revision"] = requirements["revision"]
+    if language is not None:
+        if step != "cover" or not language.strip():
+            raise ValueError("A nonempty language can be recorded for Cover only")
+        context["language"] = language.strip().casefold()
     return context
 
 
@@ -315,8 +321,9 @@ def _context(report):
             "target_before",
         )
     }
-    if "requirements_revision" in report:
-        context["requirements_revision"] = report["requirements_revision"]
+    for key in ("requirements_revision", "language"):
+        if key in report:
+            context[key] = report[key]
     return context
 
 

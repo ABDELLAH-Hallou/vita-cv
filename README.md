@@ -294,6 +294,39 @@ vita build -c              # Cover letter only; also --cover
 
 Both PDFs use the same configured `output_dir`: by default `out/cv-<author>.pdf` and `out/cover-letter-<author>.pdf`. Generate the cover letter first with `vita cover --auto` or `vita run --auto`. Building compiles existing sources; it does not call an AI provider. A missing source or compiler failure returns a nonzero exit status. `both` cannot be combined with `--resume` or `--cover`.
 
+### Export a cover letter for an application form
+
+```sh
+vita cover-export export --language fr --json
+vita cover-export stage-short short.txt --language fr --json
+vita cover-export show --language fr --json
+vita cover-export approve-short EXACT_REVISION --language fr --json
+vita cover-export export --language fr --json
+```
+
+Export compiles the current published cover letter and returns its PDF path.
+If Poppler's `pdftotext` is installed and the PDF has selectable text, the
+response includes copyable text from that PDF and its Unicode character count.
+Otherwise the PDF is still available and the response explains why text
+extraction was unavailable. Omit `--json` to see the text in the terminal.
+
+Write the short wording in a project-local UTF-8 file. Review the exact staged
+wording and count before approving it or use `reject-short EXACT_REVISION`.
+Export includes short text only after approval for the current full letter and
+language. Changing the letter or selecting a different language invalidates
+the short revision. Edit the wording, stage it again, and review the new
+revision. These commands make no AI requests.
+
+An unresolved or rejected Cover proposal blocks export. Generated Cover reports
+record the requested language. For a manual Cover review, record it with
+`vita facts capture cover --language fr`. For published legacy letters with no
+language record, pass the language of the document.
+
+Clients can discover `cover-export` via the CLI help. The JSON contract is
+`cover-export/1`. An export returns `pdf_path`, `plain_text` and `short`.
+Ready text carries `text` and `character_count`. Pending short text is available
+from `show` for review and appears in export only after approval.
+
 For multilingual and Arabic/RTL sources, configure `latex_engine` and install the
 fonts required by the document. See [multilingual validation](MULTILINGUAL_VALIDATION.md)
 for synthetic fixtures, structural checks, rendering prerequisites and independent
