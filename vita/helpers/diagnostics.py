@@ -25,6 +25,7 @@ from pathlib import Path
 
 from vita import __version__
 from vita.helpers.execution_journal import Journal, component, redact_text
+from vita.helpers.process_lock import LockBusy, exclusive
 
 VERSION = 1
 CAPTURE_STATUSES = ("captured", "redacted", "disabled", "suppressed", "truncated", "unavailable")
@@ -534,38 +535,11 @@ class Trace:
 @contextmanager
 def storage_lock(base):
     """Cross-process quota/rotation lock. Contention degrades diagnostics only."""
-    base.mkdir(parents=True, exist_ok=True, mode=0o700)
-    lock = base / ".storage.lock"
-    if lock.is_symlink():
-        raise OSError("unsafe lock path")
-    fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        # Windows permits locking beyond EOF. Do not initialize a byte before
-        # acquiring its lock: another process may already own that byte.
-        for _ in range(200):
-            try:
-                if os.name == "nt":
-                    import msvcrt
-                    os.lseek(fd, 0, os.SEEK_SET)
-                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-                else:
-                    import fcntl
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except (BlockingIOError, PermissionError):
-                _LOCK_PAUSE(0.01)
-        else:
-            raise OSError("diagnostic lock contention")
-        try:
+        with exclusive(base / ".storage.lock", attempts=200, pause=_LOCK_PAUSE):
             yield
-        finally:
-            if os.name == "nt":
-                os.lseek(fd, 0, os.SEEK_SET)
-                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-            else:
-                fcntl.flock(fd, fcntl.LOCK_UN)
-    finally:
-        os.close(fd)
+    except LockBusy as exc:
+        raise OSError("diagnostic lock contention") from exc
 
 
 def enforce_storage(base, current, incoming):
