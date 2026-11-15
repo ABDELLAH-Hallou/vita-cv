@@ -149,9 +149,7 @@ def run_structured(*, step: str, generate, system: str, prompt: str, route: dict
                         raise ValueError("A configured API route is missing its credential")
             for frozen in (session, backup_session):
                 if "resolved" in frozen:
-                    provider_name, model_name, config, _ = frozen["resolved"]
-                    frozen["route"] = {"provider": provider_name, "model": model_name or None,
-                                       "reasoning_effort": config.get("reasoning_effort") if provider_name in ("codex", "openai", "openrouter") else None}
+                    frozen["route"] = llm.resolved_route(frozen["resolved"])
             chain = [safe_route(route, session), safe_route(routing_policy["backup"], backup_session)]
             if backup_session.get("route", {}).get("reasoning_effort") not in (None, *fallback.REASONING):
                 raise ValueError("Unsupported inherited backup reasoning setting")

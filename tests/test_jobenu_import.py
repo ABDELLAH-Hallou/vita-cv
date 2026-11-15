@@ -114,6 +114,50 @@ def test_dry_run_is_machine_readable_and_has_no_writes(project, capsys):
     assert before == git("branch", "--format=%(refname)")
 
 
+def test_saved_stage_reasoning_reaches_preview_and_cover_adapter(project, monkeypatch, capsys):
+    from vita.helpers import fallback, llm
+
+    file = export_file(project)
+    env = project / ".vita/.env"
+    env.write_text(env.read_text(encoding="utf-8") + """ANALYSIS_REASONING_EFFORT=high
+ADAPT_PROVIDER=openai
+COVER_PROVIDER=openai
+COVER_MODEL=cover-model
+COVER_REASONING_EFFORT=low
+ANALYSIS_FALLBACK_ENABLED=true
+ANALYSIS_FALLBACK_PROVIDER=openrouter
+ANALYSIS_FALLBACK_MODEL=backup-model
+ANALYSIS_FALLBACK_REASONING_EFFORT=medium
+""", encoding="utf-8")
+    assert import_jobs.run("jobenu", file, dry_run=True, run_pipeline=True, as_json=True) == 0
+    routes = result(capsys)["new_worktree_routing"]["stages"]
+    assert routes["analyze"]["primary"] == {
+        "provider": "openai", "model": "custom-model-999", "reasoning_effort": "high"
+    }
+    assert routes["review"] == routes["analyze"]
+    assert routes["adapt"]["primary"]["reasoning_effort"] == "high"
+    assert routes["analyze"]["backup"]["reasoning_effort"] == "medium"
+    assert routes["cover"]["primary"]["reasoning_effort"] == "low"
+
+    assert import_jobs.run("jobenu", file, dry_run=True, run_pipeline=True,
+                           provider="gemini", as_json=True) == 0
+    routes = result(capsys)["new_worktree_routing"]["stages"]
+    assert routes["cover"]["primary"]["provider"] == "gemini"
+    assert routes["cover"]["primary"]["model"] != "cover-model"
+    assert routes["cover"]["primary"]["reasoning_effort"] is None
+    assert routes["extract"]["primary"]["provider"] == "gemini"
+
+    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-credential")
+    monkeypatch.setattr(ai_step, "llm_generate", llm.generate)
+    adapter = Mock(return_value=LATEX % "I am applying for this role.")
+    monkeypatch.setattr(llm, "_call_openai", adapter)
+    (project / "job.md").write_text("A synthetic engineering role.", encoding="utf-8")
+    ai_step.run("cover", language="en", auto=True)
+    adapter.assert_called_once()
+    assert adapter.call_args.kwargs["reasoning_effort"] == "low"
+    assert fallback.outcome_view("cover")["attempts"][0]["effective"]["reasoning_effort"] == "low"
+
+
 def test_config_base_and_explicit_override(project, capsys):
     git("branch", "gen-ml")
     config = {**DEFAULT_CONFIG, "default_base_branch": "gen-ml"}

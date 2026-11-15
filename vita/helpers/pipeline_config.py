@@ -16,11 +16,14 @@ STAGE_PREFIXES = {
 class ModelRoute:
     provider: str | None = None
     model: str | None = None
+    reasoning_effort: str | None = None
 
     def kwargs(self) -> dict:
         result = {"provider": self.provider}
         if self.model:
             result["model"] = self.model
+        if self.reasoning_effort:
+            result["reasoning_effort"] = self.reasoning_effort
         return result
 
 
@@ -32,12 +35,14 @@ class PipelineSettings:
     def route(self, stage: str, provider: str | None = None) -> ModelRoute:
         route = self.routes[stage]
         if provider:
-            # A CLI provider override must not inherit a different vendor's model.
-            model = route.model if not route.provider or provider.lower() == route.provider else None
+            same_provider = not route.provider or provider.lower() == route.provider
+            model = route.model if same_provider else None
+            reasoning = route.reasoning_effort if same_provider else None
             log_journal("configuration.cli_override", stage=stage, cli_provider=provider,
                         configured_provider=route.provider, configured_model=route.model,
+                        effective_reasoning_effort=reasoning,
                         effective_model=model, explanation="The same CLI provider retains the stage model; a different provider discards a vendor-specific stage model.")
-            return ModelRoute(provider.lower(), model)
+            return ModelRoute(provider.lower(), model, reasoning)
         return route
 
 
@@ -51,6 +56,7 @@ def load_pipeline_settings() -> PipelineSettings:
     for stage, prefix in STAGE_PREFIXES.items():
         provider = env.get(f"{prefix}_PROVIDER", "").strip().lower() or None
         model = env.get(f"{prefix}_MODEL", "").strip() or None
+        reasoning = env.get(f"{prefix}_REASONING_EFFORT", "").strip().lower() or None
         provider_source = "stage_environment" if provider else "provider_registry"
         model_source = "stage_environment" if model else "provider_registry"
         if stage == "extract":
@@ -72,8 +78,11 @@ def load_pipeline_settings() -> PipelineSettings:
                 model = model or analysis.model
                 if not env.get(f"{prefix}_MODEL", "").strip():
                     model_source = "analysis_stage_inheritance"
-        routes[stage] = ModelRoute(provider, model)
+            if provider == analysis.provider:
+                reasoning = reasoning or analysis.reasoning_effort
+        routes[stage] = ModelRoute(provider, model, reasoning)
         log_journal("configuration.stage_route", stage=stage, provider=provider, model=model,
+                    reasoning_effort=reasoning,
                     provider_source=provider_source, model_source=model_source,
                     provider_variable=f"{prefix}_PROVIDER", model_variable=f"{prefix}_MODEL",
                     explanation="Extraction has its own built-in Gemini model when EXTRACTION_MODEL is unset. This explicit stage model overrides extensions.json later." if model_source == "built_in_extraction_default" else "Stage settings are passed explicitly to the provider resolver.")

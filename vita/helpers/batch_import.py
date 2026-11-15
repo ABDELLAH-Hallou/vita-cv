@@ -13,11 +13,12 @@ from pathlib import Path
 from vita.commands import ai_step
 from vita.commands.run import STEPS
 from vita.helpers import approval as approval_policy
-from vita.helpers import factual_changes, fallback, git, requirements
+from vita.helpers import factual_changes, fallback, git, llm, requirements
 from vita.helpers.candidate_evidence import capture_candidate_sources
 from vita.helpers.config import DEFAULT_CONFIG
 from vita.helpers.extensions import merged_role_aliases
 from vita.helpers.pipeline_config import load_pipeline_settings
+from vita.helpers.provider_errors import ProviderError, safe_route
 from vita.helpers.registry import ROLE_ALIASES
 from vita.integrations import read_export
 
@@ -148,6 +149,26 @@ def project(path):
             os.environ["VITA_PROJECT_ROOT"] = old_root
 
 
+def _preview_route(requested):
+    try:
+        session = llm.prepare_session(**requested)
+    except ProviderError:
+        return None
+    return safe_route(llm.resolved_route(session["resolved"]), session)
+
+
+def _preview_routing(settings, provider, policies):
+    stages = {}
+    for step in ("extract", "requirements", *STEPS):
+        extraction = step in ("extract", "requirements")
+        requested = settings.route("extract" if extraction else step, None if extraction else provider).kwargs()
+        stage = {"requested": safe_route(requested), "primary": _preview_route(requested)}
+        if step in policies:
+            stage["backup"] = _preview_route(policies[step]["backup"])
+        stages[step] = stage
+    return {"version": 1, "extraction_enabled": settings.extraction_enabled, "stages": stages}
+
+
 def plan(path, *, base_branch=None, statuses=None, include_demo=False, new_revision=False,
          language=None, provider=None, run=False, approval=None, rerun=False):
     if approval is not None:
@@ -230,6 +251,9 @@ def plan(path, *, base_branch=None, statuses=None, include_demo=False, new_revis
         payload["routing_sha256"] = digest({"extract": settings.extraction_enabled,
                                            "routes": {s: r.kwargs() for s, r in settings.routes.items()}})
         payload["fallback_policies"] = fallback.configured()
+        if run:
+            payload["new_worktree_routing"] = _preview_routing(settings, selected_provider,
+                                                               payload["fallback_policies"])
         payload["plan_id"] = digest(payload)
         return payload, records, export
 

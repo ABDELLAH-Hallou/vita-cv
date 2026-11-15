@@ -87,6 +87,24 @@ def generate(
         raise ProviderError(code="provider_error") from None
 
 
+def _with_reasoning(resolved, reasoning_effort):
+    if reasoning_effort is None:
+        return resolved
+    from vita.helpers.fallback import REASONING, REASONING_PROVIDERS
+
+    if resolved[0] not in REASONING_PROVIDERS or reasoning_effort not in REASONING:
+        raise ValueError("Unsupported reasoning effort for the selected provider")
+    return (*resolved[:2], {**resolved[2], "reasoning_effort": reasoning_effort}, resolved[3])
+
+
+def resolved_route(resolved):
+    from vita.helpers.fallback import REASONING_PROVIDERS
+
+    provider, model, config, _ = resolved
+    reasoning = config.get("reasoning_effort") if provider in REASONING_PROVIDERS else None
+    return {"provider": provider, "model": model or None, "reasoning_effort": reasoning}
+
+
 def _generate_once(system_prompt, user_prompt, provider=None, model=None, *, response_schema=None, session=None, reasoning_effort=None):
     """Resolve exactly one route and call it without a fallback or hidden retry."""
     # A structured operation reuses this private snapshot across attempts. It
@@ -104,21 +122,20 @@ def _generate_once(system_prompt, user_prompt, provider=None, model=None, *, res
             raise ProviderError(code="configuration") from None
         if session is not None:
             session["resolved"] = resolved
+    resolved = _with_reasoning(resolved, reasoning_effort)
     provider_name, model, config, env = resolved
-    if reasoning_effort is not None:
-        config = {**config, "reasoning_effort": reasoning_effort}
+    route = resolved_route(resolved)
     diagnostic.routing(provider, requested_model, resolved)
     native = response_schema is not None and provider_name in {"codex", "openai", "openrouter", "gemini", "google"}
     native = native and config.get("structured_output", "auto") != "off"
     if session is not None:
         session["mode"] = "native_schema" if native else "validated_prompt"
-        session["route"] = {"provider": provider_name, "model": model or None,
-                            "reasoning_effort": config.get("reasoning_effort") if provider_name in ("codex", "openai", "openrouter") else None}
+        session["route"] = route
     options = {"response_schema": generation_schema(response_schema)} if native else {}
     diagnostic.journal("adapter.selected", provider=provider_name, model=model, native_schema=native,
                        structured_output=config.get("structured_output", "auto"), reasoning_effort=config.get("reasoning_effort"))
-    reasoning = config.get("reasoning_effort")
-    if reasoning is not None and provider_name in {"codex", "openai", "openrouter"}:
+    reasoning = route["reasoning_effort"]
+    if reasoning is not None:
         options["reasoning_effort"] = reasoning
 
     if provider_name == "codex":
@@ -158,9 +175,7 @@ def prepare_session(provider: str | None = None, model: str | None = None,
     """
     try:
         resolved = _resolve(provider, model, allow_prompt=False)
-        if reasoning_effort is not None:
-            resolved = (*resolved[:2], {**resolved[2], "reasoning_effort": reasoning_effort}, resolved[3])
-        return {"resolved": resolved}
+        return {"resolved": _with_reasoning(resolved, reasoning_effort)}
     except (ValueError, OSError) as exc:
         diagnostic.failure("configuration", exc, category="configuration")
         raise ProviderError(code="configuration") from None

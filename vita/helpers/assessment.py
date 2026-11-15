@@ -96,7 +96,7 @@ def prepare_assessment(job, *, route: dict | None = None, baseline: dict | None 
         route_source, reasoning_source = "external_unreported", "external_unreported"
     else:
         provider, model, config, _ = session["resolved"]
-        reasoning = config.get("reasoning_effort") if provider in ("openai", "openrouter", "codex") else None
+        reasoning = llm.resolved_route(session["resolved"])["reasoning_effort"]
         inherited = provider == "codex" and (not model or reasoning is None)
         route_source = "inherited_unreported" if inherited else "resolved"
         reasoning_source = "configured" if reasoning is not None else (

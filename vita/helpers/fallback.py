@@ -12,6 +12,7 @@ PREFIXES = {"extract": "EXTRACTION", "requirements": "EXTRACTION", "analyze": "A
             "adapt": "ADAPT", "review": "REVIEW", "cover": "COVER"}
 ALLOWED = TRANSIENT | {"authentication", "permission", "invalid_model", "quota_exceeded"}
 REASONING = {"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}
+REASONING_PROVIDERS = {"codex", "openai", "openrouter"}
 _OVERRIDE = contextvars.ContextVar("vita_operation_fallback", default=None)
 _PARENT = contextvars.ContextVar("vita_operation_parent", default=None)
 
@@ -38,7 +39,7 @@ def validate_policy(value):
             or public["provider"] != route["provider"]
             or public["model"] != route["model"]):
         raise ValueError("Fallback requires an exact supported provider and safe model ID")
-    if "reasoning_effort" in route and (route["provider"] not in ("codex", "openai", "openrouter")
+    if "reasoning_effort" in route and (route["provider"] not in REASONING_PROVIDERS
                                          or route["reasoning_effort"] not in REASONING):
         raise ValueError("Unsupported fallback reasoning setting/provider")
     categories = value["categories"]
