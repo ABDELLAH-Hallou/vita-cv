@@ -91,6 +91,31 @@ extraction keeps its own route. Saved Jobenu `language`/`provider` preferences m
 also be set in the integration config. Explicit command flags win. Resuming preserves
 job-specific worktree preferences rather than overwriting them with parent settings.
 
+### Native reasoning settings
+
+Set `EXTRACTION_REASONING_EFFORT`, `ANALYSIS_REASONING_EFFORT`,
+`ADAPT_REASONING_EFFORT`, `REVIEW_REASONING_EFFORT`, or
+`COVER_REASONING_EFFORT` in the same project `.env` used for stage model and
+provider settings. A stage value overrides that provider's `extensions.json`
+default. Review inherits the analysis effort when they share a provider and
+review has no override. Requirements use the extraction route. A different
+`--provider` drops model and reasoning overrides associated with the previous
+provider. Explicit effort is supported by the Codex, OpenAI and OpenRouter
+adapters, subject to the selected model's capabilities.
+
+JSON previews for `--run` include `new_worktree_routing.version: 1`. Its
+`stages` map carries each stage's requested settings, resolved primary route and
+optional backup. A null route signals that the backend could not resolve it,
+for example when its requested effort is unsupported or the provider is missing
+configuration. A null effort within a resolved route means Vita leaves effort
+to the provider or its CLI. Preview performs no provider calls. Existing
+worktrees keep their own settings and routing amendments. For executed steps,
+use `operation_outcomes` to inspect the route actually attempted.
+
+Older backends omit `new_worktree_routing`. Clients can use that to disclose
+unavailable per-stage reasoning before launch. Provider-level reasoning and
+existing fallback policies continue to work through their original settings.
+
 Generated changes/results remain in that worktree. `complete` means AI stages
 completed, not PDF compilation, commits, pushes or submissions. In the returned
 workspace, run `vita build both` for the normal PDF handoff and review before using
