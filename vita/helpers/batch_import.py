@@ -18,7 +18,6 @@ from vita.helpers.candidate_evidence import capture_candidate_sources
 from vita.helpers.config import DEFAULT_CONFIG
 from vita.helpers.extensions import merged_role_aliases
 from vita.helpers.pipeline_config import load_pipeline_settings
-from vita.helpers.provider_errors import ProviderError, safe_route
 from vita.helpers.registry import ROLE_ALIASES
 from vita.integrations import read_export
 
@@ -149,22 +148,15 @@ def project(path):
             os.environ["VITA_PROJECT_ROOT"] = old_root
 
 
-def _preview_route(requested):
-    try:
-        session = llm.prepare_session(**requested)
-    except ProviderError:
-        return None
-    return safe_route(llm.resolved_route(session["resolved"]), session)
-
-
 def _preview_routing(settings, provider, policies):
     stages = {}
     for step in ("extract", "requirements", *STEPS):
         extraction = step in ("extract", "requirements")
         requested = settings.route("extract" if extraction else step, None if extraction else provider).kwargs()
-        stage = {"requested": safe_route(requested), "primary": _preview_route(requested)}
+        public, primary = llm.preview_route(requested)
+        stage = {"requested": public, "primary": primary}
         if step in policies:
-            stage["backup"] = _preview_route(policies[step]["backup"])
+            _, stage["backup"] = llm.preview_route(policies[step]["backup"])
         stages[step] = stage
     return {"version": 1, "extraction_enabled": settings.extraction_enabled, "stages": stages}
 

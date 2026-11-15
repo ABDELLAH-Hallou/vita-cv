@@ -181,6 +181,16 @@ def prepare_session(provider: str | None = None, model: str | None = None,
         raise ProviderError(code="configuration") from None
 
 
+def preview_route(requested):
+    """Describe requested and resolved routing without making a provider call."""
+    public = safe_route(requested)
+    try:
+        session = prepare_session(**requested)
+    except ProviderError:
+        return public, None
+    return public, safe_route(resolved_route(session["resolved"]), session)
+
+
 @diagnostic.phase("configuration")
 def _resolve(provider: str | None, model: str | None, *, allow_prompt: bool = True) -> tuple:
     """Resolve configuration once, without changing the requested model."""
