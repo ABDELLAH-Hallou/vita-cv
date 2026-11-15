@@ -21,6 +21,7 @@ EXTRACTION_PROVIDER=gemini
 EXTRACTION_MODEL=gemini-2.5-flash
 ANALYSIS_PROVIDER=openai
 ANALYSIS_MODEL=gpt-4o
+# ANALYSIS_REASONING_EFFORT=medium  # For a model that supports explicit reasoning effort
 
 GEMINI_API_KEY=your_gemini_key
 OPENAI_API_KEY=your_openai_key
