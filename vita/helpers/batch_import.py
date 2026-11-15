@@ -15,7 +15,7 @@ from pathlib import Path
 from vita.commands import ai_step
 from vita.commands.run import STEPS
 from vita.helpers import approval as approval_policy
-from vita.helpers import factual_changes, fallback, git, requirements
+from vita.helpers import factual_changes, fallback, git, llm, requirements
 from vita.helpers.candidate_evidence import capture_candidate_sources
 from vita.helpers.config import DEFAULT_CONFIG
 from vita.helpers.extensions import merged_role_aliases
@@ -159,6 +159,19 @@ def project(path):
             os.environ["VITA_PROJECT_ROOT"] = old_root
 
 
+def _preview_routing(settings, provider, policies):
+    stages = {}
+    for step in ("extract", "requirements", *STEPS):
+        extraction = step in ("extract", "requirements")
+        requested = settings.route("extract" if extraction else step, None if extraction else provider).kwargs()
+        public, primary = llm.preview_route(requested)
+        stage = {"requested": public, "primary": primary}
+        if step in policies:
+            _, stage["backup"] = llm.preview_route(policies[step]["backup"])
+        stages[step] = stage
+    return {"version": 1, "extraction_enabled": settings.extraction_enabled, "stages": stages}
+
+
 def plan(path, *, base_branch=None, statuses=None, include_demo=False, new_revision=False,
          language=None, provider=None, run=False, approval=None, rerun=False):
     if approval is not None:
@@ -243,6 +256,9 @@ def plan(path, *, base_branch=None, statuses=None, include_demo=False, new_revis
         payload["routing_sha256"] = digest({"extract": settings.extraction_enabled,
                                            "routes": {s: r.kwargs() for s, r in settings.routes.items()}})
         payload["fallback_policies"] = fallback.configured()
+        if run:
+            payload["new_worktree_routing"] = _preview_routing(settings, selected_provider,
+                                                               payload["fallback_policies"])
         payload["plan_id"] = digest(payload)
         return payload, records, export
 
