@@ -5,6 +5,7 @@ import io
 import json
 import uuid
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 
 from vita.helpers import approval, batch_import, factual_changes
@@ -30,7 +31,7 @@ def _locate():
             for state in app["versions"].values():
                 if Path(state["workspace"]).resolve() == workspace:
                     batch_import._owned_workspace(root, state)
-                    return root, state, lambda path=path, index=index: batch_import._save(path, index)
+                    return root, state, partial(batch_import.save_application, root, state)
     raise ValueError("No durable workflow found. Run in the returned Jobenu worktree or standalone workflow project.")
 
 
@@ -78,8 +79,9 @@ def run(step, *, provider, model, reasoning_effort=None, categories=None, apply=
         if reasoning_effort is not None:
             policy["backup"]["reasoning_effort"] = reasoning_effort
         routing.validate_policy(policy)
-        root, state, persist = _locate()
-        with batch_import.locked(root):
+        root, state, _ = _locate()
+        lock = batch_import.reserve(root, [state]) if "fingerprint" in state else batch_import.locked(root)
+        with lock:
             fresh_root, state, persist = _locate()
             if root != fresh_root:
                 raise ValueError("Workflow owner changed during amendment")

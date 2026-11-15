@@ -76,7 +76,7 @@ def run(source, path, *, base_branch=None, dry_run=False, run_pipeline=False, ap
                 _emit({**planned, "status": "cancelled"}, False)
                 return 2
         root = Path(planned["project_root"])
-        with batch_import.locked(root), batch_import.project(root):
+        with batch_import.reserve(root, planned["entries"]), batch_import.project(root):
             # Bind consent to source, base commit, configuration and current
             # registry/index state, including changes while the user reviewed.
             with contextlib.redirect_stdout(io.StringIO()):
@@ -87,7 +87,8 @@ def run(source, path, *, base_branch=None, dry_run=False, run_pipeline=False, ap
             statuses_found = {s["status"] for s in result["results"]}
             code = 1 if statuses_found & {"failed", "rejected"} else 2 if statuses_found & {"awaiting_approval", "awaiting_requirements_approval"} else 0
             result["status"] = "failed" if code == 1 else "awaiting_approval" if code == 2 else "complete" if run_pipeline else "imported"
-            batch_import._save(batch_import.store(root) / "last-batch.json", result)
+            with batch_import.metadata_lock(root):
+                batch_import._save(batch_import.store(root) / "last-batch.json", result)
         _emit(result, as_json)
         return code
     except (OSError, ValueError, KeyError, TypeError) as exc:
