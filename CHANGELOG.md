@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.15.1](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.15.0...v2.15.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* scope Jobenu reservations to applications and branches ([#106](https://github.com/ABDELLAH-Hallou/vita-cv/issues/106)) ([0d013d1](https://github.com/ABDELLAH-Hallou/vita-cv/commit/0d013d18e3f169e795cc2cea13209a346fb2b32b))
+
 ## [2.15.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.14.0...v2.15.0) (2026-11-02)
 
 
