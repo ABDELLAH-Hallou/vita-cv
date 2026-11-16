@@ -43,9 +43,9 @@ def test_auto_generation_leaves_capture_and_staging_to_host(project, monkeypatch
     target = Path(fc.target_for(step))
     before = target.read_bytes()
 
-    def host_capture(selected):
+    def host_capture(selected, **options):
         events.append("capture")
-        return capture(selected)
+        return capture(selected, **options)
 
     def generation(system_prompt, user_prompt, **options):
         events.append("generate")
@@ -64,11 +64,14 @@ def test_auto_generation_leaves_capture_and_staging_to_host(project, monkeypatch
     monkeypatch.setattr(ai_step, "capture", host_capture)
     monkeypatch.setattr(ai_step, "stage", host_stage)
     monkeypatch.setattr(ai_step, "llm_generate", generation)
-    assert not ai_step.run(step, auto=True)
+    language = "fr" if step == "cover" else None
+    assert not ai_step.run(step, language=language, auto=True)
     assert events == ["capture", "generate", "stage"]
     assert Path("main.tex").read_bytes() == source
     assert target.read_bytes() == before
-    assert fc.load(step)["status"] == "confirmation_required"
+    report = fc.load(step)
+    assert report["status"] == "confirmation_required"
+    assert report.get("language") == language
 
 
 @pytest.mark.parametrize("step", ["adapt", "cover"])
