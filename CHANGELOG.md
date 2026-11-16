@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.15.2](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.15.1...v2.15.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* forward saved Jobenu stage reasoning ([#107](https://github.com/ABDELLAH-Hallou/vita-cv/issues/107)) ([cf9555d](https://github.com/ABDELLAH-Hallou/vita-cv/commit/cf9555ddffcae0de8bceef94338016cdc16ffba1))
+
 ## [2.15.1](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.15.0...v2.15.1) (2026-11-15)
 
 
