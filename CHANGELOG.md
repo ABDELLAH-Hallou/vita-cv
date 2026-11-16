@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.16.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.15.2...v2.16.0) (2026-11-16)
+
+
+### Features
+
+* export reviewed cover letter formats ([#108](https://github.com/ABDELLAH-Hallou/vita-cv/issues/108)) ([a217925](https://github.com/ABDELLAH-Hallou/vita-cv/commit/a217925dee5c4ebecf8e522814c2faf0d5c46865))
+
 ## [2.15.2](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.15.1...v2.15.2) (2026-11-16)
 
 
