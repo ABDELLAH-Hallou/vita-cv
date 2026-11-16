@@ -20,6 +20,18 @@ uv tool install vita-cv
 
 ---
 
+## Prefer a visual workspace? Meet Vita-Tree
+
+**Vita-CV is the command-line tool:** manage CV versions with Git, build LaTeX PDFs, and run AI workflows for job analysis, CV tailoring, review, and cover letters.
+
+**[Vita-Tree](https://github.com/ABDELLAH-Hallou/vita-tree) is the companion visual workspace:** edit LaTeX CVs, compare versions side by side, preview PDFs, and manage applications in your browser. Its optional AI integration runs Vita-CV workflows through the interface.
+
+Use Vita-CV directly if you prefer the terminal, or choose Vita-Tree for a visual workflow.
+
+To try Vita-Tree with a sample CV, install it with `pipx install vita-tree`, then run `vt demo`.
+
+---
+
 ## How It Works
 
 VITA manages your CV using git branches:
