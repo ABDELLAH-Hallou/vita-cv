@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.16.1](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.16.0...v2.16.1) (2026-11-16)
+
+
+### Documentation
+
+* compare Vita-CV with Vita-Tree in the introduction ([#109](https://github.com/ABDELLAH-Hallou/vita-cv/issues/109)) ([37a8615](https://github.com/ABDELLAH-Hallou/vita-cv/commit/37a8615813ec3d28844b7040047f0d4ff6b6ed6d))
+
 ## [2.16.0](https://github.com/ABDELLAH-Hallou/vita-cv/compare/v2.15.2...v2.16.0) (2026-11-16)
 
 
