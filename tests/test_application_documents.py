@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import sys
 from unittest.mock import Mock
 
 import pytest
@@ -31,6 +32,77 @@ def custom_skill(project, task, filename, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def cover_export(monkeypatch, capsys, action, *args, language="fr"):
+    from vita.__main__ import main
+
+    monkeypatch.setattr(sys, "argv", ["vita", "cover-export", action, *args,
+                                      "--language", language, "--json"])
+    with pytest.raises(SystemExit) as exit_code:
+        main()
+    return exit_code.value.code, json.loads(capsys.readouterr().out)
+
+
+def test_short_cover_revision_requires_review_and_current_source(project, monkeypatch, capsys):
+    from vita.helpers import factual_changes
+
+    cover = project / "cover-letter.tex"
+    cover.write_text(LATEX % "Madame, Monsieur.", encoding="utf-8")
+    draft = project / "short.txt"
+    draft.write_text("Je souhaite rejoindre votre équipe.", encoding="utf-8")
+    code, proposal = cover_export(monkeypatch, capsys, "stage-short", "short.txt")
+    assert code == 0
+    short = proposal["short"]
+    assert short["status"] == "pending"
+    assert short["character_count"] == len(draft.read_text(encoding="utf-8"))
+    assert cover_export(monkeypatch, capsys, "reject-short", short["revision"])[0] == 0
+    assert cover_export(monkeypatch, capsys, "approve-short", short["revision"])[0] == 1
+    assert cover_export(monkeypatch, capsys, "stage-short", "short.txt")[0] == 1
+
+    draft.write_text("Merci pour votre temps.", encoding="utf-8")
+    _, proposal = cover_export(monkeypatch, capsys, "stage-short", "short.txt")
+    old_revision = proposal["short"]["revision"]
+    assert cover_export(monkeypatch, capsys, "approve-short", proposal["short"]["revision"])[0] == 0
+    cover.write_text(LATEX % "Bonjour, voici ma candidature.", encoding="utf-8")
+    _, current = cover_export(monkeypatch, capsys, "show")
+    assert current["short"] == {"status": "stale"}
+
+    context = factual_changes.capture("cover", language="fr")
+    assert not factual_changes.stage(context, LATEX % "Voici ma nouvelle lettre.", require_approval=True)
+    capsys.readouterr()
+    assert cover_export(monkeypatch, capsys, "show")[0] == 1
+    report = factual_changes.load("cover")
+    factual_changes.decide("cover", report["revision"], True)
+    assert cover_export(monkeypatch, capsys, "show", language="en")[0] == 1
+    _, proposal = cover_export(monkeypatch, capsys, "stage-short", "short.txt")
+    assert proposal["short"]["revision"] != old_revision
+    assert cover_export(monkeypatch, capsys, "approve-short", proposal["short"]["revision"])[0] == 0
+
+
+@pytest.mark.skipif(not (shutil.which("latexmk") and shutil.which("pdftotext")),
+                    reason="Requires LaTeX and Poppler")
+def test_export_cover_pdf_and_copyable_text(project, monkeypatch, capsys):
+    cover = project / "cover-letter.tex"
+    cover.write_text(
+        LATEX % ("\\pagestyle{empty}Madame, Monsieur, je souhaite rejoindre votre équipe."
+                 "\\par Merci pour votre temps."),
+        encoding="utf-8",
+    )
+    short_text = "Je souhaite rejoindre votre équipe."
+    (project / "short.txt").write_text(short_text, encoding="utf-8")
+    _, proposal = cover_export(monkeypatch, capsys, "stage-short", "short.txt")
+    assert cover_export(monkeypatch, capsys, "approve-short", proposal["short"]["revision"])[0] == 0
+    code, exported = cover_export(monkeypatch, capsys, "export")
+    assert code == 0
+    assert exported["language"] == "fr"
+    assert (project / "out/cover-letter-candidate.pdf").read_bytes().startswith(b"%PDF-")
+    assert exported["pdf_path"].endswith("cover-letter-candidate.pdf")
+    plain = exported["plain_text"]
+    assert "rejoindre votre équipe" in plain["text"]
+    assert plain["character_count"] == len(plain["text"])
+    assert exported["short"]["text"] == short_text
+    assert exported["short"]["character_count"] == len(short_text)
 
 
 def test_custom_skills_override_append_and_stay_in_their_task(project):

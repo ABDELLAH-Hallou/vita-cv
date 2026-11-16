@@ -12,6 +12,7 @@ from vita import __version__
 from vita.commands import (
     ai_step,
     build,
+    cover_export,
     diagnostics,
     diff,
     facts,
@@ -57,6 +58,7 @@ commands:
   import jobenu <file>     Import job exports into CV branches and optionally run the AI batch
   new etp <company> <role> Create a new tailored CV branch
   build [both]             Compile the CV, cover letter, or both to PDF
+  cover-export             Export the cover letter or review its short version
   status                   Show all companies and branches
   sync                     Reconcile registry with git branches
   diff <company>           Show diff from base CV
@@ -136,6 +138,8 @@ commands:
     for action in ("capture", "check", "show", "approve", "reject"):
         action_p = facts_sub.add_parser(action)
         action_p.add_argument("step", choices=("adapt", "cover"))
+        if action == "capture":
+            action_p.add_argument("--language", help="Selected language for a Cover proposal")
         if action == "check":
             action_p.add_argument("--proposal", required=True, help="Separate project-local proposed .tex file")
             action_p.add_argument("--approval", choices=["auto", "human"], default="auto",
@@ -144,6 +148,17 @@ commands:
             action_p.add_argument("revision", help="Exact revision after reviewing all confirmation items")
         if action == "show":
             action_p.add_argument("--json", action="store_true")
+
+    cover_export_p = subparsers.add_parser("cover-export", help="Export a cover PDF and text, or review short wording")
+    cover_export_sub = cover_export_p.add_subparsers(dest="cover_export_action", required=True)
+    for action in ("show", "export", "stage-short", "approve-short", "reject-short"):
+        action_p = cover_export_sub.add_parser(action)
+        action_p.add_argument("--language", required=True, help="Language of the published cover and short wording")
+        action_p.add_argument("--json", action="store_true", help="Show the local record, which may contain private text")
+        if action == "stage-short":
+            action_p.add_argument("draft", help="Project-local UTF-8 wording to review")
+        if action in ("approve-short", "reject-short"):
+            action_p.add_argument("revision", help="Exact short wording revision after review")
 
     diagnostics_p = subparsers.add_parser("diagnostics", help="Inspect local execution traces or export a sanitized technical bundle")
     diagnostics_sub = diagnostics_p.add_subparsers(dest="diagnostics_action", required=True)
@@ -309,8 +324,12 @@ commands:
     elif args.command == "facts":
         if facts.run(args.facts_action, args.step, revision=getattr(args, "revision", None),
                      proposal=getattr(args, "proposal", None), as_json=getattr(args, "json", False),
-                     approval=getattr(args, "approval", "auto")) is False:
+                     approval=getattr(args, "approval", "auto"), language=getattr(args, "language", None)) is False:
             sys.exit(1)
+
+    elif args.command == "cover-export":
+        sys.exit(cover_export.run(args.cover_export_action, language=args.language, as_json=args.json,
+                                  draft=getattr(args, "draft", None), revision=getattr(args, "revision", None)))
 
     elif args.command == "diagnostics":
         if diagnostics.run(args.diagnostics_action, trace_id=getattr(args, "trace_id", None),

@@ -7,12 +7,12 @@ from vita.helpers import factual_changes as facts
 from vita.helpers.structured import parse_json
 
 
-def run(action, step, *, revision=None, proposal=None, as_json=False, approval="auto"):
+def run(action, step, *, revision=None, proposal=None, as_json=False, approval="auto", language=None):
     try:
         if action == "capture":
             if not facts.guard(("adapt",) if step == "cover" else ()):
                 return False
-            context = facts.capture(step)
+            context = facts.capture(step, language=language)
             facts._save(facts.ROOT / (step + ".capture.json"), context)
             print(
                 f"Captured sources for {step}; generate a separate proposal, then use vita facts check."
